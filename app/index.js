@@ -1,7 +1,11 @@
-// 必要なモジュールのインポート
-const express = require('express');
-const session = require('express-session');
-const { marked } = require('marked');
-const fs = require('fs');
-const path = require('path');
+import React from 'react';
+import ReactDOM from 'react-dom';
+import './index.css'; // TailwindCSSをインポート
+import App from './App';
 
+ReactDOM.createRoot(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+  document.getElementById('root')
+);
