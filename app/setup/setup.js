@@ -4,7 +4,6 @@ const path = require('path');
 const { Client } = require('pg');
 console.log('\n############################\nセットアップ処理を開始します\n############################\n');
 
-
 const envFilePath = './.env';
 
 if (fs.existsSync(envFilePath)) {
