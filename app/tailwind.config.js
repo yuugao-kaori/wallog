@@ -1,3 +1,8 @@
+/*
+tailwind.config.js
+*/
+
+
 module.exports = {
     darkMode: 'class', // ダークモードの切り替えを有効にする
     content: ['./src/**/*.{js,jsx,ts,tsx}', './public/index.html'],
