@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const port = 5000;
 
+// bodyParserが必要な場合
 app.use(express.json()); 
 
 app.get('/', (req, res) => {
@@ -10,21 +11,17 @@ app.get('/', (req, res) => {
 
 
 // /api/test/test1 エンドポイント
-app.get('/api/test/test1', (req, res) => {
-  res.send('test_OK');
-  console.log(`api/test/test1 エンドポイント`);
-});
+const test1Route = require('./api/test/test1');
+app.use('/api/test', test1Route);
 
 // /api/test/test2 エンドポイント
-app.post('/api/test/test2', (req, res) => {
-  const { test_body1 } = req.body;
+const test2Route = require('./api/test/test2');
+app.use('/api/test', test2Route);
 
-  if (!test_body1) {
-    return res.status(400).send('test_body1 is required');
-  }
+// /api/test/test3 エンドポイント
+const test3Route = require('./api/test/test3');
+app.use('/api/test', test3Route);
 
-  res.send(`catch_OK:${test_body1}`);
-});
 
 
 app.listen(port, () => {

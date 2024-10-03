@@ -53,3 +53,49 @@ user_passwordをハッシュ化する
 Expressを利用したAPIを実装して下さい。
 
 要件は、
+
+
+
+あなたはフロントエンドエンジニアです。
+Nodejsでセッション管理を行うコードを書いて下さい。
+フロントエンドはReact(ポート3000)、バックエンドはExpress(ポート5000)、セッションストアはValkey(ポート9000)。
+ログイン情報はlocalhost:3000/api/user/loginに送信されます。
+セッションはログインからログアウトまで保持してください。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+あなたはフロントエンドエンジニアです。
+Nodejsでセッション管理を行うコードを書いて下さい。
+フロントエンドはReact(ポート3000)、バックエンドはExpress(ポート5000)を使用して下さい。
+1. セッションについては、express-sessionモジュールを利用して下さい。
+2. ログイン情報はlocalhost:3000/api/user/loginに送信されます。
+3. セッション情報は30分保持され、30分毎に新しいセッションIDが生成されます。
+4. Remember Me機能がデフォルトで有効化されています。
+5. セッションはログインからログアウトまで保持してください。
+6. テスト実装のため、USER_ID、USER_PASSWORDはコード内に定義されます。
+7. テスト実装のため、セッションはインメモリを利用します(外部のストアは使用しません)
+8. フロントエンドのログイン実装は現在下記のようになっています。
+----------------------
+          </button>
+
+          {/* ログインポップアップ */}
+          {showLogin && (
+            <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
+              <div className="bg-white p-6 rounded shadow-lg w-1/3">
+                <h2 className="text-lg font-bold mb-4">ログイン</h2>
+                <form>
+                  <div className="mb-4">
+                    <label className="block text-gray-700">ユーザ名</label>
+                    <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-gray-700">パスワード</label>
+                    <input type="password" className="w-full p-2 border border-gray-300 rounded" />
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="button" className="bg-red-500 text-white p-2 rounded mr-2" onClick={toggleLoginPopup}>
+                      キャンセル
+                    </button>
+                    <button type="submit" className="bg-blue-500 text-white p-2 rounded">
+                      ログイン
+                    </button>

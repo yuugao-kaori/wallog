@@ -1,2 +1,2 @@
-docker-compose exec app /bin/sh
+docker-compose exec backend /bin/sh
 
