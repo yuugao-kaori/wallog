@@ -65,21 +65,20 @@ Nodejsでセッション管理を行うコードを書いて下さい。
 ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
 
 あなたはフロントエンドエンジニアです。
-Nodejsでセッション管理を行うコードを書いて下さい。
-フロントエンドはReact(ポート3000)、バックエンドはExpress(ポート5000)を使用して下さい。
-1. セッションについては、express-sessionモジュールを利用して下さい。
-2. ログイン情報はlocalhost:3000/api/user/loginに送信されます。
-3. セッション情報は30分保持され、30分毎に新しいセッションIDが生成されます。
-4. Remember Me機能がデフォルトで有効化されています。
-5. セッションはログインからログアウトまで保持してください。
-6. テスト実装のため、USER_ID、USER_PASSWORDはコード内に定義されます。
-7. テスト実装のため、セッションはインメモリを利用します(外部のストアは使用しません)
-8. フロントエンドのログイン実装は現在下記のようになっています。
-----------------------
-          </button>
-
-          {/* ログインポップアップ */}
-          {showLogin && (
+Nodejsでセッション管理(ログイン処理)を行うコードを書いて下さい。
+回答は、正確さを優先し、ゆっくりと、段階的に考えて下さい。
+回答は、下記の要件に従って下さい。
+1. フロントエンドはReact(ポート3000)、バックエンドはExpress(ポート5000)を使用して下さい。
+2. セッションについては、express-sessionモジュールを利用して下さい。
+3. ログイン情報はlocalhost:5000/api/user/loginに送信されます。
+4. セッション情報は30分保持され、30分毎に新しいセッションIDが生成されます。
+5. Remember Me機能がデフォルトで有効化されています。
+6. セッションはログインからログアウトまで保持してください。
+7. テスト実装のため、USER_ID=myuser、USER_PASSWORD=mypasswordはコード内に定義されます。
+8. テスト実装のため、セッションはインメモリを利用します(外部のストアは使用しません)
+9.  フロントエンドのログイン実装は現在下記のようになっています。
+```
+ {showLogin && (
             <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
               <div className="bg-white p-6 rounded shadow-lg w-1/3">
                 <h2 className="text-lg font-bold mb-4">ログイン</h2>
@@ -99,3 +98,9 @@ Nodejsでセッション管理を行うコードを書いて下さい。
                     <button type="submit" className="bg-blue-500 text-white p-2 rounded">
                       ログイン
                     </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+```

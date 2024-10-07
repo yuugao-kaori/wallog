@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; // Diary.jsxをインポート
+import Test000 from './pages/test000.jsx'; // 新しいコンポーネントをインポート
+import Login from './pages/Login.jsx'; // 新しいコンポーネントをインポート
 
 // 各画面のコンポーネントを定義
 const Home = () => <h1>HelloWorld</h1>;
@@ -41,6 +43,8 @@ const App = () => {
             <Route path="/" element={<Home />} />
             <Route path="/diary" element={<Diary />} /> {/* Diaryコンポーネントを表示 */}
             <Route path="/test2" element={<Test2 />} />
+            <Route path="/test000" element={<Test000 />} /> {/* 新しいルートを追加 */}
+            <Route path="/login" element={<Login />} /> {/* 新しいルートを追加 */}
           </Routes>
 
           {/* 右上にログインボタンを表示 */}

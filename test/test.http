@@ -27,3 +27,8 @@ curl -X POST http://192.168.1.148:25000/api/test/test2 \
 
 ###
 GET http://192.168.1.148:25000/api/test/test3
+###
+
+curl -X POST http://192.168.1.148:25000/api/user/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "myuser", "password": "mypassword", "rememberMe": true}'
