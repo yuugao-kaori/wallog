@@ -5,8 +5,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 axios.defaults.baseURL = 'http://192.168.1.148:25000';
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
+axios.defaults.withCredentials = true; // Cookieを送受信できるように設定
 
-
+// myuser mypassword
 function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +25,17 @@ function LoginPage() {
 
       if (response.data.success) {
         alert('ログイン成功');
-        navigate('/dashboard'); // ログイン成功後にリダイレクト
+        const cookies = response.headers['set-cookie'];
+                if (cookies) {
+                    cookies.forEach((cookie) => {
+                        document.cookie = cookie;
+                    }
+                );
+                } else {
+                    console.log(response);
+                    alert('Cookieへの保存失敗');
+                  }
+        navigate('/'); // ログイン成功後にリダイレクト
       } else {
         alert('ログイン失敗');
       }

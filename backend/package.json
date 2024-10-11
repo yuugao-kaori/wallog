@@ -9,9 +9,14 @@
     "dependencies": {
       "express": "^4.18.2",
       "express-session": "^1.18.0",
-      "@valkey/valkey-glide": "^1.1.0",
+      "redis": "^4.7.0",
+      "ioredis": "^5.4.1",
+      "connect-redis": "^7.1.1",
       "pg": "^8.13.0",
+
       "cors": "^2.8.5",
       "dotenv": "^16.4.5"
-    }
+
+    },
+    "type": "module"
   }

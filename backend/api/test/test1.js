@@ -1,7 +1,8 @@
 // APIの接続テスト
 
 
-const express = require('express');
+import express from 'express';
+import session from 'express-session';
 const router = express.Router();
 
 router.get('/test1', (req, res) => {
@@ -9,4 +10,4 @@ router.get('/test1', (req, res) => {
   console.log('api/test/test1 エンドポイント');
 });
 
-module.exports = router;
+export default router;

@@ -1,7 +1,8 @@
 // /api/test/test2.js
 // リクエストボディ
 
-const express = require('express');
+import express from 'express';
+import session from 'express-session';
 const router = express.Router();
 
 router.post('/test2', (req, res) => {
@@ -14,4 +15,4 @@ router.post('/test2', (req, res) => {
   res.send(`catch_OK:${test_body1}`);
 });
 
-module.exports = router;
+export default router;

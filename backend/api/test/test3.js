@@ -1,10 +1,9 @@
 // /api/test/test2.js
 // .envの接続テスト
 
-const express = require('express');
-const fs = require('fs');
-const dotenv = require('dotenv');
-
+import express from 'express';
+import fs from 'fs';
+import dotenv from 'dotenv';
 const router = express.Router();
 
 const envFilePath = './.env';
@@ -20,4 +19,4 @@ router.get('/test3', (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

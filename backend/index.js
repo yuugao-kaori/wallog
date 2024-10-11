@@ -1,9 +1,12 @@
-const express = require('express');
-const session = require('express-session');
+
+
+import express from 'express';
+import session from 'express-session';
+
 const app = express();
 const port = 5000;
 // CORSの設定
-const cors = require('cors');
+import cors  from 'cors';
 app.use(cors({
     origin: 'http://192.168.1.148:23000', // Reactの開発サーバのURLを指定
     credentials: true, // クッキーの送信が必要ならばtrueにする
@@ -11,26 +14,8 @@ app.use(cors({
 app.options('*', cors()); // 全てのルートでOPTIONSメソッドに対してCORS対応
 
 
-
 // bodyParserが必要な場合
-app.use(express.json()); 
-
-
-
-// express-session設定
-app.use(
-  session({
-    secret: 'my_secret_key', // 任意のシークレットキーを設定
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      maxAge: 30 * 60 * 1000, // 30分間セッションを保持
-      httpOnly: true,
-      secure: false, // テスト環境なのでsecureはfalse（本番ではtrue）
-    },
-    rolling: true, // セッションがアクティブな間、毎回セッションIDを更新
-  })
-);
+app.use(express.json());
 
 
 
@@ -40,26 +25,32 @@ app.get('/', (req, res) => {
 
 
 // /api/test/test1 エンドポイント
-const loginRoute = require('./api/user/login');
+import loginRoute from'./api/post/post_create.js';
+app.use('/post/post_create', loginRoute);
+
+// /api/test/test1 エンドポイント
+import loginRoute from'./api/user/login.js';
 app.use('/api/user', loginRoute);
 
 // /api/test/test1 エンドポイント
-const logoutRoute = require('./api/user/logout');
+import logoutRoute from'./api/user/logout.js';
 app.use('/api/user', logoutRoute);
 
 // /api/test/test1 エンドポイント
-const test1Route = require('./api/test/test1');
+import test1Route from'./api/test/test1.js';
 app.use('/api/test', test1Route);
 
 // /api/test/test2 エンドポイント
-const test2Route = require('./api/test/test2');
+import test2Route from'./api/test/test2.js';
 app.use('/api/test', test2Route);
 
 // /api/test/test3 エンドポイント
-const test3Route = require('./api/test/test3');
+import test3Route from'./api/test/test3.js';
 app.use('/api/test', test3Route);
 
-
+// /api/test/test3 エンドポイント
+import test4Route from'./api/test/test4.js';
+app.use('/api/test', test4Route);
 
 app.listen(port, () => {
   console.log(`Express app listening on port ${port}`);

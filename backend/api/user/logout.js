@@ -1,5 +1,6 @@
 // ./api/user/logout.js
-const express = require('express');
+import express from 'express';
+import session from 'express-session';
 const router = express.Router();
 
 // ログアウトエンドポイント
@@ -12,4 +13,4 @@ router.post('/logout', (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

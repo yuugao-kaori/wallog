@@ -55,6 +55,19 @@ Expressを利用したAPIを実装して下さい。
 要件は、
 
 
+＝＝＝＝＝＝＝＝＝＝＝＝
+セッション管理の実装順序
+
+1. ストア照合API
+   1. コンソール出力させる
+   2. test4.js
+2. フロントに照合APIの送出ページ作成
+   1. /test_console.jsx
+3. ヘッダにログイン状態の表記(ログインボタンの削除)
+4. セッションストアの導入
+5. PG読み込みの実装
+6. 
+＝＝＝＝＝＝＝＝＝＝＝＝
 
 あなたはフロントエンドエンジニアです。
 Nodejsでセッション管理を行うコードを書いて下さい。
@@ -64,43 +77,20 @@ Nodejsでセッション管理を行うコードを書いて下さい。
 
 ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
 
-あなたはフロントエンドエンジニアです。
-Nodejsでセッション管理(ログイン処理)を行うコードを書いて下さい。
-回答は、正確さを優先し、ゆっくりと、段階的に考えて下さい。
+あなたはフルスタックウェブエンジニアです。
+Nodejsでセッション管理(セッションの確認)を行うコードを書いて下さい。
 回答は、下記の要件に従って下さい。
-1. フロントエンドはReact(ポート3000)、バックエンドはExpress(ポート5000)を使用して下さい。
+1. 回答は、正確さを優先し、ゆっくりと、段階的に考えて下さい。
 2. セッションについては、express-sessionモジュールを利用して下さい。
-3. ログイン情報はlocalhost:5000/api/user/loginに送信されます。
-4. セッション情報は30分保持され、30分毎に新しいセッションIDが生成されます。
-5. Remember Me機能がデフォルトで有効化されています。
-6. セッションはログインからログアウトまで保持してください。
-7. テスト実装のため、USER_ID=myuser、USER_PASSWORD=mypasswordはコード内に定義されます。
-8. テスト実装のため、セッションはインメモリを利用します(外部のストアは使用しません)
-9.  フロントエンドのログイン実装は現在下記のようになっています。
+3. テスト実装のため、セッションはインメモリを利用します(外部のストアは使用しません)
+4. フロントエンドからCookie付きのリクエストが来たら、Cookieに含まれるセッションIDからユーザIDを返却するAPIを書いて下さい
+5. このAPIはindex.jsから読み込まれるjsファイルに記述されます。
+6. index.jsは私が記述するのであなたが書く必要はありません。
 ```
- {showLogin && (
-            <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
-              <div className="bg-white p-6 rounded shadow-lg w-1/3">
-                <h2 className="text-lg font-bold mb-4">ログイン</h2>
-                <form>
-                  <div className="mb-4">
-                    <label className="block text-gray-700">ユーザ名</label>
-                    <input type="text" className="w-full p-2 border border-gray-300 rounded" />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-gray-700">パスワード</label>
-                    <input type="password" className="w-full p-2 border border-gray-300 rounded" />
-                  </div>
-                  <div className="flex justify-end">
-                    <button type="button" className="bg-red-500 text-white p-2 rounded mr-2" onClick={toggleLoginPopup}>
-                      キャンセル
-                    </button>
-                    <button type="submit" className="bg-blue-500 text-white p-2 rounded">
-                      ログイン
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+ 
 ```
+Express redis Docker #Redis - Qiita
+https://qiita.com/kandalog/items/89405c546bfcceab9b50
+
+connect-redisをDockerで使うときに躓いた
+https://zenn.dev/akira_kashihara/articles/3ec664e15f561d
