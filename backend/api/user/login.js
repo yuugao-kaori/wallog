@@ -22,7 +22,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 30 * 60 * 1000, // 30分間セッションを保持
+      maxAge: 1000 * 1440 * 60 * 1000, // 1000日間セッションを保持
       httpOnly: true,
       secure: false, // テスト環境なのでsecureはfalse
     },

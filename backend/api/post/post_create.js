@@ -2,25 +2,17 @@ import express from 'express';
 import session from 'express-session';
 import Redis from "ioredis";
 import RedisStore from "connect-redis";
-import pg from "pg";
+import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
+import pkg from 'pg';
+const { Client } = pkg;
+import cors  from 'cors';
 const router = express.Router();
+const app = express();
 
-
-const envFilePath = './.env';
-
-if (fs.existsSync(envFilePath)) {
-  dotenv.config();
-  console.log('.envファイルを認識しました。\n');
-  const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_NAME } = process.env;
-
-  const client = new Client({
-    user: POSTGRES_USER,
-    host: POSTGRES_NAME,
-    database: POSTGRES_DB,
-    password: POSTGRES_PASSWORD,
-    port: 5432,
-  });
-}
+// bodyParserが必要な場合
+app.use(express.json());
 
 // Redisクライアント作成
 const redis = new Redis({
@@ -36,7 +28,7 @@ router.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 30 * 60 * 1000, // 30分
+      maxAge: 1000 * 1440 * 60 * 1000, // 1000日間セッションを保持
       httpOnly: true,
       secure: false, // テスト環境用にsecureはfalse
     },
@@ -45,7 +37,7 @@ router.use(
 );
 
 // セッション確認APIの実装
-router.get('/post_create', async (req, res) => {
+router.post('/post_create', async (req, res) => {
   // セッションが存在しない場合
   if (!req.session) {
     console.error('Session object is not found.');
@@ -76,60 +68,99 @@ router.get('/post_create', async (req, res) => {
     // 成功レスポンス
     console.log(`Session check successful: username = ${parsedSession.username}`);
 
-    // postテーブルに対する書き込み実装
+    // 環境変数の読み取り実装
+    const envFilePath = './.env';
 
-    const date = new Date();
-    const now = formattedDateTime(date);
-    const randomDigits = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // 6桁の乱数
-    const post_id = now + randomDigits
-    console.log(post_id)
-    
-    function formattedDateTime(date) {
-      const y = date.getFullYear();
-      const m = ('0' + (date.getMonth() + 1)).slice(-2);
-      const d = ('0' + date.getDate()).slice(-2);
-      const h = ('0' + date.getHours()).slice(-2);
-      const mi = ('0' + date.getMinutes()).slice(-2);
-      const s = ('0' + date.getSeconds()).slice(-2);
-    
-      return y + m + d + h + mi + s;
+    if (fs.existsSync(envFilePath)) {
+        dotenv.config();
+        console.log('.envファイルを認識しました。');
+        const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_NAME } = process.env;
+        
+        const client = new Client({
+            user: POSTGRES_USER,
+            host: POSTGRES_NAME,
+            database: POSTGRES_DB,
+            password: POSTGRES_PASSWORD,
+            port: 5432,
+        });
+
+        // postテーブルに対する書き込み実装
+
+        const date = new Date();
+        const now = formattedDateTime(date);
+        const randomDigits = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // 6桁の乱数
+        const post_id = now + randomDigits
+        console.log(post_id)
+        console.log(req.body.post_text);
+
+        function formattedDateTime(date) {
+            const y = date.getFullYear();
+            const m = ('0' + (date.getMonth() + 1)).slice(-2);
+            const d = ('0' + date.getDate()).slice(-2);
+            const h = ('0' + date.getHours()).slice(-2);
+            const mi = ('0' + date.getMinutes()).slice(-2);
+            const s = ('0' + date.getSeconds()).slice(-2);
+        
+            return y + m + d + h + mi + s;
+        }
+        async function insertPost(postText) {
+
+                            
+            // クライアントを接続
+            await client.connect();
+            console.log('PostgreSQLに接続しました。');
+            const query = `
+                INSERT INTO post (post_id, user_id, post_text, post_tag, post_file, post_attitude)
+                VALUES ($1, $2, $3, 'none_data', 'none_data', 1)
+                RETURNING *;
+                `;
+        
+            const values = [post_id, parsedSession.username, postText];
+            
+            try {
+                
+                const result = await client.query(query, values);
+                if (result && result.rows && result.rows.length > 0) {
+                    console.log('Post inserted:', result.rows[0]);
+                    return result.rows[0];
+                } else {
+                    throw new Error('No rows returned from the query');
+                }
+            } catch (err) {
+                throw err;
+            } finally {
+                await client.end();
+            }
+            
+        }
+        
+        // 使用例
+        
+        (async () => {
+            try {
+                console.log('async_ok');
+                             
+                const newPost = await insertPost(req.body.post_text);
+                console.log('New post:', newPost);
+                return res.status(200).json({ created_note: newPost });
+
+            } catch (err) {
+                console.error('Error:', err);
+                return res.status(500).json({ error: err });
+            }
+        })();
+        
+
+
     }
-    async function insertPost(postText) {
-        const query = `
-          INSERT INTO post (post_id, user_id, post_text, post_tag, post_file, post_attitude)
-          VALUES ($1, $2, $3, 'none_data', 'none_data', 1)
-          RETURNING *;
-        `;
-      
-        const values = [post_id, username, postText];
-      
-        try {
-          // クエリを実行
-          const res = await client.query(query, values);
-          console.log('Post inserted:', res.rows[0]); // 挿入されたデータを表示
-          return res.rows[0]; // 挿入された行を返す
-        } catch (err) {
-          console.error('Error inserting post:', err.stack);
-          throw err; // エラーをキャッチする場合に投げ直す
-        }
-      }
-      
-      // 使用例
-      (async () => {
-        try {
-          const newPost = await insertPost(req.post_text);
-          console.log('New post:', newPost);
-        } catch (err) {
-          console.error('Error:', err);
-        }
-      })();
 
-
-    return res.status(200).json({ userId: parsedSession.userId });
   } catch (error) {
     console.error('Error while retrieving session from Redis:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-export default router;
+app.use('', router);
+
+export default app;
+
