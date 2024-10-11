@@ -15,6 +15,23 @@ services:
     depends_on:
       - db
 
+  backend:
+    container_name: backend
+    build:
+      context: .
+      dockerfile: dockerfile.backend
+    volumes:
+      - ./backend:/usr/src/backend
+      - ./.env:/usr/src/backend/.env
+    command: sh -c "npm install && npm run start"
+    ports:
+      - "25000:5000"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - db
+      - redis
+
   db:
     container_name: ${POSTGRES_NAME}
     image: postgres:16
@@ -38,16 +55,34 @@ services:
       - "25050:80"
     depends_on:
       - db
-  valkey:
-    image: valkey/valkey:8.0
+
+  redis:
+    image: redis:latest
     environment:
       # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes
       - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
     ports:
       - '26379:6379'
+    volumes:
+      - "./redis:/data"
+      - "./redis/redis.conf:/etc/redis/redis.conf"
+    command: ["redis-server", "/etc/redis/redis.conf"]
 
+  rediscommander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - 28081:8081
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+  
 volumes:
   db_data:
+
+networks:
+  wallog_default:
+    driver: bridge
 
 # エスケープ：このdocker-compose.ymlはアプリケーションコンテナ、データベースコンテナ、そしてpgAdminコンテナを定義しています。appサービスはNode.jsのモジュールをインストールし、npm run devで開発環境を起動します。dbサービスはPostgreSQLのデータベースを提供し、pgadminサービスはデータベースの管理ツールとして動作します。ポートフォワーディングと環境変数によって通信を管理しています。

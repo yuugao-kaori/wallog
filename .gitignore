@@ -115,7 +115,8 @@ dist
 
 # DynamoDB Local files
 .dynamodb/
-
+# redis Local files
+**/dump.rdb
 # TernJS port file
 .tern-port
 
