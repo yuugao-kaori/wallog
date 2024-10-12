@@ -1,6 +1,8 @@
 import express from 'express';
 import session from 'express-session';
 import cors from 'cors';
+import http from 'http';  // 追加
+import post_wsRoute from './api/post/post_ws.js';  // 修正
 
 const app = express();
 const port = 5000;
@@ -27,16 +29,16 @@ app.get('/', (req, res) => {
 
 // ルートの定義
 import post_createRoute from './api/post/post_create.js';
-import post_wsRoute from './api/post/post_ws.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
+import login_checkRoute from './api/user/login_check.js';
 import test1Route from './api/test/test1.js';
 import test2Route from './api/test/test2.js';
 import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
 
-app.use('/api/post', post_createRoute, post_wsRoute);
-app.use('/api/user', loginRoute, logoutRoute);
+app.use('/api/post', post_createRoute);
+app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 
 // 404エラーハンドリング
@@ -51,6 +53,11 @@ app.use((err, req, res, next) => {
     res.status(500).send('Internal Server Error');
 });
 
-app.listen(port, () => {
+const server = http.createServer(app);  // 追加
+
+// WebSocketサーバーを設定
+post_wsRoute(server);  // 修正
+
+server.listen(port, () => {  // 修正
     console.log(`Express app listening on port ${port}`);
 });

@@ -13,7 +13,7 @@ const SessionCheck = () => {
     // コンポーネントがマウントされたときにセッション確認APIを呼び出す
     const checkSession = async () => {
       try {
-        const response = await axios.get('http://192.168.1.148:25000/api/test/test4'); // APIのエンドポイントを変更する場合、ここを修正してください
+        const response = await axios.get('http://192.168.1.148:25000/api/user/login_check'); // APIのエンドポイントを変更する場合、ここを修正してください
         setSessionData(response.data);
       } catch (err) {
         setError(err.response ? err.response.data.error : 'Error connecting to server');
