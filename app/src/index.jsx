@@ -1,9 +1,5 @@
-/*
-index.jsx
-*/
-
 import './index.css'; 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter as Router, Route, Routes, Link, useParams  } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; 
@@ -12,38 +8,18 @@ import Test000 from './pages/test000.jsx';
 import Login from './pages/Login.jsx'; 
 import Test001 from './pages/test001.jsx'; 
 import Test002 from './pages/test002.jsx'; 
+import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 
 const Home = () => <h1 className="text-xl font-bold">HelloWorld</h1>;
 const Test1 = () => {
-  const { postId } = useParams(); // URLのパラメータを取得
+  const { postId } = useParams();
   return <h1 className="text-xl font-bold">Test 1 Page, Post ID: {postId}</h1>;
 };
 const Test2 = () => <h1 className="text-xl font-bold">Test 2 Page</h1>;
 
 const App = () => {
-  const [theme, setTheme] = useState('light');
   const [showLogin, setShowLogin] = useState(false);
-
-  // ダークモードの初期設定を行う
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.add(savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  // テーマの切り替えを行う
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    document.documentElement.classList.remove(theme);
-    document.documentElement.classList.add(newTheme);
-    localStorage.setItem('theme', newTheme);
-  };
+  const { theme, toggleTheme } = useTheme();
 
   const toggleLoginPopup = () => {
     setShowLogin(!showLogin);
@@ -51,13 +27,12 @@ const App = () => {
 
   return (
     <Router>
-      <div className={`relative flex ${theme === 'dark' ? 'dark' : ''}`}>
-        {/* テーマ切り替えボタン */}
+      <div className={`relative flex ${theme}`}>
         <button 
           onClick={toggleTheme} 
           className="fixed z-50 top-4 right-4 bg-gray-800 text-white dark:bg-gray-200 dark:text-black p-2 rounded shadow-lg"
         >
-          {theme === 'light' ? 'ダークモード' : 'ライトモード'}
+          {theme === 'dark' ? 'ダークモード' : 'ライトモード'}
         </button>
 
         {/* 左側のナビゲーション */}
@@ -72,7 +47,6 @@ const App = () => {
           </ul>
         </nav>
 
-        {/* 右側のコンテンツ */}
         <div className="w-3/4 p-4 relative bg-white dark:bg-gray-900 text-black dark:text-white">
           <Routes>
             <Route path="/" element={<Home />} />
@@ -90,4 +64,10 @@ const App = () => {
   );
 };
 
-ReactDOM.render(<App />, document.getElementById('root'));
+const AppWithTheme = () => (
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
+);
+
+ReactDOM.render(<AppWithTheme />, document.getElementById('root'));
