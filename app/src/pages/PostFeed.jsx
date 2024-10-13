@@ -65,8 +65,8 @@ const PostFeed = () => {
       {posts.map((post, index) => (
         <a 
           key={index} 
-          href={`http://192.168.1.148:23000/diary/${post.post_id}`} 
-          className="block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800  duration-200"
+          href={`/diary/${post.post_id}`} 
+          className="block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200"
         >
           <div className="text-gray-500 text-sm">
             Created at: {formatDate(post.post_createat)}

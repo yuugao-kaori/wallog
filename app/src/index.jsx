@@ -5,15 +5,19 @@ index.jsx
 import './index.css'; 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Link, useParams  } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; 
+import PostDetail from './pages/PostRead.jsx'; 
 import Test000 from './pages/test000.jsx'; 
 import Login from './pages/Login.jsx'; 
 import Test001 from './pages/test001.jsx'; 
 import Test002 from './pages/test002.jsx'; 
 
 const Home = () => <h1 className="text-xl font-bold">HelloWorld</h1>;
-const Test1 = () => <h1 className="text-xl font-bold">Test 1 Page</h1>;
+const Test1 = () => {
+  const { postId } = useParams(); // URLのパラメータを取得
+  return <h1 className="text-xl font-bold">Test 1 Page, Post ID: {postId}</h1>;
+};
 const Test2 = () => <h1 className="text-xl font-bold">Test 2 Page</h1>;
 
 const App = () => {
@@ -78,6 +82,7 @@ const App = () => {
             <Route path="/test001" element={<Test001 />} />
             <Route path="/test002" element={<Test002 />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/diary/:postId" element={<PostDetail />} />
           </Routes>
         </div>
       </div>

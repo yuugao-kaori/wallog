@@ -29,6 +29,8 @@ app.get('/', (req, res) => {
 
 // ルートの定義
 import post_createRoute from './api/post/post_create.js';
+import post_deleteRoute from './api/post/post_delete.js';
+import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
 import login_checkRoute from './api/user/login_check.js';
@@ -37,7 +39,7 @@ import test2Route from './api/test/test2.js';
 import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
 
-app.use('/api/post', post_createRoute);
+app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 

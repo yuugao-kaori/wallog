@@ -62,7 +62,12 @@ function Diary() {
           />
           <button
             type="submit"
-            className="mt-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800"
+            className={`mt-2 p-2 text-white rounded ${
+              postText.trim() === '' 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
+            }`}
+            disabled={postText.trim() === ''}
           >
             投稿
           </button>
