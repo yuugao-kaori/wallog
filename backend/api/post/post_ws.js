@@ -55,12 +55,14 @@ const setupWebSocket = (server) => {
 
     // データベースのリスナーをセットアップ
     const listener = async (notification) => {
+      console.log('通知を受信しました:', notification);
       if (notification.channel === 'post_updates') {
-        const newPosts = await getPosts(0, 1);  // 最新の投稿を1つ取得
+        const newPosts = await getPosts(0, 1);
+        console.log('新しい投稿を取得しました:', newPosts);
         ws.send(JSON.stringify(newPosts));
+        console.log('新しい投稿を配信しました:', newPosts);
       }
     };
-
     client.on('notification', listener);
 
     // リアルタイムのリスニングを有効にする

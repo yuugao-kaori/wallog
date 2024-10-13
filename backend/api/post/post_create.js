@@ -93,6 +93,18 @@ router.post('/post_create', async (req, res) => {
         console.log(post_id)
         console.log(req.body.post_text);
 
+
+        const post_text_mid = req.body.post_text;
+        let post_tag;
+        
+        post_tag = post_text_mid.match(/(?<=\s|^)#\S+(?=\s|$)/g);
+        if (post_tag) {
+          console.log("抽出されたハッシュタグ:", post_tag);
+        } else {
+          console.log("ハッシュタグは抽出されませんでした。");
+          post_tag = 'none_data';
+        }
+        
         function formattedDateTime(date) {
             const y = date.getFullYear();
             const m = ('0' + (date.getMonth() + 1)).slice(-2);
@@ -111,11 +123,11 @@ router.post('/post_create', async (req, res) => {
             console.log('PostgreSQLに接続しました。');
             const query = `
                 INSERT INTO post (post_id, user_id, post_text, post_tag, post_file, post_attitude)
-                VALUES ($1, $2, $3, 'none_data', 'none_data', 1)
+                VALUES ($1, $2, $3, $4, 'none_data', 1)
                 RETURNING *;
                 `;
         
-            const values = [post_id, parsedSession.username, postText];
+            const values = [post_id, parsedSession.username, postText, post_tag];
             
             try {
                 

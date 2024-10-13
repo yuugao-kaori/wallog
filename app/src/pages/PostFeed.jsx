@@ -1,33 +1,56 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const PostFeed = () => {
-  const [posts, setPosts] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const wsRef = useRef(null);
+  const [posts, setPosts] = useState([]); // 投稿データの状態
+  const [offset, setOffset] = useState(0); // スクロール位置のためのオフセット
+  const wsRef = useRef(null); // WebSocket接続を参照するためのRef
 
   useEffect(() => {
+    // WebSocket接続の初期化
     const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
     wsRef.current = ws;
 
+    // WebSocket接続が確立された時の処理
     ws.onopen = () => {
       console.log('WebSocket接続が確立されました');
+      // 最初に投稿をロード
       ws.send(JSON.stringify({ action: 'loadMore', offset: 0 }));
     };
 
+    // WebSocketメッセージを受信した時の処理
     ws.onmessage = (event) => {
+      console.log('WebSocket メッセージを受信しました:', event.data);
       const newPosts = JSON.parse(event.data);
-      setPosts((prevPosts) => [...prevPosts, ...newPosts]);
-      setOffset((prevOffset) => prevOffset + newPosts.length);
+      console.log('パースされた新しい投稿:', newPosts);
+    
+
+      // 新しい投稿を既存の投稿に追加し、重複しないようにする
+      setPosts((prevPosts) => {
+        const postIds = new Set(prevPosts.map(post => post.post_id));
+        const filteredNewPosts = newPosts.filter(post => !postIds.has(post.post_id));
+        
+        // 新しい投稿を先頭に追加
+        return [...filteredNewPosts, ...prevPosts];
+      });
+
+
+      // 新しい投稿がある場合のみオフセットを更新
+      if (newPosts.length > 0) {
+        setOffset((prevOffset) => prevOffset + newPosts.length);
+      }
     };
 
+    // エラーハンドリング
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
 
+    // WebSocket接続が閉じられた時の処理
     ws.onclose = () => {
       console.log('WebSocket接続が切断されました');
     };
 
+    // クリーンアップ処理: コンポーネントがアンマウントされたらWebSocket接続を閉じる
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();
@@ -35,12 +58,14 @@ const PostFeed = () => {
     };
   }, []);
 
+  // 追加の投稿をロードする関数
   const loadMorePosts = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'loadMore', offset }));
     }
   };
 
+  // スクロール位置に応じて投稿を追加でロードする処理
   useEffect(() => {
     const handleScroll = () => {
       if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
@@ -52,6 +77,7 @@ const PostFeed = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [offset]);
 
+  // 日付のフォーマット関数
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {

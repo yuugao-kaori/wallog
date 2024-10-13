@@ -48,6 +48,46 @@ if (fs.existsSync(envFilePath)) {
         console.log('テーブル作成SQLを実行し、テーブルが作成されました。');
       }
 
+
+
+
+
+    // トリガーが存在するかを確認するクエリ
+    const checkTrigger = `
+      SELECT tgname 
+      FROM pg_trigger 
+      WHERE tgname = 'post_update_trigger';
+    `;
+
+    try {
+      const res = await client.query(checkTrigger);
+
+      if (res.rows.length === 0) {
+        console.log('トリガーが存在しません。新規作成します。');
+
+        const notify = `
+        CREATE OR REPLACE FUNCTION notify_post_update()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          PERFORM pg_notify('post_updates', 'Post updated');
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+    
+        CREATE TRIGGER post_update_trigger
+        AFTER INSERT OR UPDATE ON post
+        FOR EACH ROW EXECUTE FUNCTION notify_post_update();
+      `;
+      await client.query(notify);
+      console.log('トリガーが作成されました');
+      } else {
+        console.log('トリガーは既に存在しています。');
+      }
+    } catch (error) {
+      console.error('トリガーの確認中にエラーが発生しました:', error);
+    }
+
+
       // 管理者ユーザーの作成
 
       const { APP_ADMIN_USER, APP_ADMIN_PASSWORD } = process.env;
