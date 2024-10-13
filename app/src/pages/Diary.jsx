@@ -21,7 +21,8 @@ function Diary() {
           setIsLoggedIn(true);
         }
       } catch (err) {
-        
+        // エラーハンドリング
+        setSessionError('セッションの確認に失敗しました。');
       }
     };
 
@@ -42,7 +43,7 @@ function Diary() {
   };
 
   return (
-    <div className="p-4 dark:bg-gray-900 dark:text-gray-100">
+    <div className="p-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto">
       <h1 className="text-3xl font-bold mb-4">Diary</h1>
       
       <p className="text-lg">ここに日記の投稿を表示します。</p>
@@ -81,7 +82,7 @@ function Diary() {
 
       {/* 投稿一覧を表示するコンポーネント */}
       <div className="mt-8">
-        <PostFeed /> {/* 投稿表示 */}
+      <PostFeed isLoggedIn={isLoggedIn} /> {/* 投稿表示 */}
       </div>
     </div>
   );
