@@ -12,6 +12,19 @@ const PostFeed = ({ isLoggedIn }) => {
   const containerRef = useRef(null);
   const [hasMore, setHasMore] = useState(true);
 
+  const scrollToNewPosts = useCallback(() => {
+    const container = containerRef.current;
+    if (container) {
+      const scrollHeight = container.scrollHeight;
+      const height = container.clientHeight;
+      const maxScrollTop = scrollHeight - height;
+      
+      // 新しい投稿が追加された場合、それらが見えるようにスクロール
+      container.scrollTop = Math.max(0, maxScrollTop - 100); // 100pxの余裕を持たせる
+    }
+  }, []);
+
+  // WebSocketのonmessageイベントハンドラを更新
   useEffect(() => {
     const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
     wsRef.current = ws;
@@ -31,14 +44,20 @@ const PostFeed = ({ isLoggedIn }) => {
       }
       setPosts((prevPosts) => {
         const updatedPosts = [...prevPosts];
+        let hasNewPosts = false;
         newPosts.forEach((newPost) => {
           const index = updatedPosts.findIndex(post => post.post_id === newPost.post_id);
           if (index === -1) {
-            updatedPosts.push(newPost);
+            updatedPosts.unshift(newPost); // 新しい投稿を先頭に追加
+            hasNewPosts = true;
           } else {
             updatedPosts[index] = newPost;
           }
         });
+        if (hasNewPosts) {
+          // 新しい投稿がある場合のみスクロール位置を調整
+          setTimeout(scrollToNewPosts, 0);
+        }
         return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
       });
       setLoading(false);
@@ -52,7 +71,7 @@ const PostFeed = ({ isLoggedIn }) => {
         ws.close();
       }
     };
-  }, []);
+  }, [scrollToNewPosts]);
 
   const loadMorePosts = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !loading && hasMore) {
@@ -203,8 +222,13 @@ const PostFeed = ({ isLoggedIn }) => {
   return (
     <div 
       ref={containerRef} 
-      className="post-feed p-6 space-y-6 overflow-y-auto flex flex-col justify-center items-center" 
-      style={{ height: 'calc(100vh - 100px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      className="post-feed px-6 space-y-6 overflow-y-auto flex flex-col"
+      style={{ 
+        height: 'calc(100vh - 160px)', // ヘッダーの高さを考慮して調整
+        scrollbarWidth: 'none', 
+        msOverflowStyle: 'none',
+        paddingTop: '60px', // ヘッダーの高さ分だけpadding-topを追加
+      }}
     >
       {posts.map((post) => (
         <Card

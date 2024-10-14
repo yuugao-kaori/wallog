@@ -76,10 +76,10 @@ function Diary() {
 
       {/* 投稿一覧 */}
       <div className="flex-1 mr-1/5">
-        <h1 className="text-3xl font-bold mb-4">日記-Diary-</h1>
+        <h2 className="text-xl font-bold">日記-Diary-</h2>
         <p className="text-lg">全ての記事が一覧になっています。</p>
         {sessionError && <p className="text-red-500">{sessionError}</p>}
-        <div className="mt-8">
+        <div className="mt-4">
           <PostFeed isLoggedIn={isLoggedIn} /> {/* 投稿表示 */}
         </div>
       </div>
