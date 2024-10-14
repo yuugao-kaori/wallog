@@ -48,10 +48,13 @@ const App = () => {
 
         {/* 左側のナビゲーション */}
         <nav className="w-1/5 h-full bg-gray-200 dark:bg-gray-800 p-4 overflow-hidden">
+          <h1 className="text-2xl font-bold mb-2 dark:text-gray-100 ">My Sustainer</h1>
+          <h2 className="text-1xl font-bold mb-2 dark:text-gray-100">誰とも繋がらないプライベートマイクロブログ</h2>
+
           <ul className="flex flex-col space-y-4">
             <li>
-              <Link to="/diary" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
-                Diary
+              <Link to="/diary" className="mt-8 block text-center font-bold p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+                日記-Diary-
               </Link>
             </li>
             <li>
@@ -62,7 +65,7 @@ const App = () => {
           </ul>
         </nav>
 
-        <div className="w-4/5 h-full p-4 relative bg-white dark:bg-gray-900 text-black dark:text-white overflow-hidden">
+        <div className="w-3/5 h-full p-4 relative bg-white dark:bg-gray-900 text-black dark:text-white overflow-hidden">
           {loading && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="text-white">読み込み中...</div>
@@ -119,6 +122,11 @@ const App = () => {
             />
           </Routes>
         </div>
+        {/* 右側のナビゲーション */}
+        <nav className="w-1/5 h-full bg-gray-200 dark:bg-gray-800 p-4 overflow-hidden">
+          <ul className="">
+          </ul>
+        </nav>
       </div>
     </Router>
   );

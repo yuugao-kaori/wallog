@@ -43,46 +43,45 @@ function Diary() {
   };
 
   return (
-    <div className="p-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto">
-      <h1 className="text-3xl font-bold mb-4">Diary</h1>
-      
-      <p className="text-lg">ここに日記の投稿を表示します。</p>
+    <div className="p-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
+      {/* 投稿フォーム */}
+      <nav className="w-1/5 fixed right-0 p-4 min-h-full ">
+        <h2 className="text-xl font-bold mb-2">新規投稿</h2>
+        {isLoggedIn ? (
+          <form onSubmit={handleSubmit} className="mt-2">
+            <textarea
+              className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+              value={postText}
+              onChange={(e) => setPostText(e.target.value)}
+              placeholder="ここに投稿内容を入力してください"
+              rows="4"
+            />
+            <button
+              type="submit"
+              className={`mt-2 p-2 text-white rounded ${
+                postText.trim() === '' 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
+              }`}
+              disabled={postText.trim() === ''}
+            >
+              投稿
+            </button>
+          </form>
+        ) : (
+          <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
+        )}
+        {status && <p className="mt-4 text-red-500">{status}</p>}
+      </nav>
 
-      {/* セッションエラーがある場合のメッセージ */}
-      {sessionError && <p className="text-red-500">{sessionError}</p>}
-
-      {/* ログインしている場合のみ投稿作成フォームを表示 */}
-      {isLoggedIn ? (
-        <form onSubmit={handleSubmit} className="mt-4">
-          <textarea
-            className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-            value={postText}
-            onChange={(e) => setPostText(e.target.value)}
-            placeholder="ここに投稿内容を入力してください"
-            rows="4"
-          />
-          <button
-            type="submit"
-            className={`mt-2 p-2 text-white rounded ${
-              postText.trim() === '' 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
-            }`}
-            disabled={postText.trim() === ''}
-          >
-            投稿
-          </button>
-        </form>
-      ) : (
-        <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
-      )}
-
-      {/* ステータスメッセージ */}
-      {status && <p className="mt-4 text-red-500">{status}</p>}
-
-      {/* 投稿一覧を表示するコンポーネント */}
-      <div className="mt-8">
-      <PostFeed isLoggedIn={isLoggedIn} /> {/* 投稿表示 */}
+      {/* 投稿一覧 */}
+      <div className="flex-1 mr-1/5">
+        <h1 className="text-3xl font-bold mb-4">日記-Diary-</h1>
+        <p className="text-lg">全ての記事が一覧になっています。</p>
+        {sessionError && <p className="text-red-500">{sessionError}</p>}
+        <div className="mt-8">
+          <PostFeed isLoggedIn={isLoggedIn} /> {/* 投稿表示 */}
+        </div>
       </div>
     </div>
   );

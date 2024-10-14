@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; 
 import { useNavigate } from 'react-router-dom';
 
 const PostFeed = ({ isLoggedIn }) => {
@@ -9,6 +9,8 @@ const PostFeed = ({ isLoggedIn }) => {
   const [selectedPostId, setSelectedPostId] = useState(null);
   const wsRef = useRef(null);
   const navigate = useNavigate();
+  const containerRef = useRef(null);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
@@ -21,12 +23,18 @@ const PostFeed = ({ isLoggedIn }) => {
 
     ws.onmessage = (event) => {
       const newPosts = JSON.parse(event.data);
+      console.log("New posts received:", newPosts);
+      if (newPosts.length === 0) {
+        setLoading(false);
+        setHasMore(false);
+        return;
+      }
       setPosts((prevPosts) => {
         const updatedPosts = [...prevPosts];
         newPosts.forEach((newPost) => {
           const index = updatedPosts.findIndex(post => post.post_id === newPost.post_id);
           if (index === -1) {
-            updatedPosts.unshift(newPost);
+            updatedPosts.push(newPost);
           } else {
             updatedPosts[index] = newPost;
           }
@@ -46,23 +54,42 @@ const PostFeed = ({ isLoggedIn }) => {
     };
   }, []);
 
-  const loadMorePosts = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !loading) {
+  const loadMorePosts = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !loading && hasMore) {
       setLoading(true);
+      console.log("Sending request with offset:", offset);
       wsRef.current.send(JSON.stringify({ action: 'loadMore', offset }));
-      setOffset(prevOffset => prevOffset + 10); // 10 posts per request
+      setOffset(prevOffset => prevOffset + 10);
     }
-  };
+  }, [offset, loading, hasMore]);
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const handleScroll = () => {
-      if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100 && !loading) {
+      if (
+        container.scrollTop + container.clientHeight >= container.scrollHeight - 300 &&
+        !loading &&
+        hasMore
+      ) {
+        console.log("Reached bottom, loading more posts...");
         loadMorePosts();
       }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [offset, loading]);
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [loadMorePosts, hasMore]);
+  
+  // 投稿が追加または削除された後にスクロール位置を調整
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      // 新しい投稿が追加されたときにスクロール位置を調整
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [posts]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -107,32 +134,32 @@ const PostFeed = ({ isLoggedIn }) => {
     });
   };
 
-  const Card = ({ post, isLoggedIn }) => {
+  const Card = ({ post, isLoggedIn, className }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
-
+  
     const toggleMenu = (event) => {
       event.stopPropagation(); // クリックイベントの伝播を防ぐ
       setMenuOpen(!menuOpen);
     };
-
+  
     useEffect(() => {
       const handleClickOutside = (event) => {
         if (menuRef.current && !menuRef.current.contains(event.target)) {
           setMenuOpen(false);
         }
       };
-
+  
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }, []);
-
+  
     return (
       <div
         key={post.post_id}
-        className="block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative"
+        className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`} // ここで受け取ったclassNameを適用
         onClick={() => handlePostClick(post.post_id)}
       >
         <div className="absolute top-4 right-4">
@@ -174,9 +201,18 @@ const PostFeed = ({ isLoggedIn }) => {
   };
 
   return (
-    <div className="post-feed p-4 space-y-6">
+    <div 
+      ref={containerRef} 
+      className="post-feed p-6 space-y-6 overflow-y-auto flex flex-col justify-center items-center" 
+      style={{ height: 'calc(100vh - 100px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+    >
       {posts.map((post) => (
-        <Card key={post.post_id} post={post} isLoggedIn={isLoggedIn} />
+        <Card
+          key={post.post_id}
+          post={post}
+          isLoggedIn={isLoggedIn}
+          className="w-full max-w-[800px]"
+        />
       ))}
 
       {posts.length === 0 && <p>投稿がありません。</p>}
@@ -185,12 +221,16 @@ const PostFeed = ({ isLoggedIn }) => {
           投稿を読み込んでいます...
         </div>
       )}
-
+      {!hasMore && posts.length > 0 && (
+        <div className="text-center text-gray-500">
+          これ以上の投稿はありません。
+        </div>
+      )}
       {isModalOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="bg-white rounded shadow-md text-center p-6 dark:bg-gray-900">
             <p>本当に削除しますか？</p>
-            <button className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 m-2 px-4 rounded"  onClick={() => setIsModalOpen(false)}>キャンセル</button>
+            <button className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 m-2 px-4 rounded" onClick={() => setIsModalOpen(false)}>キャンセル</button>
             <button className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 m-2 px-4 rounded" onClick={confirmDelete}>はい</button>
           </div>
         </div>
@@ -199,4 +239,4 @@ const PostFeed = ({ isLoggedIn }) => {
   );
 };
 
-export default PostFeed;
+export default PostFeed; 
