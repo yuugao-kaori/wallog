@@ -45,7 +45,7 @@ function Diary() {
   return (
     <div className="p-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
       {/* 投稿フォーム */}
-      <nav className="w-1/5 fixed right-0 p-4 min-h-full ">
+      <nav className="w-1/5 fixed right-0 px-4 pt-12 min-h-full ">
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
         {isLoggedIn ? (
           <form onSubmit={handleSubmit} className="mt-2">

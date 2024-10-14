@@ -43,3 +43,13 @@ curl -X DELETE http://192.168.1.148:25000/api/post/post_delete \
 curl -X post http://192.168.1.148:25000/api/post/post_read \
 -H "Content-Type: application/json" \
 -d '{"post_id": "20241011140544727674"}'
+###
+POST http://192.168.1.148:25000/api/drive/file_create
+Content-Type: multipart/form-data; boundary=boundary
+--boundary
+Content-Disposition: form-data; name="image"; filename="sample.png"
+Content-Type: image/png
+
+< ./sample.png
+
+--boundary--

@@ -23,6 +23,7 @@ services:
     volumes:
       - ./backend:/usr/src/backend
       - ./.env:/usr/src/backend/.env
+      - app_data:/usr/src/app_data
     command: sh -c "npm install && npm run start"
     ports:
       - "25000:5000"
@@ -80,6 +81,7 @@ services:
   
 volumes:
   db_data:
+  app_data:
 
 networks:
   wallog_default:
