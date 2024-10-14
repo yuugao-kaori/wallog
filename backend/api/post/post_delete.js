@@ -42,6 +42,15 @@ app.delete('/post_delete', async (req, res) => {
     const query = 'DELETE FROM post WHERE post_id = $1 RETURNING *;';
     const values = [postId];
 
+    // 新しいClientインスタンスを作成
+    const client = new Client({
+        user: POSTGRES_USER,
+        host: POSTGRES_NAME,
+        database: POSTGRES_DB,
+        password: POSTGRES_PASSWORD,
+        port: 5432,
+    });
+
     try {
         await client.connect();
         console.log('PostgreSQLに接続しました。');
@@ -60,4 +69,5 @@ app.delete('/post_delete', async (req, res) => {
         await client.end();
     }
 });
+
 export default app;
