@@ -1,13 +1,12 @@
 import express from 'express';
 import session from 'express-session';
 import cors from 'cors';
-import http from 'http';  // 追加
-import post_wsRoute from './api/post/post_ws.js';  // 修正
-import fileUpload from 'express-fileupload';
+import http from 'http';
+import post_wsRoute from './api/post/post_ws.js';
+import fileCreateHandler from './api/drive/file_create.js';  // file_create.js をインポート
+
 const app = express();
 const port = 5000;
-app.use(fileUpload());
-
 
 // CORSの設定
 app.use(cors({
@@ -25,12 +24,7 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('/', (req, res) => {
-    res.send('<html><body><h1>test</h1></body></html>');
-});
-
 // ルートの定義
-import file_createRoute from './api/drive/file_create.js';
 import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
 import post_readRoute from './api/post/post_read.js';
@@ -42,7 +36,9 @@ import test2Route from './api/test/test2.js';
 import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
 
-app.use('/api/drive', file_createRoute);
+// ファイルアップロードルートの設定（file_create.js を使用）
+app.post('/api/drive/file_create', fileCreateHandler);
+
 app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
@@ -59,11 +55,11 @@ app.use((err, req, res, next) => {
     res.status(500).send('Internal Server Error');
 });
 
-const server = http.createServer(app);  // 追加
+const server = http.createServer(app);
 
 // WebSocketサーバーを設定
-post_wsRoute(server);  // 修正
+post_wsRoute(server);
 
-server.listen(port, () => {  // 修正
+server.listen(port, () => {
     console.log(`Express app listening on port ${port}`);
 });

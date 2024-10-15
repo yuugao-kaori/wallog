@@ -8,6 +8,7 @@ import Test000 from './pages/test000.jsx';
 import Login from './pages/Login.jsx'; 
 import Test001 from './pages/test001.jsx'; 
 import Test002 from './pages/test002.jsx'; 
+import Test003 from './pages/test003.jsx'; 
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 
 const Home = () => <h1 className="text-xl font-bold">HelloWorld</h1>;
@@ -105,6 +106,12 @@ const App = () => {
             <Route 
               path="/test002" 
               element={<Test002 />} 
+              onEnter={startLoading} 
+              onLeave={stopLoading} 
+            />
+            <Route 
+              path="/test003" 
+              element={<Test003 />} 
               onEnter={startLoading} 
               onLeave={stopLoading} 
             />

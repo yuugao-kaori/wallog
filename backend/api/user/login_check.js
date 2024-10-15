@@ -41,6 +41,8 @@ router.get('/login_check', async (req, res) => {
   try {
     // Redisからセッション情報を取得
     const sessionData = await redis.get(`sess:${sessionId}`);
+    console.log('sessionId:', sessionId);
+    console.log('sessionData:', sessionData);
     
     if (!sessionData) {
       console.warn('No session data found in Redis for this session ID.');
@@ -49,7 +51,7 @@ router.get('/login_check', async (req, res) => {
 
     // セッションデータをパースして userId を確認
     const parsedSession = JSON.parse(sessionData);
-    
+    console.log('parsedSession.username:', parsedSession.username);
     if (!parsedSession.username) {
       console.warn('Session exists, but userId is not set.');
       return res.status(401).json({ error: 'User not logged in' });
