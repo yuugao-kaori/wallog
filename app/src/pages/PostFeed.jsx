@@ -11,56 +11,99 @@ const PostFeed = ({ isLoggedIn }) => {
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const [hasMore, setHasMore] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const lastScrollTopRef = useRef(0);
+  const newPostsAddedRef = useRef(false);
+  
+  // 仕様②用の状態
+  const [newPostsAvailable, setNewPostsAvailable] = useState(false);
+  const [accumulatedNewPosts, setAccumulatedNewPosts] = useState([]);
+  
+  // フラグを useRef で管理
+  const isLoadingMoreRef = useRef(false);
+  const isAtTopRef = useRef(true);
 
-  const scrollToNewPosts = useCallback(() => {
+  const scrollToTop = useCallback(() => {
     const container = containerRef.current;
     if (container) {
-      const scrollHeight = container.scrollHeight;
-      const height = container.clientHeight;
-      const maxScrollTop = scrollHeight - height;
-      
-      // 新しい投稿が追加された場合、それらが見えるようにスクロール
-      container.scrollTop = Math.max(0, maxScrollTop - 100); // 100pxの余裕を持たせる
+      container.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, []);
 
-  // WebSocketのonmessageイベントハンドラを更新
+  const preserveScrollPosition = useCallback(() => {
+    const container = containerRef.current;
+    if (container && newPostsAddedRef.current) {
+      const previousScrollTop = lastScrollTopRef.current;
+      container.scrollTop = container.scrollHeight - container.clientHeight - previousScrollTop;
+      newPostsAddedRef.current = false;
+    }
+  }, []);
+
   useEffect(() => {
     const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
     wsRef.current = ws;
 
     ws.onopen = () => {
       console.log('WebSocket接続が確立されました');
-      loadMorePosts();
+      loadMorePosts(); // 初期読み込み
     };
 
     ws.onmessage = (event) => {
-      const newPosts = JSON.parse(event.data);
-      console.log("New posts received:", newPosts);
-      if (newPosts.length === 0) {
-        setLoading(false);
-        setHasMore(false);
-        return;
-      }
-      setPosts((prevPosts) => {
-        const updatedPosts = [...prevPosts];
-        let hasNewPosts = false;
-        newPosts.forEach((newPost) => {
-          const index = updatedPosts.findIndex(post => post.post_id === newPost.post_id);
-          if (index === -1) {
-            updatedPosts.unshift(newPost); // 新しい投稿を先頭に追加
-            hasNewPosts = true;
+      const message = JSON.parse(event.data);
+      console.log("Received message:", message);
+
+      if (isLoadingMoreRef.current) {
+        // これは loadMore の応答と仮定
+        if (Array.isArray(message)) {
+          if (message.length === 0) {
+            setHasMore(false);
           } else {
-            updatedPosts[index] = newPost;
+            setPosts((prevPosts) => {
+              const updatedPosts = [...prevPosts, ...message];
+              return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
+            });
+            setOffset((prevOffset) => prevOffset + message.length);
+            // hasMore を適切に設定（サーバーからの返答が limit 未満ならこれ以上はないと判断）
+            if (message.length < 6) {
+              setHasMore(false);
+            }
           }
-        });
-        if (hasNewPosts) {
-          // 新しい投稿がある場合のみスクロール位置を調整
-          setTimeout(scrollToNewPosts, 0);
+        } else {
+          console.error('loadMore の応答が配列ではありません:', message);
         }
-        return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
-      });
-      setLoading(false);
+        isLoadingMoreRef.current = false;
+        setLoading(false);
+      } else {
+        // これは新しい投稿の通知と仮定
+        if (Array.isArray(message)) {
+          const newPosts = message;
+          if (newPosts.length === 0) {
+            // 新しい投稿がない場合は何もしない
+            return;
+          }
+
+          if (isAtTopRef.current) {
+            // 仕様①: 最上部にいる場合は自動で読み込み
+            setLoading(true);
+            setTimeout(() => {
+              setPosts((prevPosts) => {
+                const updatedPosts = [...newPosts, ...prevPosts];
+                return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
+              });
+              setLoading(false);
+              if (!initialLoadComplete) {
+                setInitialLoadComplete(true);
+              }
+            }, 2000); // 2秒の遅延
+          } else {
+            // 仕様②: 最上部にいない場合は「戻る」ボタンを表示
+            setAccumulatedNewPosts((prev) => [...newPosts, ...prev]);
+            setNewPostsAvailable(true);
+          }
+        } else {
+          console.error('新しい投稿の応答が配列ではありません:', message);
+        }
+      }
     };
 
     ws.onerror = (error) => console.error('WebSocket error:', error);
@@ -71,14 +114,25 @@ const PostFeed = ({ isLoggedIn }) => {
         ws.close();
       }
     };
-  }, [scrollToNewPosts]);
+  }, [initialLoadComplete]); // 依存配列から isLoadingMore と isAtTop を除外
+
+  useEffect(() => {
+    if (initialLoadComplete) {
+      scrollToTop();
+    }
+  }, [initialLoadComplete, scrollToTop]);
+
+  useEffect(() => {
+    preserveScrollPosition();
+  }, [posts, preserveScrollPosition]);
 
   const loadMorePosts = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !loading && hasMore) {
       setLoading(true);
+      isLoadingMoreRef.current = true; // 読み込み中フラグを立てる
       console.log("Sending request with offset:", offset);
-      wsRef.current.send(JSON.stringify({ action: 'loadMore', offset }));
-      setOffset(prevOffset => prevOffset + 10);
+      wsRef.current.send(JSON.stringify({ action: 'loadMore', offset, limit: 6 })); // 仕様③,④: limitを6に設定
+      // setTimeoutは削除。サーバーからの応答を待つ
     }
   }, [offset, loading, hasMore]);
 
@@ -87,6 +141,11 @@ const PostFeed = ({ isLoggedIn }) => {
     if (!container) return;
 
     const handleScroll = () => {
+      const scrollTop = container.scrollTop;
+      const isTop = scrollTop === 0;
+      isAtTopRef.current = isTop;
+      lastScrollTopRef.current = scrollTop;
+
       if (
         container.scrollTop + container.clientHeight >= container.scrollHeight - 300 &&
         !loading &&
@@ -99,16 +158,17 @@ const PostFeed = ({ isLoggedIn }) => {
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [loadMorePosts, hasMore]);
-  
-  // 投稿が追加または削除された後にスクロール位置を調整
-  useEffect(() => {
-    const container = containerRef.current;
-    if (container) {
-      // 新しい投稿が追加されたときにスクロール位置を調整
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [posts]);
+  }, [loadMorePosts, hasMore, loading]);
+
+  const handleBackButtonClick = () => {
+    scrollToTop();
+    setPosts((prevPosts) => {
+      const updatedPosts = [...accumulatedNewPosts, ...prevPosts];
+      return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
+    });
+    setAccumulatedNewPosts([]);
+    setNewPostsAvailable(false);
+  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -158,7 +218,7 @@ const PostFeed = ({ isLoggedIn }) => {
     const menuRef = useRef(null);
   
     const toggleMenu = (event) => {
-      event.stopPropagation(); // クリックイベントの伝播を防ぐ
+      event.stopPropagation();
       setMenuOpen(!menuOpen);
     };
   
@@ -178,7 +238,7 @@ const PostFeed = ({ isLoggedIn }) => {
     return (
       <div
         key={post.post_id}
-        className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`} // ここで受け取ったclassNameを適用
+        className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`}
         onClick={() => handlePostClick(post.post_id)}
       >
         <div className="absolute top-4 right-4">
@@ -212,7 +272,7 @@ const PostFeed = ({ isLoggedIn }) => {
           Created at: {formatDate(post.post_createat)}
         </div>
         <p
-          className="mt-2 text-gray-800 text-base dark:text-gray-100"
+          className="mt-2 text-gray-800 text-base dark:text-gray-100 whitespace-pre-wrap"
           dangerouslySetInnerHTML={{ __html: formatHashtags(post.post_text) }}
         ></p>
       </div>
@@ -222,14 +282,24 @@ const PostFeed = ({ isLoggedIn }) => {
   return (
     <div 
       ref={containerRef} 
-      className="post-feed px-6 space-y-6 overflow-y-auto flex flex-col"
+      className="post-feed px-6 space-y-6 overflow-y-auto flex flex-col relative"
       style={{ 
-        height: 'calc(100vh - 160px)', // ヘッダーの高さを考慮して調整
+        height: 'calc(100vh - 160px)',
         scrollbarWidth: 'none', 
         msOverflowStyle: 'none',
-        paddingTop: '60px', // ヘッダーの高さ分だけpadding-topを追加
+        paddingTop: '60px',
       }}
     >
+      {/* 仕様②: 新しい投稿がある場合の「戻る」ボタン */}
+      {newPostsAvailable && (
+        <button 
+          className="fixed top-16 right-6 bg-blue-500 text-white py-2 px-4 rounded shadow-lg z-20"
+          onClick={handleBackButtonClick}
+        >
+          戻る
+        </button>
+      )}
+
       {posts.map((post) => (
         <Card
           key={post.post_id}
@@ -239,7 +309,7 @@ const PostFeed = ({ isLoggedIn }) => {
         />
       ))}
 
-      {posts.length === 0 && <p>投稿がありません。</p>}
+      {posts.length === 0 && !loading && <p>投稿がありません。</p>}
       {loading && (
         <div className="load-more-indicator text-center text-gray-500">
           投稿を読み込んでいます...
@@ -263,4 +333,4 @@ const PostFeed = ({ isLoggedIn }) => {
   );
 };
 
-export default PostFeed; 
+export default PostFeed;
