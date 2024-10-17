@@ -7,6 +7,7 @@ module.exports = {
   entry: './src/index.jsx', // エントリーポイント
   output: {
     path: path.resolve(__dirname, 'dist'), // 出力先ディレクトリ
+    publicPath: '/', // これを追加/確認
     filename: 'bundle.js', // 出力ファイル名
   },
   module: {

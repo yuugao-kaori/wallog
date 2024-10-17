@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS "blog" (
 
 -- driveテーブルの作成
 CREATE TABLE IF NOT EXISTS "drive" (
-    file_id NUMERIC PRIMARY KEY,
+    file_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     file_size NUMERIC,
     file_format CHARACTER VARYING,
