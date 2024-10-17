@@ -1,7 +1,7 @@
 import './index.css'; 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter as Router, Route, Routes, Link, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Link, useParams, useLocation } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; 
 import Drive from './pages/Drive.jsx'; 
 import PostDetail from './pages/PostRead.jsx'; 
@@ -12,6 +12,46 @@ import Test002 from './pages/test002.jsx';
 import Test003 from './pages/test003.jsx'; 
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
+
+// TitleUpdaterコンポーネントを定義
+const TitleUpdater = () => {
+  const location = useLocation();
+
+  // パスに基づいてタイトルを返す関数
+  const getTitle = (pathname) => {
+    if (pathname.startsWith('/diary/')) {
+      return 'Diary';
+    }
+    switch (pathname) {
+      case '/':
+        return 'Home | My Sustainer';
+      case '/diary':
+        return 'Diary | My Sustainer';
+      case '/drive':
+        return 'Drive | My Sustainer';
+      case '/test000':
+        return 'Test000 | My Sustainer';
+      case '/test001':
+        return 'Test001 | My Sustainer';
+      case '/test002':
+        return 'Test002 | My Sustainer';
+      case '/test003':
+        return 'Test003 | My Sustainer';
+      case '/login':
+        return 'Login | My Sustainer';
+      default:
+        return 'My Sustainer';
+    }
+  };
+
+  const title = getTitle(location.pathname);
+
+  return (
+    <Helmet>
+      <title>{title}</title>
+    </Helmet>
+  );
+};
 
 const Home = ({ startLoading, stopLoading }) => {
   useEffect(() => {
@@ -43,8 +83,6 @@ const Test2 = ({ startLoading, stopLoading }) => {
 };
 
 const App = () => {
-  const componentName = "Home";
-
   const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -66,9 +104,9 @@ const App = () => {
   return (
     <Router>
       <div className={`relative flex h-screen ${theme}`}>
-        <Helmet>
-          <title>{componentName}</title>
-        </Helmet>
+        {/* TitleUpdaterを挿入 */}
+        <TitleUpdater />
+
         <button 
           onClick={toggleTheme} 
           className="fixed z-50 top-4 right-4 bg-gray-800 text-white dark:bg-gray-200 dark:text-black p-2 rounded shadow-lg"
@@ -88,8 +126,23 @@ const App = () => {
               </Link>
             </li>
             <li>
+              <Link to="/test002" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+                ブログ-Blog-
+              </Link>
+            </li>
+            <li>
+              <Link to="/test002" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+                検索-Search-
+              </Link>
+            </li>
+            <li>
               <Link to="/drive" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
-                実装中
+                ドライブ-Drive-
+              </Link>
+            </li>
+            <li>
+              <Link to="/test002" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+                設定-Settings-
               </Link>
             </li>
           </ul>
@@ -158,4 +211,4 @@ const AppWithProviders = () => (
   </HelmetProvider>
 );
 
-ReactDOM.render(<AppWithProviders />, document.getElementById('root')); 
+ReactDOM.render(<AppWithProviders />, document.getElementById('root'));  

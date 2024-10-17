@@ -43,7 +43,7 @@ function Diary() {
   };
 
   return (
-    <div className="p-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
+    <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
       {/* 投稿フォーム */}
       <nav className="w-1/5 fixed right-0 px-4 pt-12 min-h-full ">
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
@@ -76,8 +76,8 @@ function Diary() {
 
       {/* 投稿一覧 */}
       <div className="flex-1 mr-1/5">
-        <h2 className="text-xl font-bold">日記-Diary-</h2>
-        <p className="text-lg">全ての記事が一覧になっています。</p>
+        <h2 className="text-l font-bold">日記-Diary-</h2>
+        <p className="text-sm">全ての記事が一覧になっています。</p>
         {sessionError && <p className="text-red-500">{sessionError}</p>}
         <div className="mt-4">
           <PostFeed isLoggedIn={isLoggedIn} /> {/* 投稿表示 */}
