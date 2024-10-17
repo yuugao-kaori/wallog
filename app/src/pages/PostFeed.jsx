@@ -282,7 +282,7 @@ const PostFeed = ({ isLoggedIn }) => {
   return (
     <div 
       ref={containerRef} 
-      className="post-feed px-6 space-y-6 overflow-y-auto flex flex-col relative"
+      className="post-feed px-6 space-y-3 overflow-y-auto flex flex-col relative"
       style={{ 
         height: 'calc(100vh - 160px)',
         scrollbarWidth: 'none', 

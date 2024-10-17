@@ -1,8 +1,9 @@
 import './index.css'; 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter as Router, Route, Routes, Link, useParams } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; 
+import Drive from './pages/Drive.jsx'; 
 import PostDetail from './pages/PostRead.jsx'; 
 import Test000 from './pages/test000.jsx'; 
 import Login from './pages/Login.jsx'; 
@@ -10,15 +11,40 @@ import Test001 from './pages/test001.jsx';
 import Test002 from './pages/test002.jsx'; 
 import Test003 from './pages/test003.jsx'; 
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 
-const Home = () => <h1 className="text-xl font-bold">HelloWorld</h1>;
+const Home = ({ startLoading, stopLoading }) => {
+  useEffect(() => {
+    startLoading();
+    const timer = setTimeout(() => {
+      stopLoading();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [startLoading, stopLoading]);
+
+  return <h1 className="text-xl font-bold">HelloWorld</h1>;
+};
+
 const Test1 = () => {
   const { postId } = useParams();
   return <h1 className="text-xl font-bold">Test 1 Page, Post ID: {postId}</h1>;
 };
-const Test2 = () => <h1 className="text-xl font-bold">Test 2 Page</h1>;
+
+const Test2 = ({ startLoading, stopLoading }) => {
+  useEffect(() => {
+    startLoading();
+    const timer = setTimeout(() => {
+      stopLoading();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [startLoading, stopLoading]);
+
+  return <h1 className="text-xl font-bold">Test 2 Page</h1>;
+};
 
 const App = () => {
+  const componentName = "Home";
+
   const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -40,6 +66,9 @@ const App = () => {
   return (
     <Router>
       <div className={`relative flex h-screen ${theme}`}>
+        <Helmet>
+          <title>{componentName}</title>
+        </Helmet>
         <button 
           onClick={toggleTheme} 
           className="fixed z-50 top-4 right-4 bg-gray-800 text-white dark:bg-gray-200 dark:text-black p-2 rounded shadow-lg"
@@ -59,7 +88,7 @@ const App = () => {
               </Link>
             </li>
             <li>
-              <Link to="/test2" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+              <Link to="/drive" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
                 実装中
               </Link>
             </li>
@@ -75,57 +104,39 @@ const App = () => {
           <Routes>
             <Route 
               path="/" 
-              element={<Home />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Home startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/diary" 
-              element={<Diary />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Diary startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
-              path="/test2" 
-              element={<Test2 />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              path="/drive" 
+              element={<Drive startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/test000" 
-              element={<Test000 />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Test000 startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/test001" 
-              element={<Test001 />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Test001 startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/test002" 
-              element={<Test002 />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Test002 startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/test003" 
-              element={<Test003 />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Test003 startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/login" 
-              element={<Login />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<Login startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/diary/:postId" 
-              element={<PostDetail />} 
-              onEnter={startLoading} 
-              onLeave={stopLoading} 
+              element={<PostDetail startLoading={startLoading} stopLoading={stopLoading} />} 
             />
           </Routes>
         </div>
@@ -139,10 +150,12 @@ const App = () => {
   );
 };
 
-const AppWithTheme = () => (
-  <ThemeProvider>
-    <App />
-  </ThemeProvider>
+const AppWithProviders = () => (
+  <HelmetProvider>
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  </HelmetProvider>
 );
 
-ReactDOM.render(<AppWithTheme />, document.getElementById('root'));
+ReactDOM.render(<AppWithProviders />, document.getElementById('root')); 
