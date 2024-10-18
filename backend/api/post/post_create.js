@@ -115,7 +115,7 @@ router.post('/post_create', async (req, res) => {
         
             return y + m + d + h + mi + s;
         }
-        async function insertPost(postText) {
+        async function insertPost(postText, file_id) {
 
                             
             // クライアントを接続
@@ -123,11 +123,11 @@ router.post('/post_create', async (req, res) => {
             console.log('PostgreSQLに接続しました。');
             const query = `
                 INSERT INTO post (post_id, user_id, post_text, post_tag, post_file, post_attitude)
-                VALUES ($1, $2, $3, $4, 'none_data', 1)
+                VALUES ($1, $2, $3, $4, $5, 1)
                 RETURNING *;
                 `;
         
-            const values = [post_id, parsedSession.username, postText, post_tag];
+            const values = [post_id, parsedSession.username, postText, post_tag, file_id];
             
             try {
                 
@@ -152,7 +152,7 @@ router.post('/post_create', async (req, res) => {
             try {
                 console.log('async_ok');
                              
-                const newPost = await insertPost(req.body.post_text);
+                const newPost = await insertPost(req.body.post_text, req.body.file_id);
                 console.log('New post:', newPost);
                 return res.status(200).json({ created_note: newPost });
 

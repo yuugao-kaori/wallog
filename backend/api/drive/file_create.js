@@ -10,6 +10,8 @@ import dotenv from 'dotenv'; // dotenvをインポート
 import pkg from 'pg';
 const { Client } = pkg; // pgライブラリからClientをインポート
 
+
+
 const router = express.Router();
 console.log('file_create:wakeup!');
 
