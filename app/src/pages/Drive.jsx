@@ -89,7 +89,7 @@ const Drive = () => {
             value={limit}
             onChange={handleLimitChange}
             min="1"
-            className="w-16 px-2 py-1 border rounded"
+            className="w-16 px-2 py-1 border rounded dark:bg-gray-800 "
           />
         </div>
       </div>
@@ -103,15 +103,21 @@ const Drive = () => {
       {/* ファイルカードの表示 */}
       <div className="space-y-4">
         {files.map(file => (
-          <div key={file.file_id} className="flex items-center justify-between p-4 bg-white shadow rounded">
+          <div key={file.file_id} className="flex items-center justify-between p-4 bg-white shadow rounded dark:bg-gray-800">
             <div className="flex-1">
-              <p className="text-lg font-medium text-gray-800"><strong>File ID:</strong> {file.file_id}</p>
+              <p className="text-lg font-medium text-gray-800 dark:text-gray-100"><strong>File ID:</strong> {file.file_id}</p>
               <p className="text-gray-600"><strong>File Size:</strong> {file.file_size} bytes</p>
               <p className="text-gray-600"><strong>Created At:</strong> {new Date(file.file_createat).toLocaleString()}</p>
             </div>
-            <div className="w-24 h-24 ml-4 bg-gray-200 flex items-center justify-center rounded">
-              {/* 将来の画像表示のためのスペース */}
-              {/* 例: <img src={`path_to_image/${file.file_id}.jpg`} alt="File" className="w-full h-full object-cover rounded" /> */}
+            <div className="w-24 h-24 ml-4 bg-gray-200 flex items-center justify-center rounded relative">
+              {/* 画像を表示 */}
+              <img
+                src={`http://192.168.1.148:25000/api/drive/file/${file.file_id}`}
+                alt={`File ${file.file_id}`}
+                className="w-full h-full object-cover rounded absolute top-0 left-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              {/* 画像読み込み失敗時は灰色の正方形が表示されたまま */}
             </div>
           </div>
         ))}

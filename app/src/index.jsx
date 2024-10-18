@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Route, Routes, Link, useParams, useLocation } 
 import Diary from './pages/Diary.jsx'; 
 import Drive from './pages/Drive.jsx'; 
 import PostDetail from './pages/PostRead.jsx'; 
+import FileRead from './pages/file_read.jsx'; 
 import Test000 from './pages/test000.jsx'; 
 import Login from './pages/Login.jsx'; 
 import Test001 from './pages/test001.jsx'; 
@@ -190,6 +191,10 @@ const App = () => {
             <Route 
               path="/diary/:postId" 
               element={<PostDetail startLoading={startLoading} stopLoading={stopLoading} />} 
+            />
+            <Route 
+              path="/file/:file_id" 
+              element={<FileRead startLoading={startLoading} stopLoading={stopLoading} />} 
             />
           </Routes>
         </div>

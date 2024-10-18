@@ -82,7 +82,7 @@ async function insertPost(file_id, user_name, file_size, file_format) {
 // ストレージの設定
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.resolve(__dirname, '../../app_data');
+    const uploadPath = path.resolve(__dirname, '../../../app_data');
     // ディレクトリが存在しない場合は作成
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
@@ -91,7 +91,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, file.fieldname + '-' + uniqueSuffix);
   }
 });
 
