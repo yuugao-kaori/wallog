@@ -98,7 +98,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
-
 // ファイルアップロード処理
 const fileCreateHandler = (req, res, user_name) => {
   upload.single('file')(req, res, async function (err) {
@@ -117,17 +116,22 @@ const fileCreateHandler = (req, res, user_name) => {
 
       const new_file = await insertPost(file_id, user_name, file_size, file_format);
       console.log('New file:', new_file);
+      
+
+
       return res.status(200).json({
         message: 'File uploaded successfully',
-        filePath: req.file.path
+        filePath: req.file.path,
+        file_id: file_id // ここにfile_idを含むURLを追加
       });
 
     } catch (err) {
       console.error('Error:', err);
-      return res.status(500).json({ error: err });
+      return res.status(500).json({ error: err.message });
     }
   });
 };
+
 
 router.post('/file_create', async (req, res) => {
   if (!req.session) {

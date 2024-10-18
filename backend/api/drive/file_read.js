@@ -9,8 +9,13 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CORS を全てのオリジンから許可
-router.use(cors());
+// CORS の設定を詳細に指定し、セッションミドルウェアの前に配置
+router.use(cors({
+    origin: 'http://192.168.1.148:23000', // フロントエンドのオリジンに置き換え
+    methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  }));
 
 // ファイルを返すエンドポイント
 router.get('/file/:file_id', (req, res) => {

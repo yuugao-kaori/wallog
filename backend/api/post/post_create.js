@@ -126,7 +126,7 @@ router.post('/post_create', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5, 1)
                 RETURNING *;
                 `;
-        
+            
             const values = [post_id, parsedSession.username, postText, post_tag, file_id];
             
             try {
