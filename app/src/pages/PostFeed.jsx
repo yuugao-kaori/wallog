@@ -212,10 +212,65 @@ const PostFeed = ({ isLoggedIn }) => {
       console.error('エラーが発生しました:', error);
     });
   };
-
   const Card = ({ post, isLoggedIn, className }) => {
+    const [images, setImages] = useState([]);
+    const [imageModalOpen, setImageModalOpen] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
+  
+    useEffect(() => {
+      let isMounted = true;
+      const fetchImages = async () => {
+        const files = post.post_file ? (Array.isArray(post.post_file) ? post.post_file : [post.post_file]) : [];
+        const fetchedImages = await Promise.all(files.map(async (file) => {
+          let file_id;
+          
+          if (typeof file === "object" && file !== null) {
+            // オブジェクトの場合、キーを取得
+            file_id = Object.keys(file)[0];
+          } else if (typeof file === "string") {
+            // 文字列の場合、不要な文字を削除
+            file_id = file.replace(/^\{?"|"?\}$/g, '');
+          } else {
+            // その他の場合はそのまま使用
+            file_id = file;
+          }
+          
+          try {
+            const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
+            if (!response.ok) throw new Error('Fetch failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            return { file_id, url, error: false };
+          } catch (error) {
+            return { file_id, url: null, error: true };
+          }
+        }));
+      
+        if (isMounted) {
+          setImages(fetchedImages);
+        }
+      };
+  
+      fetchImages();
+      return () => {
+        isMounted = false;
+        images.forEach(img => {
+          if (img.url) URL.revokeObjectURL(img.url);
+        });
+      };
+    }, [post.post_file]);
+  
+    const handleImageClick = (url) => {
+      setSelectedImage(url);
+      setImageModalOpen(true);
+    };
+  
+    const closeImageModal = () => {
+      setImageModalOpen(false);
+      setSelectedImage(null);
+    };
   
     const toggleMenu = (event) => {
       event.stopPropagation();
@@ -248,7 +303,7 @@ const PostFeed = ({ isLoggedIn }) => {
             </svg>
           </button>
         </div>
-
+  
         {menuOpen && (
           <div ref={menuRef} className="absolute top-14 right-4 bg-white shadow-lg rounded-lg p-2 z-10 dark:bg-gray-900">
             <ul>
@@ -267,7 +322,7 @@ const PostFeed = ({ isLoggedIn }) => {
             </ul>
           </div>
         )}
-
+  
         <div className="text-gray-500 text-sm">
           Created at: {formatDate(post.post_createat)}
         </div>
@@ -275,10 +330,37 @@ const PostFeed = ({ isLoggedIn }) => {
           className="mt-2 text-gray-800 text-base dark:text-gray-100 whitespace-pre-wrap"
           dangerouslySetInnerHTML={{ __html: formatHashtags(post.post_text) }}
         ></p>
+  
+        {images.length > 0 && (
+        <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
+          {images.map((img) => (
+            <div key={img.file_id} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
+              {img.error ? (
+                <div className="flex items-center justify-center h-full text-red-500 text-sm">
+                  画像を表示できませんでした。
+                </div>
+              ) : (
+                <img
+                  src={img.url}
+                  alt={`Post image ${img.file_id}`}
+                  className="object-contain w-full h-full cursor-pointer bg-gray-700"
+                  onClick={(e) => { e.stopPropagation(); handleImageClick(img.url); }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+  
+        {imageModalOpen && selectedImage && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50" onClick={closeImageModal}>
+            <img src={selectedImage} alt="Enlarged" className="max-w-3xl max-h-full rounded" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
       </div>
     );
   };
-
+  
   return (
     <div 
       ref={containerRef} 

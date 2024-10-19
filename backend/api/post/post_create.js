@@ -152,7 +152,7 @@ router.post('/post_create', async (req, res) => {
             try {
                 console.log('async_ok');
                              
-                const newPost = await insertPost(req.body.post_text, req.body.file_id);
+                const newPost = await insertPost(req.body.post_text, req.body.post_file);
                 console.log('New post:', newPost);
                 return res.status(200).json({ created_note: newPost });
 

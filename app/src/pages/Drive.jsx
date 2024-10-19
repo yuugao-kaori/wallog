@@ -208,7 +208,7 @@ const Drive = () => {
     };
 
     return (
-      <div className="w-1/5 fixed right-0 px-4 pt-12 min-h-full bg-gray-100 dark:bg-gray-900 shadow-lg">
+      <div className="w-1/5 fixed right-0 px-4 pt-12 min-h-full bg-gray-100 dark:bg-gray-800 shadow-lg">
         <h2 className="text-xl font-semibold mb-4 text-center">ファイルアップロード</h2>
         <form onSubmit={handleSubmit} className="flex flex-col items-center">
           <div
@@ -371,12 +371,11 @@ const Drive = () => {
         {error && <p className="text-center text-red-500 font-semibold">Error: {error}</p>}
 
         {/* ファイルカードの表示 */}
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-128 overflow-y-auto">
           {files.map(file => (
             <Card key={file.file_id} file={file} />
           ))}
         </div>
-
         {/* ページネーションコントロール（下部） */}
         <div className="flex items-center justify-between mt-6">
           <div className="flex items-center space-x-4">
