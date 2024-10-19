@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'; 
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const PostFeed = ({ isLoggedIn }) => {
-  const [posts, setPosts] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
+const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, loadMorePosts }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
-  const wsRef = useRef(null);
   const navigate = useNavigate();
   const containerRef = useRef(null);
-  const [hasMore, setHasMore] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const lastScrollTopRef = useRef(0);
   const newPostsAddedRef = useRef(false);
   
-  // 仕様②用の状態
   const [newPostsAvailable, setNewPostsAvailable] = useState(false);
   const [accumulatedNewPosts, setAccumulatedNewPosts] = useState([]);
   
-  // フラグを useRef で管理
-  const isLoadingMoreRef = useRef(false);
   const isAtTopRef = useRef(true);
 
   const scrollToTop = useCallback(() => {
@@ -40,83 +32,6 @@ const PostFeed = ({ isLoggedIn }) => {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('WebSocket接続が確立されました');
-      loadMorePosts(); // 初期読み込み
-    };
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      console.log("Received message:", message);
-
-      if (isLoadingMoreRef.current) {
-        // これは loadMore の応答と仮定
-        if (Array.isArray(message)) {
-          if (message.length === 0) {
-            setHasMore(false);
-          } else {
-            setPosts((prevPosts) => {
-              const updatedPosts = [...prevPosts, ...message];
-              return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
-            });
-            setOffset((prevOffset) => prevOffset + message.length);
-            // hasMore を適切に設定（サーバーからの返答が limit 未満ならこれ以上はないと判断）
-            if (message.length < 6) {
-              setHasMore(false);
-            }
-          }
-        } else {
-          console.error('loadMore の応答が配列ではありません:', message);
-        }
-        isLoadingMoreRef.current = false;
-        setLoading(false);
-      } else {
-        // これは新しい投稿の通知と仮定
-        if (Array.isArray(message)) {
-          const newPosts = message;
-          if (newPosts.length === 0) {
-            // 新しい投稿がない場合は何もしない
-            return;
-          }
-
-          if (isAtTopRef.current) {
-            // 仕様①: 最上部にいる場合は自動で読み込み
-            setLoading(true);
-            setTimeout(() => {
-              setPosts((prevPosts) => {
-                const updatedPosts = [...newPosts, ...prevPosts];
-                return updatedPosts.sort((a, b) => new Date(b.post_createat) - new Date(a.post_createat));
-              });
-              setLoading(false);
-              if (!initialLoadComplete) {
-                setInitialLoadComplete(true);
-              }
-            }, 2000); // 2秒の遅延
-          } else {
-            // 仕様②: 最上部にいない場合は「戻る」ボタンを表示
-            setAccumulatedNewPosts((prev) => [...newPosts, ...prev]);
-            setNewPostsAvailable(true);
-          }
-        } else {
-          console.error('新しい投稿の応答が配列ではありません:', message);
-        }
-      }
-    };
-
-    ws.onerror = (error) => console.error('WebSocket error:', error);
-    ws.onclose = () => console.log('WebSocket接続が切断されました');
-
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
-  }, [initialLoadComplete]); // 依存配列から isLoadingMore と isAtTop を除外
-
-  useEffect(() => {
     if (initialLoadComplete) {
       scrollToTop();
     }
@@ -125,16 +40,6 @@ const PostFeed = ({ isLoggedIn }) => {
   useEffect(() => {
     preserveScrollPosition();
   }, [posts, preserveScrollPosition]);
-
-  const loadMorePosts = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !loading && hasMore) {
-      setLoading(true);
-      isLoadingMoreRef.current = true; // 読み込み中フラグを立てる
-      console.log("Sending request with offset:", offset);
-      wsRef.current.send(JSON.stringify({ action: 'loadMore', offset, limit: 6 })); // 仕様③,④: limitを6に設定
-      // setTimeoutは削除。サーバーからの応答を待つ
-    }
-  }, [offset, loading, hasMore]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -159,6 +64,7 @@ const PostFeed = ({ isLoggedIn }) => {
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
   }, [loadMorePosts, hasMore, loading]);
+
 
   const handleBackButtonClick = () => {
     scrollToTop();
@@ -190,7 +96,15 @@ const PostFeed = ({ isLoggedIn }) => {
     setSelectedPostId(post_id); // 削除対象のポストIDを設定
     setIsModalOpen(true); // モーダルを開く
   };
-
+  const fetchImagesForPost = async (postId) => {
+    try {
+      const response = await axios.get(`/api/posts/${postId}/images`);
+      return response.data; // 必要に応じて画像データを返す
+    } catch (error) {
+      console.error("Error fetching images for post:", error);
+      return [];
+    }
+  };
   const confirmDelete = () => {
     // APIリクエストを送信する処理
     fetch('http://192.168.1.148:25000/api/post/post_delete', {
@@ -212,7 +126,8 @@ const PostFeed = ({ isLoggedIn }) => {
       console.error('エラーが発生しました:', error);
     });
   };
-  const Card = ({ post, isLoggedIn, className }) => {
+  // Cardコンポーネントをメモ化
+  const MemoizedCard = useMemo(() => React.memo(({ post, isLoggedIn, className }) => {
     const [images, setImages] = useState([]);
     const [imageModalOpen, setImageModalOpen] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
@@ -225,7 +140,7 @@ const PostFeed = ({ isLoggedIn }) => {
         const files = post.post_file ? (Array.isArray(post.post_file) ? post.post_file : [post.post_file]) : [];
         const fetchedImages = await Promise.all(files.map(async (file) => {
           let file_id;
-          
+  
           if (typeof file === "object" && file !== null) {
             // オブジェクトの場合、キーを取得
             file_id = Object.keys(file)[0];
@@ -236,7 +151,7 @@ const PostFeed = ({ isLoggedIn }) => {
             // その他の場合はそのまま使用
             file_id = file;
           }
-          
+  
           try {
             const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
             if (!response.ok) throw new Error('Fetch failed');
@@ -247,7 +162,7 @@ const PostFeed = ({ isLoggedIn }) => {
             return { file_id, url: null, error: true };
           }
         }));
-      
+  
         if (isMounted) {
           setImages(fetchedImages);
         }
@@ -309,7 +224,7 @@ const PostFeed = ({ isLoggedIn }) => {
               {isLoggedIn && (
                 <li
                   className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg hover:px-4 cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                  onClick={(event) => handleDeleteClick(event, post.post_id)} // ここでクリックイベントを渡す
+                  onClick={(event) => handleDeleteClick(event, post.post_id)}
                 >
                   削除
                 </li>
@@ -361,25 +276,25 @@ const PostFeed = ({ isLoggedIn }) => {
         ></p>
   
         {images.length > 0 && (
-        <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
-          {images.map((img) => (
-            <div key={img.file_id} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
-              {img.error ? (
-                <div className="flex items-center justify-center h-full text-red-500 text-sm">
-                  画像を表示できませんでした。
-                </div>
-              ) : (
-                <img
-                  src={img.url}
-                  alt={`Post image ${img.file_id}`}
-                  className="object-contain w-full h-full cursor-pointer bg-gray-700"
-                  onClick={(e) => { e.stopPropagation(); handleImageClick(img.url); }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+          <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
+            {images.map((img) => (
+              <div key={img.file_id} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
+                {img.error ? (
+                  <div className="flex items-center justify-center h-full text-red-500 text-sm">
+                    画像を表示できませんでした。
+                  </div>
+                ) : (
+                  <img
+                    src={img.url}
+                    alt={`Post image ${img.file_id}`}
+                    className="object-contain w-full h-full cursor-pointer bg-gray-700"
+                    onClick={(e) => { e.stopPropagation(); handleImageClick(img.url); }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
   
         {imageModalOpen && selectedImage && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50" onClick={closeImageModal}>
@@ -388,7 +303,8 @@ const PostFeed = ({ isLoggedIn }) => {
         )}
       </div>
     );
-  };
+  }), []);
+  
   
   return (
     <div 
@@ -412,7 +328,7 @@ const PostFeed = ({ isLoggedIn }) => {
       )}
 
       {posts.map((post) => (
-        <Card
+        <MemoizedCard
           key={post.post_id}
           post={post}
           isLoggedIn={isLoggedIn}
@@ -442,6 +358,6 @@ const PostFeed = ({ isLoggedIn }) => {
       )}
     </div>
   );
-};
+});
 
 export default PostFeed;

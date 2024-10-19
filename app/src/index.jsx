@@ -1,6 +1,7 @@
+// index.jsx または main.jsx として保存
 import './index.css'; 
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
+import ReactDOM from 'react-dom/client'; // React 18 以降では createRoot を使用
 import { BrowserRouter as Router, Route, Routes, Link, useParams, useLocation } from 'react-router-dom';
 import Diary from './pages/Diary.jsx'; 
 import Drive from './pages/Drive.jsx'; 
@@ -21,7 +22,7 @@ const TitleUpdater = () => {
   // パスに基づいてタイトルを返す関数
   const getTitle = (pathname) => {
     if (pathname.startsWith('/diary/')) {
-      return 'Diary';
+      return 'Diary | My Sustainer';
     }
     switch (pathname) {
       case '/':
@@ -216,4 +217,6 @@ const AppWithProviders = () => (
   </HelmetProvider>
 );
 
-ReactDOM.render(<AppWithProviders />, document.getElementById('root'));  
+// React 18 以降の推奨されるレンダリング方法
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<AppWithProviders />);

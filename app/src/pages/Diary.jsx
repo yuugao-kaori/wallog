@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import PostFeed from './PostFeed';
+import useWebSocket from './useWebSocket';
 
 axios.defaults.baseURL = 'http://192.168.1.148:25000';
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
@@ -14,6 +15,8 @@ function Diary() {
   const [files, setFiles] = useState([]);
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
+  const { posts, setPosts, loading, hasMore, loadMorePosts } = useWebSocket('ws://192.168.1.148:25000/api/post/post_ws');
+
 
   useEffect(() => {
     const checkSession = async () => {
@@ -53,7 +56,7 @@ function Diary() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     try {
       const payload = {
@@ -62,14 +65,17 @@ function Diary() {
       if (files.length > 0) {
         payload.post_file = files.map((file) => file.id);
       }
-      await axios.post('/api/post/post_create', payload);
+      const response = await axios.post('/api/post/post_create', payload);
       setStatus('投稿が成功しました！');
       setPostText('');
       setFiles([]);
+      // Add the new post to the beginning of the posts array
+      setPosts(prevPosts => [response.data, ...prevPosts]);
     } catch (error) {
       setStatus('投稿に失敗しました。');
     }
-  };
+  }, [postText, files, setPosts]);
+
 
   const handleDelete = async (fileId) => {
     try {
@@ -100,6 +106,7 @@ function Diary() {
 
   return (
     <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
+
       {/* 投稿フォーム */}
       <nav className="w-1/5 fixed right-0 px-4 pt-12 min-h-full ">
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
@@ -162,7 +169,7 @@ function Diary() {
             >
               投稿
             </button>
-          </form>
+            </form>
         ) : (
           <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
         )}
@@ -175,11 +182,18 @@ function Diary() {
         <p className="text-sm">全ての記事が一覧になっています。</p>
         {sessionError && <p className="text-red-500">{sessionError}</p>}
         <div className="mt-4">
-          <PostFeed isLoggedIn={isLoggedIn} />
+          <PostFeed
+            posts={posts}
+            setPosts={setPosts}
+            isLoggedIn={isLoggedIn}
+            loading={loading}
+            hasMore={hasMore}
+            loadMorePosts={loadMorePosts}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-export default Diary;
+export default React.memo(Diary);
