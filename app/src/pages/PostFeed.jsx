@@ -318,7 +318,37 @@ const PostFeed = ({ isLoggedIn }) => {
               {isLoggedIn && (
                 <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg hover:px-4 cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800">修正</li>
               )}
-              <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg hover:px-4 cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800">URLコピー</li>
+              <li
+                className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg hover:px-4 cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                onClick={() => {
+                  const url = `http://192.168.1.148:23000/diary/${post.post_id}`;
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url)
+                      .then(() => {
+                        alert('URLがクリップボードにコピーされました');
+                      })
+                      .catch(err => {
+                        console.error('クリップボードへのコピーに失敗しました', err);
+                      });
+                  } else {
+                    // フォールバック: テキストエリアを作成して手動でコピーする
+                    const textArea = document.createElement("textarea");
+                    textArea.value = url;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                      document.execCommand('copy');
+                      alert('URLがクリップボードにコピーされました');
+                    } catch (err) {
+                      console.error('フォールバックのコピーに失敗しました', err);
+                      alert('コピーに失敗しました。手動でコピーしてください。');
+                    }
+                    document.body.removeChild(textArea);
+                  }
+                }}
+              >
+                URLコピー
+              </li>
             </ul>
           </div>
         )}
