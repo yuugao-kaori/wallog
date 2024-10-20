@@ -371,7 +371,7 @@ const Drive = () => {
         {error && <p className="text-center text-red-500 font-semibold">Error: {error}</p>}
 
         {/* ファイルカードの表示 */}
-        <div className="space-y-4 max-h-128 overflow-y-auto">
+        <div className="space-y-4 max-h-96 overflow-y-auto">
           {files.map(file => (
             <Card key={file.file_id} file={file} />
           ))}

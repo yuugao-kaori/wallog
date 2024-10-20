@@ -87,10 +87,10 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
   };
 
   const formatHashtags = (text) => {
+    if (typeof text !== 'string') return '';
     const regex = /(?<=\s|^)#\S+(?=\s|$)/g;
     return text.replace(regex, (match) => `<span class="text-blue-500 font-bold">${match}</span>`);
   };
-
   const handleDeleteClick = (event, post_id) => {
     event.stopPropagation(); // クリックイベントの伝播を防ぐ
     setSelectedPostId(post_id); // 削除対象のポストIDを設定
@@ -137,41 +137,47 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
     useEffect(() => {
       let isMounted = true;
       const fetchImages = async () => {
-        const files = post.post_file ? (Array.isArray(post.post_file) ? post.post_file : [post.post_file]) : [];
-        const fetchedImages = await Promise.all(files.map(async (file) => {
-          let file_id;
-  
-          if (typeof file === "object" && file !== null) {
-            // オブジェクトの場合、キーを取得
-            file_id = Object.keys(file)[0];
-          } else if (typeof file === "string") {
-            // 文字列の場合、不要な文字を削除
-            file_id = file.replace(/^\{?"|"?\}$/g, '');
-          } else {
-            // その他の場合はそのまま使用
-            file_id = file;
-          }
-  
-          try {
-            const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
-            if (!response.ok) throw new Error('Fetch failed');
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            return { file_id, url, error: false };
-          } catch (error) {
-            return { file_id, url: null, error: true };
-          }
-        }));
-  
+        // post_fileがカンマで区切られているか確認し、分割する
+        const files = post.post_file
+          ? (Array.isArray(post.post_file)
+            ? post.post_file 
+            : post.post_file.split(',').map(file => file.trim().replace(/^"|"$/g, '')))  // 前後の不要な " を削除
+          : [];
+    
+        const fetchedImages = await Promise.all(
+          files.map(async (file) => {
+            let file_id;
+    
+            if (typeof file === "object" && file !== null) {
+              file_id = Object.keys(file)[0];
+            } else if (typeof file === "string") {
+              file_id = file.replace(/^\{?"|"?\}$/g, '');
+            } else {
+              file_id = file;
+            }
+    
+            try {
+              const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
+              if (!response.ok) throw new Error('Fetch failed');
+              const blob = await response.blob();
+              const url = URL.createObjectURL(blob);
+              return { file_id, url, error: false };
+            } catch (error) {
+              return { file_id, url: null, error: true };
+            }
+          })
+        );
+    
         if (isMounted) {
           setImages(fetchedImages);
         }
       };
-  
+    
       fetchImages();
+    
       return () => {
         isMounted = false;
-        images.forEach(img => {
+        images.forEach((img) => {
           if (img.url) URL.revokeObjectURL(img.url);
         });
       };
@@ -272,9 +278,8 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
         </div>
         <p
           className="mt-2 text-gray-800 text-base dark:text-gray-100 whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: formatHashtags(post.post_text) }}
+          dangerouslySetInnerHTML={{ __html: formatHashtags(post.post_text || '') }}
         ></p>
-  
         {images.length > 0 && (
           <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
             {images.map((img) => (
