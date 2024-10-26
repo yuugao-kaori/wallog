@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   app:
     container_name: app
@@ -6,14 +8,19 @@ services:
       dockerfile: dockerfile.app
     volumes:
       - ./app:/usr/src/app
-      - ./.env:/usr/src/app/.env
     command: sh -c "npm install && npm run start"
     ports:
       - "23000:3000"
     environment:
       - NODE_ENV=development
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - db
+      - elasticsearch
+    networks:
+      - wallog_default
 
   backend:
     container_name: backend
@@ -29,9 +36,15 @@ services:
       - "25000:5000"
     environment:
       - NODE_ENV=development
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - db
       - redis
+      - elasticsearch
+    networks:
+      - wallog_default
 
   db:
     container_name: ${POSTGRES_NAME}
@@ -40,11 +53,15 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_REPLICATION_USER: debezium
+      POSTGRES_REPLICATION_PASSWORD: dbz
     volumes:
       - ./postgres/postgres-init/check-and-init.sh:/docker-entrypoint-initdb.d/check-and-init.sh
       - db_data:/var/lib/postgresql/data
     ports:
       - "25432:5432"
+    networks:
+      - wallog_default
 
   pgadmin:
     container_name: pgadmin
@@ -56,11 +73,12 @@ services:
       - "25050:80"
     depends_on:
       - db
+    networks:
+      - wallog_default
 
   redis:
     image: redis:latest
     environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes
       - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
     ports:
@@ -69,6 +87,8 @@ services:
       - "./redis:/data"
       - "./redis/redis.conf:/etc/redis/redis.conf"
     command: ["redis-server", "/etc/redis/redis.conf"]
+    networks:
+      - wallog_default
 
   rediscommander:
     image: rediscommander/redis-commander:latest
@@ -78,13 +98,57 @@ services:
       - redis
     environment:
       - REDIS_HOSTS=local:redis:6379
-  
+    networks:
+      - wallog_default
+
+  elasticsearch:
+    build:
+      context: .
+      dockerfile: dockerfile.elasticsearch
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "29200:9200"
+      - "29300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - wallog_default
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  kibana:
+    build:
+      context: .
+      dockerfile: dockerfile.kibana
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "25601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - wallog_default
+    volumes:
+      - kibana_data:/usr/share/kibana/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
 volumes:
   db_data:
   app_data:
+  es_data:
+  kibana_data:
 
 networks:
   wallog_default:
     driver: bridge
-
-# エスケープ：このdocker-compose.ymlはアプリケーションコンテナ、データベースコンテナ、そしてpgAdminコンテナを定義しています。appサービスはNode.jsのモジュールをインストールし、npm run devで開発環境を起動します。dbサービスはPostgreSQLのデータベースを提供し、pgadminサービスはデータベースの管理ツールとして動作します。ポートフォワーディングと環境変数によって通信を管理しています。

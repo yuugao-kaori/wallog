@@ -14,10 +14,27 @@
 ブログタグ専用ページ
 文中に画像を貼ることが許可される
 
+  pgsync:
+    build:
+      context: ./pgsync
+      dockerfile: dockerfile.pgsync
+    environment:
+      PG_HOST: db
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT}
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
 
-
-
+    healthcheck:
+      test: ["CMD", "curl", "<http://localhost:9200>"]
+      interval: 1s
+      retries: 180
 
 
 
