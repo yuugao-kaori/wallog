@@ -100,6 +100,7 @@ if (fs.existsSync(envFilePath)) {
         const indexSettings = {
           mappings: {
             properties: {
+              post_id: { type: 'keyword' },
               post_text: { type: 'text' },
               post_createat: { type: 'date' },
               post_tag: { type: 'keyword' }

@@ -10,6 +10,8 @@ const { Client } = pkg;
 import cors from 'cors';
 const router = express.Router();
 const app = express();
+import { Client as ESClient } from '@elastic/elasticsearch';
+
 
 // bodyParserが必要な場合
 app.use(express.json());
@@ -64,6 +66,44 @@ function formattedDateTime(date) {
 
   return `${y}${m}${d}${h}${mi}${s}`;
 }
+
+
+
+// Elasticsearchクライアントの初期化
+const esClient = new ESClient({
+  node: `http://${process.env.ELASTICSEARCH_HOST}:${process.env.ELASTICSEARCH_PORT}`,
+  auth: {
+    username: process.env.ELASTICSEARCH_USER,
+    password: process.env.ELASTICSEARCH_PASSWORD,
+  },
+  maxRetries: 5,
+  requestTimeout: 60000,
+  sniffOnStart: true,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
+
+// 投稿をElasticsearchにインデックス登録する関数
+async function indexPostToElasticsearch(post) {
+  try {
+    await esClient.index({
+      index: 'post',
+      id: post.post_id,
+      body: {
+        post_id: post.post_id,
+        post_text: post.post_text,
+        post_createat: post.post_createat || new Date().toISOString(),
+        post_tag: post.post_tag,
+      },
+    });
+    console.log(`Elasticsearchにインデックス登録された投稿ID: ${post.post_id}`);
+  } catch (error) {
+    console.error('Elasticsearchへのインデックス登録中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
 
 // 投稿とハッシュタグを挿入する関数
 async function insertPostAndTags(postId, postText, fileId, tags, parsedSession) {
@@ -202,6 +242,8 @@ router.post('/post_create', async (req, res) => {
         console.log('処理開始');
         const newPost = await insertPostAndTags(post_id, req.body.post_text, req.body.post_file, post_tags, parsedSession);
         console.log('New post:', newPost);
+        // 新しい投稿をElasticsearchにインデックス登録
+        await indexPostToElasticsearch(newPost);
         return res.status(200).json({ created_note: newPost });
       } catch (err) {
         console.error('Error:', err);
@@ -217,6 +259,12 @@ router.post('/post_create', async (req, res) => {
     console.error('Error while retrieving session from Redis:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// アプリ終了時にElasticsearchクライアントを閉じる
+process.on('exit', async () => {
+  await esClient.close();
+  console.log('Elasticsearchクライアントが正常に終了しました。');
 });
 
 app.use('', router);

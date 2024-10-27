@@ -95,37 +95,33 @@ async function setupElasticSearchWithRetry(retries) {
 
     if (!indexExists) {
       console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' が存在しません。作成します。`);
-
-      // インデックスのマッピング設定
       const indexSettings = {
         settings: {
           number_of_replicas: 0,
           routing: {
             allocation: {
               include: {
-                _tier_preference: "data_hot,data_content" // `data_hot`も含める
+                _tier_preference: "data_hot,data_content"
               }
             }
           }
         },
         mappings: {
           properties: {
+            post_id: { type: 'keyword' },
             post_text: { type: 'text' },
             post_createat: { type: 'date' },
             post_tag: { type: 'keyword' }
           }
         }
       };
-
       await esClient.indices.create({
         index: ELASTICSEARCH_INDEX,
         body: indexSettings
       });
-      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' が作成され、設定が適用されました。`);
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' が作成されました。`);
     } else {
       console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' は既に存在します。設定を更新します。`);
-      
-      // 既存インデックスに対して設定変更を適用
       await esClient.indices.putSettings({
         index: ELASTICSEARCH_INDEX,
         body: {
@@ -146,7 +142,8 @@ async function setupElasticSearchWithRetry(retries) {
   } catch (error) {
     console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
     if (retries > 0) {
-      console.log(`30秒後に再試行します。残り試行回数: ${retries}`);
+      console.log(`レプリカ数を0に設定して30秒後に再試行します。残り試行回数: ${retries}`);
+      await setReplicaCountToZero(ELASTICSEARCH_INDEX);
       await delay(30000); // 30秒待機
       await setupElasticSearchWithRetry(retries - 1);
     } else {
@@ -156,7 +153,24 @@ async function setupElasticSearchWithRetry(retries) {
   }
 }
 
-
+/**
+ * ElasticSearchの未割り当てシャードを解消するためにレプリカ数を0に設定する関数
+ */
+async function setReplicaCountToZero(index) {
+  try {
+    await esClient.indices.putSettings({
+      index,
+      body: {
+        index: {
+          number_of_replicas: 0
+        }
+      }
+    });
+    console.log(`ElasticSearchインデックス '${index}' のレプリカ数を0に設定しました。`);
+  } catch (error) {
+    console.error(`ElasticSearchインデックス '${index}' のレプリカ数設定中にエラーが発生しました:`, error);
+  }
+}
 
 /**
  * ElasticSearchのPostインデックスのデータを削除する関数
@@ -176,8 +190,41 @@ async function deleteElasticSearchData() {
     console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のデータを削除しました。`);
     console.log(`削除結果: ${JSON.stringify(deleteResponse.body)}`);
   } catch (error) {
-    console.error('ElasticSearchのデータ削除中にエラーが発生しました:', error);
-    throw error;
+    if (error.name === 'ResponseError') {
+      console.error('ElasticSearchのデータ削除中にエラーが発生しました。レプリカ数を0に設定して再試行します:', error);
+
+      // レプリカ数を0に設定
+      try {
+        await esClient.indices.putSettings({
+          index: ELASTICSEARCH_INDEX,
+          body: {
+            index: {
+              number_of_replicas: 0
+            }
+          }
+        });
+        console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数を0に設定しました。`);
+
+        // 再試行
+        const deleteResponseRetry = await esClient.deleteByQuery({
+          index: ELASTICSEARCH_INDEX,
+          body: {
+            query: {
+              match_all: {}
+            }
+          },
+          allow_partial_search_results: true
+        });
+
+        console.log(`再試行: ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のデータを削除しました。`);
+        console.log(`削除結果: ${JSON.stringify(deleteResponseRetry.body)}`);
+      } catch (replicaError) {
+        console.error('レプリカ数を0に設定中または再試行中にエラーが発生しました:', replicaError);
+        throw replicaError;
+      }
+    } else {
+      throw error;
+    }
   }
 }
 /**
