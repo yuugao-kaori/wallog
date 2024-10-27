@@ -180,7 +180,6 @@ async function deleteElasticSearchData() {
     throw error;
   }
 }
-
 /**
  * PostgreSQLのPostテーブルからデータを取得する関数
  * @returns {Promise<Array>}
@@ -213,6 +212,7 @@ async function bulkInsertToElasticSearch(data) {
       index: { _index: ELASTICSEARCH_INDEX, _id: doc.id } // assuming 'id' is the unique identifier
     });
     body.push({
+      post_id: doc.post_id,
       post_text: doc.post_text,
       post_createat: doc.post_createat,
       post_tag: doc.post_tag
@@ -251,25 +251,40 @@ async function bulkInsertToElasticSearch(data) {
  */
 async function verifyElasticSearchData() {
   try {
-    const { body } = await esClient.search({
+    const response = await esClient.search({
       index: ELASTICSEARCH_INDEX,
       size: 10, // 取得するドキュメント数
       query: {
         match_all: {}
       }
     });
+    // console.log("レスポンス全体:", response);
+    // console.log("レスポンスのhits:", response.hits);
+    // console.log("レスポンスのhits.hits:", response.hits ? response.hits.hits : undefined);
+    // レスポンスの内容をログ出力して確認
+    // console.log("ElasticSearchから取得したレスポンス:", JSON.stringify(response, null, 2));
+    // レスポンスが期待した形であるかを確認
+    if (response && response.hits && response.hits.hits) { // 修正箇所
+      const documents = response.hits.hits; // 修正箇所
+      const hasSourceData = documents.some((hit) => hit._source);
 
-    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' から取得したデータの一部:`);
-    body.hits.hits.forEach((hit, index) => {
-      console.log(`\nドキュメント ${index + 1}:`);
-      console.log(JSON.stringify(hit._source, null, 2));
-    });
+      if (hasSourceData) {
+        console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' からデータを確認しました。`);
+        documents.forEach((hit, index) => {
+          // console.log(`\nドキュメント ${index + 1}:`);
+          console.log(JSON.stringify(hit._source, null, 2));
+        });
+      } else {
+        console.log("ElasticSearchに'_source'を含むデータが見つかりませんでした。");
+      }
+    } else {
+      console.log("ElasticSearchからのデータが見つかりませんでした。");
+    }
   } catch (error) {
     console.error('ElasticSearchからのデータ検証中にエラーが発生しました:', error);
     throw error;
   }
 }
-
 /**
  * メインのメンテナンス処理を実行する関数
  */
