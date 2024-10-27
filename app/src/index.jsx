@@ -197,6 +197,10 @@ const App = () => {
               element={<Search startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
+              path="/search/:searchText" 
+              element={<Search startLoading={startLoading} stopLoading={stopLoading} />} 
+            />
+            <Route 
               path="/diary/:postId" 
               element={<PostDetail startLoading={startLoading} stopLoading={stopLoading} />} 
             />
