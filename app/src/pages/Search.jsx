@@ -1,11 +1,27 @@
-import React, { useState } from 'react';
-import moment from 'moment';
+// src/pages/SearchPage.jsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Card from './Card';
+import axios from 'axios'; // axiosを使用する場合
+import { useNavigate } from 'react-router-dom';
 
 const SearchPage = () => {
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState([]);
+  const [offset, setOffset] = useState(null); // オフセットを管理
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(false); // 追加のデータがあるかを管理
+  const navigate = useNavigate();
+  const isLoggedIn = true; // ログイン状態を適切に管理してください
+
+  const observer = useRef();
+  const loadMoreRef = useRef();
+
+  // 日付をyyyymmddhhMMss000000形式にフォーマットするヘルパー関数
+  const formatDate = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}000000`;
+  };
 
   const handleSearch = async () => {
     if (searchText.trim() === '') {
@@ -16,11 +32,12 @@ const SearchPage = () => {
     setLoading(true);
     setError(null);
     setResults([]);
+    setOffset(null);
+    setHasMore(false);
 
-    // 現在の日時をyyyymmddhhMMss形式で取得
+    // 現在の日時をyyyymmddhhMMss000000形式で取得
     const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    const formattedDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}000000`;
+    const formattedDate = formatDate(now);
 
     const apiUrl = `http://192.168.1.148:25000/api/post/search/${encodeURIComponent(searchText)}`;
 
@@ -30,41 +47,121 @@ const SearchPage = () => {
     });
 
     try {
-      const response = await fetch(`${apiUrl}?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`エラー: ${response.status}`);
-      }
-      const data = await response.json();
+      const response = await axios.get(`${apiUrl}?${params.toString()}`);
+      const data = response.data;
       setResults(data);
+      if (data.length === 10) {
+        // 次のデータが存在する可能性がある
+        const lastPost = data[data.length - 1];
+        const lastPostDate = new Date(lastPost.post_createat);
+        setOffset(formatDate(lastPostDate));
+        setHasMore(true);
+      } else {
+        setHasMore(false);
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'エラーが発生しました。');
     } finally {
       setLoading(false);
     }
   };
 
-  // post_file をパースしてオブジェクトに変換
-  const parsePostFile = (postFile) => {
-    if (!postFile) return null;
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    setError(null);
+
+    const apiUrl = `http://192.168.1.148:25000/api/post/search/${encodeURIComponent(searchText)}`;
+
+    const params = new URLSearchParams({
+      offset: offset,
+      limit: '10',
+    });
+
     try {
-      return JSON.parse(postFile);
-    } catch (e) {
-      console.error('post_fileのパースに失敗しました:', e);
-      return null;
+      const response = await axios.get(`${apiUrl}?${params.toString()}`);
+      const data = response.data;
+      setResults((prevResults) => [...prevResults, ...data]);
+
+      if (data.length === 10) {
+        const lastPost = data[data.length - 1];
+        const lastPostDate = new Date(lastPost.post_createat);
+        setOffset(formatDate(lastPostDate));
+        setHasMore(true);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      setError(err.message || 'エラーが発生しました。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // IntersectionObserverを使用して無限スクロールを実装
+  useEffect(() => {
+    if (loading) return;
+    if (!hasMore) return;
+
+    const options = {
+      root: null, // ビューポートを基準に
+      rootMargin: '0px',
+      threshold: 1.0,
+    };
+
+    const callback = (entries) => {
+      if (entries[0].isIntersecting) {
+        loadMore();
+      }
+    };
+
+    const currentObserver = observer.current;
+    if (currentObserver) currentObserver.disconnect();
+
+    observer.current = new IntersectionObserver(callback, options);
+    if (loadMoreRef.current) {
+      observer.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observer.current) observer.current.disconnect();
+    };
+  }, [loading, hasMore, loadMore]);
+
+  const handleDelete = async (post_id) => {
+    if (!window.confirm('本当に削除しますか？')) return;
+
+    try {
+      const response = await axios.delete('http://192.168.1.148:25000/api/post/post_delete', {
+        data: { post_id },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 200) {
+        setResults((prevResults) => prevResults.filter(post => post.post_id !== post_id));
+        alert('投稿が削除されました。');
+      } else {
+        alert('削除に失敗しました。');
+      }
+    } catch (error) {
+      console.error('削除エラー:', error);
+      alert('エラーが発生しました。');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-2xl mx-auto mb-6">
-        <h1 className="text-2xl font-bold mb-4 text-center">検索ページ</h1>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 flex flex-col">
+      <div className="max-w-4xl mx-auto mb-6">
         <div className="flex">
           <input
             type="text"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="検索キーワードを入力"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:bg-gray-800  rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={handleSearch}
@@ -75,7 +172,7 @@ const SearchPage = () => {
         </div>
       </div>
 
-      {loading && (
+      {loading && results.length === 0 && (
         <div className="text-center text-gray-500">検索中...</div>
       )}
 
@@ -83,42 +180,24 @@ const SearchPage = () => {
         <div className="text-center text-red-500">エラー: {error}</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {results.map((item) => (
-          <div key={item.post_id} className="bg-white p-4 rounded-lg shadow">
-            {/* 投稿テキスト */}
-            <p className="text-gray-800 whitespace-pre-wrap">{item.post_text}</p>
-
-            {/* タグ */}
-            {item.post_tag && (
-              <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mt-2">
-                {item.post_tag}
-              </span>
-            )}
-
-            {/* 画像ファイル */}
-            {parsePostFile(item.post_file) && (
-              <div className="mt-4">
-                {/* 例として、画像ファイルのURLが含まれていると仮定 */}
-                <img
-                  src={parsePostFile(item.post_file).url || '#'}
-                  alt="投稿画像"
-                  className="w-full h-auto rounded"
-                />
-              </div>
-            )}
-
-            {/* 作成日時 */}
-            <div className="text-gray-500 text-sm mt-2">
-              作成日時: {moment(item.post_createat).format('YYYY-MM-DD HH:mm:ss')}
-            </div>
-
-            {/* 更新日時 */}
-            <div className="text-gray-500 text-sm">
-              更新日時: {moment(item.post_updateat).format('YYYY-MM-DD HH:mm:ss')}
-            </div>
-          </div>
-        ))}
+      {/* スクロール可能なカードコンテナ */}
+      <div className="flex-1 overflow-y-auto max-h-[80vh] mx-auto w-full max-w-4xl">
+        <div className="flex flex-col space-y-4">
+          {results.map((post) => (
+            <Card
+              key={post.post_id}
+              post={post}
+              isLoggedIn={isLoggedIn}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+        {/* ロード中のインディケーター */}
+        {loading && results.length > 0 && (
+          <div className="text-center text-gray-500 my-4">読み込み中...</div>
+        )}
+        {/* 追加のロードトリガー */}
+        <div ref={loadMoreRef} className="h-1"></div>
       </div>
 
       {(!loading && results.length === 0 && !error) && (
