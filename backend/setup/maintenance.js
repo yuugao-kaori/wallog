@@ -55,7 +55,25 @@ const esClient = new ESClient({
     rejectUnauthorized: false
   }
 });
-
+async function rerouteElasticSearchShards() {
+  try {
+    await esClient.cluster.reroute();
+    console.log('ElasticSearchクラスタの再ルーティングを実行しました。');
+  } catch (error) {
+    console.error('ElasticSearchクラスタの再ルーティング中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+async function recreateIndex() {
+  try {
+    await esClient.indices.delete({ index: ELASTICSEARCH_INDEX });
+    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' を削除しました。`);
+    await setupElasticSearchWithRetry(5);
+  } catch (error) {
+    console.error(`インデックス '${ELASTICSEARCH_INDEX}' の再作成中にエラーが発生しました:`, error);
+    throw error;
+  }
+}
 /**
  * 一定時間待機する関数（ミリ秒単位）
  * @param {number} ms - 待機時間（ミリ秒）
@@ -108,8 +126,8 @@ async function setupElasticSearchWithRetry(retries) {
         },
         mappings: {
           properties: {
-            post_id: { type: 'keyword' },
-            post_text: { type: 'text' },
+            post_id: { type: 'keyword'},
+            post_text: { type: 'text', analyzer: 'kuromoji' }, // Apply the analyzer here instead
             post_createat: { type: 'date' },
             post_tag: { type: 'keyword' }
           }
@@ -177,6 +195,7 @@ async function setReplicaCountToZero(index) {
  */
 async function deleteElasticSearchData() {
   try {
+
     const deleteResponse = await esClient.deleteByQuery({
       index: ELASTICSEARCH_INDEX,
       body: {
@@ -344,8 +363,14 @@ async function main() {
     // ElasticSearchのセットアップ
     await setupElasticSearchWithRetry(5);
 
+    // ElasticSearchのシャード再割り当て
+    await rerouteElasticSearchShards();
+
     // ElasticSearchのデータ削除
     await deleteElasticSearchData();
+
+    // インデックスの再作成
+    await recreateIndex();
 
     // PostgreSQLからデータ取得
     const postgresData = await fetchPostgresData();

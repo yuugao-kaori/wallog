@@ -53,8 +53,8 @@ curl -X POST \
 curl -X GET "http://192.168.1.148:29300/_cluster/health?pretty"
 
 ###
-
-curl -X GET "http://192.168.1.148:25000/api/post/saerch/テスト" \
+@search_text = "Elastic　テスト"
+curl -X GET "http://192.168.1.148:25000/api/post/search/テスト　Elastic" \
      -G \
      --data-urlencode "offset=20241031103421559642" \
      --data-urlencode "limit=10"
