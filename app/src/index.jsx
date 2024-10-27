@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Route, Routes, Link, useParams, useLocation } 
 import Diary from './pages/Diary.jsx'; 
 import Drive from './pages/Drive.jsx'; 
 import PostDetail from './pages/PostRead.jsx'; 
+import Search from './pages/Search.jsx'; 
 import FileRead from './pages/file_read.jsx'; 
 import Test000 from './pages/test000.jsx'; 
 import Login from './pages/Login.jsx'; 
@@ -41,6 +42,8 @@ const TitleUpdater = () => {
         return 'Test003 | My Sustainer';
       case '/login':
         return 'Login | My Sustainer';
+        case '/search':
+          return 'Search | My Sustainer';
       default:
         return 'My Sustainer';
     }
@@ -133,7 +136,7 @@ const App = () => {
               </Link>
             </li>
             <li>
-              <Link to="/test002" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
+              <Link to="/search" className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded">
                 検索-Search-
               </Link>
             </li>
@@ -188,6 +191,10 @@ const App = () => {
             <Route 
               path="/login" 
               element={<Login startLoading={startLoading} stopLoading={stopLoading} />} 
+            />
+            <Route 
+              path="/search" 
+              element={<Search startLoading={startLoading} stopLoading={stopLoading} />} 
             />
             <Route 
               path="/diary/:postId" 

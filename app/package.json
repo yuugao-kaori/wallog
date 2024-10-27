@@ -32,7 +32,8 @@
         "postcss": "^8.4.47",
         "autoprefixer": "^10.4.20",
         "react-helmet-async": "^2.0.5",
-        "react-dropzone": "^14.2.9"
+        "react-dropzone": "^14.2.9",
+        "moment": "^2.30.1"
     },
     "devDependencies": {
         "babel-cli": "^6.26.0",
