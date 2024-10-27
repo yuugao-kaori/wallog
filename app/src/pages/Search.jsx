@@ -201,7 +201,7 @@ const SearchPage = () => {
       )}
 
       {/* スクロール可能なカードコンテナ */}
-      <div className="flex-1 overflow-y-auto max-h-[80vh] mx-auto w-full max-w-4xl">
+      <div className="flex-1 overflow-y-auto max-h-[750px] mx-auto w-full max-w-4xl">
         <div className="flex flex-col space-y-4">
           {results.map((post) => (
             <Card

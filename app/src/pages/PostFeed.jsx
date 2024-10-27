@@ -314,9 +314,9 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
   return (
     <div 
       ref={containerRef} 
-      className="post-feed px-6 space-y-3 overflow-y-auto flex flex-col relative"
+      className="post-feed px-6 space-y-3 h-full overflow-y-auto flex flex-col relative"
       style={{ 
-        height: 'calc(100vh - 100px)',
+        height: 'calc(110vh - 100px)',
         scrollbarWidth: 'none', 
         msOverflowStyle: 'none',
         paddingTop: '60px',

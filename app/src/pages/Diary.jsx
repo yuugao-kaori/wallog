@@ -17,6 +17,8 @@ function Diary() {
   const dropRef = useRef(null);
   const { posts, setPosts, loading, hasMore, loadMorePosts } = useWebSocket('ws://192.168.1.148:25000/api/post/post_ws');
 
+  // モーダルの状態
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -71,11 +73,12 @@ function Diary() {
       setFiles([]);
       // Add the new post to the beginning of the posts array
       setPosts(prevPosts => [response.data, ...prevPosts]);
+      // モーダルを閉じる（モバイルのみ）
+      setIsModalOpen(false);
     } catch (error) {
       setStatus('投稿に失敗しました。');
     }
   }, [postText, files, setPosts]);
-
 
   const handleDelete = async (fileId) => {
     try {
@@ -104,82 +107,87 @@ function Diary() {
     }
   };
 
-  return (
-    <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex">
+  // 新規投稿フォームのコンポーネント化
+  const NewPostForm = () => (
+    <form onSubmit={handleSubmit} className="mt-2">
+      <textarea
+        className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+        value={postText}
+        onChange={(e) => setPostText(e.target.value)}
+        placeholder="ここに投稿内容を入力してください"
+        rows="4"
+      />
+      <div
+        ref={dropRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
+        onClick={() => fileInputRef.current.click()}
+      >
+        ファイルをドラッグ＆ドロップするか、クリックして選択
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+      {files.length > 0 && (
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {files.map((file) => (
+            <div key={file.id} className="relative w-24 h-24 bg-gray-200">
+              {file.isImage ? (
+                <img src={file.url} alt="preview" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gray-400 flex items-center justify-center">
+                  <span>ファイル</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDelete(file.id)}
+                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="submit"
+        className={`mt-2 p-2 text-white rounded ${
+          postText.trim() === '' && files.length === 0
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
+        }`}
+        disabled={postText.trim() === '' && files.length === 0}
+      >
+        投稿
+      </button>
+    </form>
+  );
 
-      {/* 投稿フォーム */}
-      <nav className="w-1/5 fixed right-0 px-4 pt-12 min-h-full ">
+  return (
+    <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex relative">
+      
+      {/* デスクトップ用投稿フォーム */}
+      <nav className="hidden md:block w-1/5 fixed right-0 px-4 pt-12 min-h-full z-10 bg-white dark:bg-gray-900">
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
         {isLoggedIn ? (
-          <form onSubmit={handleSubmit} className="mt-2">
-            <textarea
-              className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-              value={postText}
-              onChange={(e) => setPostText(e.target.value)}
-              placeholder="ここに投稿内容を入力してください"
-              rows="4"
-            />
-            <div
-              ref={dropRef}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
-              onClick={() => fileInputRef.current.click()}
-            >
-              ファイルをドラッグ＆ドロップするか、クリックして選択
-              <input
-                type="file"
-                multiple
-                ref={fileInputRef}
-                className="hidden"
-                onChange={(e) => handleFiles(e.target.files)}
-              />
-            </div>
-            {files.length > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {files.map((file) => (
-                  <div key={file.id} className="relative w-24 h-24 bg-gray-200">
-                    {file.isImage ? (
-                      <img src={file.url} alt="preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gray-400 flex items-center justify-center">
-                        <span>ファイル</span>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(file.id)}
-                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              type="submit"
-              className={`mt-2 p-2 text-white rounded ${
-                postText.trim() === '' && files.length === 0
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
-              }`}
-              disabled={postText.trim() === '' && files.length === 0}
-            >
-              投稿
-            </button>
-            </form>
+          <>
+            <NewPostForm />
+            {status && <p className="mt-4 text-red-500">{status}</p>}
+          </>
         ) : (
           <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
         )}
-        {status && <p className="mt-4 text-red-500">{status}</p>}
       </nav>
 
       {/* 投稿一覧 */}
-      <div className="flex-1 mr-1/5">
-        <h2 className="text-l font-bold">日記-Diary-</h2>
-        <p className="text-sm">全ての記事が一覧になっています。</p>
+      <div className="flex-1 mr-0 md:mr-1/5 z-0">
         {sessionError && <p className="text-red-500">{sessionError}</p>}
         <div className="mt-4">
           <PostFeed
@@ -192,6 +200,39 @@ function Diary() {
           />
         </div>
       </div>
+
+      {/* モバイル用フローティングボタン */}
+      {isLoggedIn && (
+        <button
+          className="md:hidden fixed bottom-4 left-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-20"
+          onClick={() => setIsModalOpen(true)}
+        >
+          +
+        </button>
+      )}
+
+      {/* モバイル用モーダル */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"
+              onClick={() => setIsModalOpen(false)}
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4">新規投稿</h2>
+            {isLoggedIn ? (
+              <>
+                <NewPostForm />
+                {status && <p className="mt-4 text-red-500">{status}</p>}
+              </>
+            ) : (
+              <p className="text-gray-500">投稿を作成するにはログインしてください。</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

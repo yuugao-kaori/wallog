@@ -40,8 +40,8 @@ const esClient = new ESClient({
 });
 
 // APIエンドポイントの実装
-router.get('/tag_search/:search_tag', async (req, res) => {
-  const { sarch_text } = req.params;
+router.get('/tag_search/:tag_text', async (req, res) => {
+  const { tag_text } = req.params;
   const { offset, limit = 10 } = req.query;
 
   try {
@@ -51,7 +51,7 @@ router.get('/tag_search/:search_tag', async (req, res) => {
       size: limit,
       sort: [{ post_id: 'desc' }],
       query: {
-        match: { post_tag: search_tag },
+        match: { post_tag: tag_text },
       },
     };
 
