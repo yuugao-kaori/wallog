@@ -1,15 +1,40 @@
-5. 画像投稿APIの実装
-6. 画像投稿フロントエンドの実装(選択、D&D)
-7. Tagについて、中間テーブルに収容する
-8. タグ検索APIを実装
-9. タグフロントエンドの実装
-10. URLコピーの実装
-11. 修正の実装
-12. 
+1. 
+2. Tagについて、中間テーブルに収容する
+3. タグ検索APIを実装
+4.  タグフロントエンドの実装
+5.  URLコピーの実装
+6.  修正の実装
+7.  
+
+通常ページのノンタグ
+10行以上が折りたたまれる
+通常ページのブログタグ
 
 
+ブログタグ専用ページ
+文中に画像を貼ることが許可される
+
+  pgsync:
+    build:
+      context: ./pgsync
+      dockerfile: dockerfile.pgsync
+    environment:
+      PG_HOST: db
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT}
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
 
+    healthcheck:
+      test: ["CMD", "curl", "<http://localhost:9200>"]
+      interval: 1s
+      retries: 180
 
 
 

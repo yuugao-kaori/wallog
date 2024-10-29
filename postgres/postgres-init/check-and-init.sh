@@ -24,3 +24,19 @@ if [ "$TABLE_CHECK" = "f" ]; then
 else
   echo "Database already initialized."
 fi
+
+# カスタム pg_hba.conf の配置
+cat <<EOF > /var/lib/postgresql/data/pg_hba.conf
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# ローカル接続をすべて許可
+local   all             all                                     trust
+
+# データベースサーバーのホスト接続を許可
+host    all             all             0.0.0.0/0               md5
+
+# 必要に応じて他の設定を追加
+EOF
+
+# PostgreSQL を再起動して設定を反映（必要な場合）
+# pg_ctl reload -D /var/lib/postgresql/data

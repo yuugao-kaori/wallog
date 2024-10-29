@@ -3,7 +3,7 @@ import session from 'express-session';
 import cors from 'cors';
 import http from 'http';
 import post_wsRoute from './api/post/post_ws.js';
-import fileCreateRoute from './api/drive/file_create.js';  // 変更: インポート名を変更
+
 
 const app = express();
 const port = 5000;
@@ -25,8 +25,14 @@ app.use((req, res, next) => {
 });
 
 // ルートの定義
+import fileCreateRoute from './api/drive/file_create.js';  // 変更: インポート名を変更
+import fileListRoute from './api/drive/file_list.js';  // 変更: インポート名を変更
+import fileReadRoute from './api/drive/file_read.js';  // 変更: インポート名を変更
+import fileDeleteRoute from './api/drive/file_delete.js';  // 変更: インポート名を変更
 import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
+import post_searchRoute from './api/post/post_search.js';
+import tag_searchRoute from './api/post/tag_search.js';
 import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
@@ -37,8 +43,8 @@ import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
 
 // ファイルアップロードルートの設定（file_create.js を使用）
-app.use('/api/drive', fileCreateRoute);  // 変更: useメソッドを使用
-app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute);
+app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
+app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 

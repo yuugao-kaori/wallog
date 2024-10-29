@@ -1,8 +1,11 @@
-const fs = require('fs');
-const dotenv = require('dotenv');
-const path = require('path');
-const { Client } = require('pg');
-const { Client: ESClient } = require('@elastic/elasticsearch');
+import fs from 'fs';
+import dotenv from 'dotenv';
+import path from 'path';
+import pkg from 'pg';
+const { Client } = pkg;
+import { Client as ESClient } from '@elastic/elasticsearch';
+
+
 
 console.log('\n############################\nセットアップ処理を開始します\n############################\n');
 
@@ -97,7 +100,8 @@ if (fs.existsSync(envFilePath)) {
         const indexSettings = {
           mappings: {
             properties: {
-              post_text: { type: 'text' },
+              post_id: { type: 'keyword'},
+              post_text: { type: 'text', analyzer: 'kuromoji' }, // Apply the analyzer here instead
               post_createat: { type: 'date' },
               post_tag: { type: 'keyword' }
             }

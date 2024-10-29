@@ -7,3 +7,6 @@ docker network ls
 docker network prune
 
 docker network inspect wallog_default
+
+
+docker system prune

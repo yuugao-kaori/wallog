@@ -50,3 +50,16 @@ curl -X POST \
      http://192.168.1.148:25000/api/drive/file_create
 ###
 
+curl -X GET "http://192.168.1.148:29300/_cluster/health?pretty"
+
+###
+@search_text = "Elastic　テスト"
+curl -X GET "http://192.168.1.148:25000/api/post/search/テスト　Elastic" \
+     -G \
+     --data-urlencode "offset=20241031103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://192.168.1.148:25000/api/post/tag_search/タグテスト" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"

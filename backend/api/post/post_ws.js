@@ -31,7 +31,18 @@ const getPosts = async (offset = 0, limit = 10) => {
     OFFSET $1 LIMIT $2
   `;
   const res = await client.query(query, [offset, limit]);
-  return res.rows;
+  
+  // post_fileが"{""}"の場合に削除または置き換える
+  const filteredPosts = res.rows.map(post => {
+    if (post.post_file === '{""}') {
+      delete post.post_file;
+      // または
+      // post.post_file = null;
+    }
+    return post;
+  });
+
+  return filteredPosts;
 };
 
 const setupWebSocket = (server) => {
@@ -45,7 +56,19 @@ const setupWebSocket = (server) => {
         const data = JSON.parse(message);
         if (data.action === 'loadMore') {
           const offset = data.offset || 0;
-          const posts = await getPosts(offset);
+          let posts = await getPosts(offset);
+          console.log('クライアントに配送する投稿データ:', posts); // 配送するデータをコンソールに出力
+
+          // 追加のフィルタリング（必要に応じて）
+          posts = posts.map(post => {
+            if (post.post_file === '{""}') {
+              delete post.post_file;
+              // または
+              // post.post_file = null;
+            }
+            return post;
+          });
+
           ws.send(JSON.stringify(posts));
         }
       } catch (error) {
@@ -58,9 +81,20 @@ const setupWebSocket = (server) => {
       console.log('通知を受信しました:', notification);
       if (notification.channel === 'post_updates') {
         const newPosts = await getPosts(0, 1);
-        console.log('新しい投稿を取得しました:', newPosts);
-        ws.send(JSON.stringify(newPosts));
-        console.log('新しい投稿を配信しました:', newPosts);
+        console.log('新しい投稿を取得しました:', newPosts); // 新しい投稿をコンソールに出力
+
+        // 新しい投稿のフィルタリング
+        const filteredNewPosts = newPosts.map(post => {
+          if (post.post_file === '{""}') {
+            delete post.post_file;
+            // または
+            // post.post_file = null;
+          }
+          return post;
+        });
+
+        ws.send(JSON.stringify(filteredNewPosts));
+        console.log('新しい投稿を配信しました:', filteredNewPosts); // 配信したデータをコンソールに出力
       }
     };
     client.on('notification', listener);
