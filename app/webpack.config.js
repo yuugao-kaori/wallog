@@ -1,8 +1,10 @@
 // webpack.config.js
-
+const webpack = require('webpack');
+const dotenv = require('dotenv');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-
+// .envファイルを読み込む
+dotenv.config();
 module.exports = {
   entry: './src/index.jsx', // エントリーポイント
   output: {
@@ -41,6 +43,9 @@ module.exports = {
     tailwindcss: {},
     autoprefixer: {},
     }),
+    new webpack.DefinePlugin({
+      'process.env': JSON.stringify(process.env)
+    })
   ],
   devServer: {
     static: {

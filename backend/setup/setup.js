@@ -4,8 +4,10 @@ import path from 'path';
 import pkg from 'pg';
 const { Client } = pkg;
 import { Client as ESClient } from '@elastic/elasticsearch';
-
-
+import { fileURLToPath } from 'url';
+// __dirname の代替を定義
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('\n############################\nセットアップ処理を開始します\n############################\n');
 
@@ -75,6 +77,96 @@ if (fs.existsSync(envFilePath)) {
       return false;
     }
   }
+  (async () => {
+    try {
+      console.log('PostgreSQLに接続を試みています...');
+      await pgClient.connect(); // 1回だけ接続
+      console.log('PostgreSQLに接続されました。');
+  
+      await checkTableExists();
+      await updateSettingsFromJson();
+    } catch (err) {
+      console.error('SQL実行中にエラーが発生しました:', err);
+    } finally {
+      if (pgClient) {
+        try {
+          console.log('PostgreSQLのセットアップ処理を完了しました');
+        } catch (endErr) {
+          console.error('PostgreSQLクライアントの終了中にエラーが発生しました:', endErr);
+        }
+      }
+    }
+  })();
+  async function updateSettingsFromJson() {
+    try {
+        console.log('PostgreSQLには接続しています');
+
+        const setupFilePath = path.join(__dirname, './setup.json');
+        if (!fs.existsSync(setupFilePath)) {
+            console.error('setup.json ファイルが見つかりません。');
+            return;
+        }
+
+        const setupData = JSON.parse(fs.readFileSync(setupFilePath, 'utf-8'));
+        if (setupData.setup_count !== 0) {
+            console.log('setup_count が 0 ではないため、設定データの書き込みをスキップします。');
+            return;
+        }
+
+        // `setupData` 全体を `settingsData` として扱う
+        const { setup_count, ...settingsData } = setupData;
+        console.log('settingsData の内容:', settingsData);
+
+        if (Object.keys(settingsData).length === 0) {
+            console.warn('settingsData が空です。設定データが正しく読み込まれていることを確認してください。');
+            return;
+        }
+
+        // トランザクションを開始
+        await pgClient.query('BEGIN');
+        for (const [key, value] of Object.entries(settingsData)) {
+            console.log(`処理中の設定キー: ${key}, 値: ${value}`);
+            const checkQuery = 'SELECT COUNT(*) AS count FROM settings WHERE settings_key = $1';
+            const result = await pgClient.query(checkQuery, [key]);
+            
+            console.log(`キー ${key} の存在チェック結果:`, result.rows[0].count);
+
+            if (parseInt(result.rows[0].count, 10) === 0) {
+                const insertQuery = 'INSERT INTO settings (settings_key, settings_value) VALUES ($1, $2)';
+                try {
+                    await pgClient.query(insertQuery, [key, value]);
+                    console.log(`設定 ${key} を settings テーブルに追加しました。`);
+                } catch (queryErr) {
+                    console.error(`設定 ${key} の追加中にエラーが発生しました:`, queryErr);
+                    throw queryErr; // エラーが発生した場合はロールバック
+                }
+            } else {
+                console.log(`設定 ${key} は既に存在します。上書きしません。`);
+            }
+        }
+
+        // トランザクションをコミット
+        await pgClient.query('COMMIT');
+        console.log('設定データが正常に書き込まれました。');
+
+        setupData.setup_count = 1;
+        fs.writeFileSync(setupFilePath, JSON.stringify(setupData, null, 2));
+        console.log('setup.json の setup_count を 1 に更新しました。');
+
+    } catch (err) {
+        console.error('settings テーブルの更新中にエラーが発生しました:', err);
+        try {
+            // トランザクションをロールバック
+            await pgClient.query('ROLLBACK');
+            console.log('ロールバックが実行されました。');
+        } catch (rollbackErr) {
+            console.error('ロールバック中にエラーが発生しました:', rollbackErr);
+        }
+    } finally {
+        console.log('デフォルト設定の適用を完了しました');
+    }
+}
+
 
   /**
    * ElasticSearchのセットアップを再試行付きで実行する関数
@@ -134,7 +226,6 @@ if (fs.existsSync(envFilePath)) {
   async function checkTableExists() {
     try {
       // PostgreSQLに接続
-      await pgClient.connect();
 
       // postテーブルが存在するか確認
       const res = await pgClient.query(`
@@ -142,7 +233,7 @@ if (fs.existsSync(envFilePath)) {
           SELECT 1
           FROM information_schema.tables 
           WHERE table_schema = 'public'
-          AND table_name = 'post'
+          AND table_name = 'settings'
         );
       `);
 
@@ -225,19 +316,16 @@ if (fs.existsSync(envFilePath)) {
        * ElasticSearchのセットアップを再試行付きで実行
        */
       await setupElasticSearchWithRetry(5);
-
+      
     } catch (err) {
       console.error('SQL実行中にエラーが発生しました:', err);
     } finally {
-      // PostgreSQLクライアントを終了
-      await pgClient.end();
+      console.log(`ElasticSearchのセットアップ処理を完了しました`);
       // ElasticSearchクライアントを終了
       esClient.close();
     }
   }
 
-  // セットアップ関数を実行
-  checkTableExists();
 
 } else {
   console.log('.envファイルが見つかりませんでした。');
