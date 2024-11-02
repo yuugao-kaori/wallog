@@ -16,4 +16,4 @@ COPY .env ./
 COPY ./RDD.md ./
 
 # アプリを開発モードで起動
-CMD ["npm", "start"]
+CMD ["npm", "build"]

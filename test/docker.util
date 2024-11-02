@@ -1,6 +1,7 @@
 docker-compose exec backend /bin/sh
 
-
+docker exec -it app /bin/sh
+docker exec -it   cloudflare /bin/sh ping http://app:3000
 
 docker network ls
 

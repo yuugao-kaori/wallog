@@ -91,8 +91,12 @@ if (fs.existsSync(envFilePath)) {
       if (pgClient) {
         try {
           console.log('PostgreSQLのセットアップ処理を完了しました');
+          await pgClient.end(); // クライアント接続を閉じる
+          console.log('PostgreSQLクライアントを正常に終了しました');
+          process.exit(0); // プロセスを正常終了
         } catch (endErr) {
           console.error('PostgreSQLクライアントの終了中にエラーが発生しました:', endErr);
+          process.exit(1); // エラーがあった場合は異常終了
         }
       }
     }

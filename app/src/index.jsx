@@ -16,35 +16,36 @@ import Test003 from './pages/test003.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import axios from 'axios';
-
+console.log('SITE TITLE:', process.env.REACT_APP_SITE_TITLE);
 // TitleUpdaterコンポーネントを定義
 const TitleUpdater = () => {
   const location = useLocation();
+  const siteTitle = 'My Sustainer'; // 環境変数からタイトルを取得
   const getTitle = (pathname) => {
     if (pathname.startsWith('/diary/')) {
       return 'Diary | My Sustainer';
     }
     switch (pathname) {
       case '/':
-        return 'Home | My Sustainer';
+        return `Home | ${siteTitle}`;
       case '/diary':
-        return 'Diary | My Sustainer';
+        return `Diary | ${siteTitle}`;
       case '/drive':
-        return 'Drive | My Sustainer';
+        return `Drive | ${siteTitle}`;
       case '/test000':
-        return 'Test000 | My Sustainer';
+        return `Test000 | ${siteTitle}`;
       case '/test001':
-        return 'Test001 | My Sustainer';
+        return `Test001 | ${siteTitle}`;
       case '/test002':
-        return 'Test002 | My Sustainer';
+        return `Test002 | ${siteTitle}`;
       case '/test003':
-        return 'Test003 | My Sustainer';
+        return `Test003 | ${siteTitle}`;
       case '/login':
-        return 'Login | My Sustainer';
+        return `Login | ${siteTitle}`;
       case '/search':
-        return 'Search | My Sustainer';
+        return `Search | ${siteTitle}`;
       default:
-        return 'My Sustainer';
+        return siteTitle;
     }
   };
 
@@ -58,14 +59,7 @@ const TitleUpdater = () => {
 };
 
 const Home = ({ startLoading, stopLoading }) => {
-  useEffect(() => {
-    startLoading();
-    const timer = setTimeout(() => {
-      stopLoading();
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [startLoading, stopLoading]);
-
+  // ロード状態は外部から提供されるため、Home内部では直接管理しない
   return <h1 className="text-xl font-bold">HelloWorld</h1>;
 };
 
@@ -89,18 +83,21 @@ const App = () => {
   const stopLoading = () => {
     setTimeout(() => {
       setLoading(false);
-    }, 1000);
+    }, 500); // ローディングを短めに設定してUXを向上
   };
 
   useEffect(() => {
     const checkSession = async () => {
+      startLoading(); // セッションチェック開始
       try {
-        const response = await axios.get('/api/user/login_check');
+        const response = await axios.get(`${process.env.REACT_APP_SITE_TITLE}/api/user/login_check`);
         if (response.status === 200) {
           setIsLoggedIn(true);
         }
       } catch (err) {
         setIsLoggedIn(false);
+      } finally {
+        stopLoading(); // セッションチェック終了後に読み込み停止
       }
     };
 
@@ -149,7 +146,6 @@ const App = () => {
 >
   {/* クローズボタン: 小さい画面でのみ表示 */}
   <div className="flex justify-between items-center md:hidden">
-    <h1 className="text-2xl font-bold mb-2 dark:text-gray-100">My Sustainer</h1>
     <button
       onClick={() => setIsNavOpen(false)}
       className="text-2xl font-bold"
@@ -226,16 +222,17 @@ const App = () => {
 
         {/* メインコンテンツ */}
         <div className={`flex-1 h-full px-4 relative bg-white dark:bg-gray-900 text-black dark:text-white overflow-hidden md:w-4/5`}>
-          {loading && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="text-white">読み込み中...</div>
-            </div>
-          )}
-          <Routes>
-            <Route
-              path="/"
-              element={<Home startLoading={startLoading} stopLoading={stopLoading} />}
-            />
+        {/* loading状態に基づいてオーバーレイを表示 */}
+        {loading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="text-white">読み込み中...</div>
+          </div>
+        )}
+        <Routes>
+          <Route
+            path="/"
+            element={<Home startLoading={startLoading} stopLoading={stopLoading} />}
+          />
             <Route
               path="/diary"
               element={<Diary startLoading={startLoading} stopLoading={stopLoading} />}
