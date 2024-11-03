@@ -143,14 +143,7 @@ services:
       memlock:
         soft: -1
         hard: -1
-  cloudflare:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=eyJhIjoiMTUyNzA5MWY0ODQ0ZmQxMzcxZTdmZjUwNGM1OTI4Y2YiLCJ0IjoiOTEzNzI4NDQtZjJiYS00YzI0LWE5NmUtN2UxM2NlNTI5NWNjIiwicyI6Ik4yWmxZbVpoT1dRdE1ETXdaUzAwWVdZMExXSm1PREl0WkdNd01ERTVPRFJtTVRZeiJ9
-    networks:
-      - wallog_default
+
 
 
 volumes:
