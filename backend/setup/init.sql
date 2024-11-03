@@ -1,3 +1,10 @@
+-- settingsテーブルの作成
+CREATE TABLE IF NOT EXISTS "settings" (
+    settings_key TEXT PRIMARY KEY,
+    settings_value TEXT NOT NULL
+);
+
+
 -- postテーブルの作成
 CREATE TABLE IF NOT EXISTS "post" (
     post_id NUMERIC PRIMARY KEY,

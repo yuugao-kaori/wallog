@@ -4,19 +4,9 @@
     "description": "A single-user microblog application built with Node.js, React, Express, TailwindCSS, and PostgreSQL",
     "main": "index.js",
     "scripts": {
-        "test": "webpack",
-        "start": "webpack serve --mode development --open",
-        "babel_install": "npm install --save-dev babel-preset-env",
-        "dev": "nodemon index.js",
-        "client": "cd client && npm start", 
-        "server": "nodemon server/index.js",
-        "build": "webpack --mode production",
-        "output": "webpack --config webpack.config.js",
-        "install-client": "cd client && npm install",
-        "install-server": "cd server && npm install",
-        "docker:build": "docker-compose build",
-        "docker:up": "docker-compose up",
-        "docker:down": "docker-compose down"
+    "start": "NODE_ENV=development webpack serve --mode development",
+    "build": "NODE_ENV=production webpack --mode production",
+    "dev": "NODE_ENV=development webpack serve --mode development"
     },
     "dependencies": {
         "axios": "^1.5.0",
@@ -33,7 +23,8 @@
         "autoprefixer": "^10.4.20",
         "react-helmet-async": "^2.0.5",
         "react-dropzone": "^14.2.9",
-        "moment": "^2.30.1"
+        "moment": "^2.30.1",
+        "dotenv": "^16.4.5"
     },
     "devDependencies": {
         "babel-cli": "^6.26.0",

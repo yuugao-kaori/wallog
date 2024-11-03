@@ -1,71 +1,26 @@
-// webpack.config.js
-
 const path = require('path');
+const webpack = require('webpack');
+const dotenv = require('dotenv');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const fs = require('fs');
+
+// .envファイルを読み込む
+const env = dotenv.config().parsed;
+
+// 環境変数をWebpackに渡すために適切な形式に変換する
+const envKeys = Object.keys(env).reduce((prev, next) => {
+  prev[`process.env.${next}`] = JSON.stringify(env[next]);
+  return prev;
+}, {});
+
 
 module.exports = {
-  entry: './src/index.jsx', // エントリーポイント
-  output: {
-    path: path.resolve(__dirname, 'dist'), // 出力先ディレクトリ
-    publicPath: '/', // これを追加/確認
-    filename: 'bundle.js', // 出力ファイル名
-  },
-  module: {
-    rules: [
-      {
-        test: /\.(js|jsx)$/, 
-        exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'], // React用のBabelプリセット
-          },
-        },
-      },
-      {
-        test: /\.css$/, // CSSファイルに対するルール
-        use: [
-          'style-loader',
-          'css-loader',
-          'postcss-loader',
-        ], // スタイルローダーとCSSローダーを使用
-      },
-    ],
-  },
-  resolve: {
-    extensions: ['.js', '.jsx'], // .jsx ファイルの解決を追加
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: './src/index.html', // HTMLテンプレート
-    tailwindcss: {},
-    autoprefixer: {},
-    }),
-  ],
-  devServer: {
-    static: {
-      directory: path.join(__dirname, 'dist'),
-    },
-    historyApiFallback: true,  
-    compress: true,
-    port: 3000, // 開発サーバーのポート
-  },
-  mode: 'development',
-};
-
-/* 
-const path = require('path');
-
-module.exports = {
-
-  mode: 'development',
-  entry: './src/index.jsx',
   entry: './src/index.jsx',
   output: {
-    path: path.join(__dirname, 'dist'),
-    filename: 'main.js',
+    path: path.resolve(__dirname, 'dist'),
+    publicPath: '/',
+    filename: 'bundle.js',
   },
-  
   module: {
     rules: [
       {
@@ -74,25 +29,38 @@ module.exports = {
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-react'],
+            presets: ['@babel/preset-env', '@babel/preset-react'],
           },
         },
       },
       {
-        test: /\.scss$/,
-        use: ['style-loader', 'css-loader', 'sass-loader']
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
       },
     ],
   },
+  resolve: {
+    extensions: ['.js', '.jsx'],
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: './src/index.html',
+      tailwindcss: {},
+      autoprefixer: {},
+    }),
+    new webpack.DefinePlugin({
+      'process.env.REACT_APP_SITE_DOMAIN': JSON.stringify(process.env.REACT_APP_SITE_DOMAIN),
+    }),
+  ],
   devServer: {
     static: {
       directory: path.join(__dirname, 'dist'),
     },
+    historyApiFallback: true,
+    compress: true,
     port: 3000,
+    host: '0.0.0.0',
+    allowedHosts: 'all', // この行を追加
   },
-  resolve: {
-    extensions: ['.ts', '.jsx', '.js', '.json'],
-  },
-  target: 'web',
+  mode: 'development',
 };
-*/
