@@ -1,6 +1,6 @@
 // src/pages/SearchPage.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import Card from './Card';
+import Card from '../component/SearchCard';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -43,7 +43,7 @@ const SearchPage = () => {
     const now = new Date();
     const formattedDate = formatDate(now);
 
-    const apiUrl = `http://192.168.1.148:25000/api/post/search/${encodeURIComponent(searchTerm)}`;
+    const apiUrl = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchTerm)}`;
 
     const params = new URLSearchParams({
       offset: initial ? formattedDate : offset,
@@ -84,7 +84,7 @@ const SearchPage = () => {
     setLoading(true);
     setError(null);
 
-    const apiUrl = `http://192.168.1.148:25000/api/post/search/${encodeURIComponent(searchText)}`;
+    const apiUrl = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchText)}`;
 
     const params = new URLSearchParams({
       offset: offset,
@@ -153,7 +153,7 @@ const SearchPage = () => {
     if (!window.confirm('本当に削除しますか？')) return;
 
     try {
-      const response = await axios.delete('http://192.168.1.148:25000/api/post/post_delete', {
+      const response = await axios.delete(`${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_delete`, {
         data: { post_id },
         headers: {
           'Content-Type': 'application/json',

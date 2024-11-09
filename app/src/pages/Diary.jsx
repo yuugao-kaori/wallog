@@ -1,9 +1,9 @@
+// Diary.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import PostFeed from './PostFeed';
-import useWebSocket from './useWebSocket';
 
-axios.defaults.baseURL = 'http://192.168.1.148:25000';
+axios.defaults.baseURL = `${process.env.REACT_APP_SITE_DOMAIN}`;
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
 axios.defaults.withCredentials = true;
 
@@ -15,15 +15,21 @@ function Diary() {
   const [files, setFiles] = useState([]);
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
-  const { posts, setPosts, loading, hasMore, loadMorePosts } = useWebSocket('ws://192.168.1.148:25000/api/post/post_ws');
+
+  // 投稿取得用の新しいステート
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [start_id, setstart_id] = useState(null);
 
   // モーダルの状態
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const bottomBoundaryRef = useRef(null); // スクロールの終点を追跡するための参照
 
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const response = await axios.get('/api/user/login_check');
+        const response = await axios.get(`${process.env.REACT_APP_SITE_DOMAIN}/api/user/login_check`);
         if (response.status === 200) {
           setIsLoggedIn(true);
         }
@@ -35,19 +41,83 @@ function Diary() {
     checkSession();
   }, []);
 
+// 投稿を取得する関数
+const loadMorePosts = useCallback(async () => {
+  if (loading || !hasMore) return;
+
+  setLoading(true);
+
+  try {
+    let url = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_list`;
+    const params = { limit: 10 };
+    if (start_id !== null) {
+      params.start_id = start_id;
+    }
+
+    const response = await axios.get(url, { params });
+    const newPosts = Array.isArray(response.data) ? response.data : [];
+
+    if (newPosts.length > 0) {
+      setPosts((prevPosts) => [...prevPosts, ...newPosts]);
+
+      // 修正点: 配列の最後のpost_idを次のstart_idとして設定
+      const lastPostId = newPosts[newPosts.length - 1].post_id;
+      setstart_id(lastPostId);
+
+      // 取得した投稿数がlimitに満たない場合のみ、投稿が終わりと判断
+      if (newPosts.length < 10) {
+        setHasMore(false);
+      }
+    } else {
+      // 取得した投稿がゼロ件の場合も、hasMoreをfalseに
+      setHasMore(false);
+    }
+  } catch (error) {
+    console.error('Failed to load posts', error);
+    setStatus('投稿の読み込みに失敗しました。');
+  } finally {
+    setLoading(false);
+  }
+}, [loading, hasMore, start_id]);
+
+
+useEffect(() => {
+  // 初回読み込み
+  loadMorePosts();
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        loadMorePosts();
+      }
+    },
+    { threshold: 1.0 }
+  );
+
+  if (bottomBoundaryRef.current) {
+    observer.observe(bottomBoundaryRef.current);
+  }
+
+  return () => {
+    if (bottomBoundaryRef.current) {
+      observer.unobserve(bottomBoundaryRef.current);
+    }
+  };
+}, [loadMorePosts]);
+
   const handleFiles = async (selectedFiles) => {
     const fileArray = Array.from(selectedFiles);
     for (const file of fileArray) {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const uploadResponse = await axios.post('/api/drive/file_create', formData, {
+        const uploadResponse = await axios.post(`${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file_create`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         const fileId = uploadResponse.data.file_id;
-        const fileDataResponse = await axios.get(`/api/drive/file/${fileId}`, {
+        const fileDataResponse = await axios.get(`${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file/${fileId}`, {
           'Content-Type': 'application/octet-stream',
-          responseType: 'blob',  // レスポンスタイプをblobに指定
+          responseType: 'blob',
         });
         const isImage = file.type.startsWith('image/');
         const url = URL.createObjectURL(new Blob([fileDataResponse.data]));
@@ -58,31 +128,33 @@ function Diary() {
     }
   };
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        post_text: postText,
-      };
-      if (files.length > 0) {
-        payload.post_file = files.map((file) => file.id);
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          post_text: postText,
+        };
+        if (files.length > 0) {
+          payload.post_file = files.map((file) => file.id);
+        }
+        const response = await axios.post(`${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_create`, payload);
+        setStatus('投稿が成功しました！');
+        setPostText('');
+        setFiles([]);
+        // 新しい投稿を先頭に追加
+        setPosts((prevPosts) => [response.data, ...prevPosts]);
+        setIsModalOpen(false);
+      } catch (error) {
+        setStatus('投稿に失敗しました。');
       }
-      const response = await axios.post('/api/post/post_create', payload);
-      setStatus('投稿が成功しました！');
-      setPostText('');
-      setFiles([]);
-      // Add the new post to the beginning of the posts array
-      setPosts(prevPosts => [response.data, ...prevPosts]);
-      // モーダルを閉じる（モバイルのみ）
-      setIsModalOpen(false);
-    } catch (error) {
-      setStatus('投稿に失敗しました。');
-    }
-  }, [postText, files, setPosts]);
+    },
+    [postText, files, setPosts]
+  );
 
   const handleDelete = async (fileId) => {
     try {
-      await axios.post('/api/drive/file_delete', { file_id: fileId });
+      await axios.post(`${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file_delete`, { file_id: fileId });
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
     } catch (error) {
       setStatus('ファイルの削除に失敗しました。');
@@ -172,7 +244,6 @@ function Diary() {
 
   return (
     <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex relative">
-      
       {/* デスクトップ用投稿フォーム */}
       <nav className="hidden md:block w-1/5 fixed right-0 px-4 pt-12 min-h-full z-10 bg-white dark:bg-gray-900">
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
@@ -188,7 +259,6 @@ function Diary() {
 
       {/* 投稿一覧 */}
       <div className="flex-1 mr-0 md:mr-1/5 z-0">
-        {sessionError && <p className="text-red-500">{sessionError}</p>}
         <div className="mt-4">
           <PostFeed
             posts={posts}
@@ -198,6 +268,8 @@ function Diary() {
             hasMore={hasMore}
             loadMorePosts={loadMorePosts}
           />
+          {/* スクロールの終点を示す要素 */}
+<div id="page-bottom-boundary" ref={bottomBoundaryRef}></div>
         </div>
       </div>
 

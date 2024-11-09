@@ -16,7 +16,7 @@ import Test003 from './pages/test003.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import axios from 'axios';
-console.log('SITE TITLE:', process.env.REACT_APP_SITE_TITLE);
+console.log('SITE DOMAIN:', process.env.REACT_APP_SITE_DOMAIN);
 // TitleUpdaterコンポーネントを定義
 const TitleUpdater = () => {
   const location = useLocation();
@@ -90,7 +90,7 @@ const App = () => {
     const checkSession = async () => {
       startLoading(); // セッションチェック開始
       try {
-        const response = await axios.get(`${process.env.REACT_APP_SITE_TITLE}/api/user/login_check`);
+        const response = await axios.get(`${process.env.REACT_APP_SITE_DOMAIN}/api/user/login_check`);
         if (response.status === 200) {
           setIsLoggedIn(true);
         }

@@ -144,6 +144,18 @@ services:
         soft: -1
         hard: -1
 
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "20000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - app
+      - backend
+    networks:
+      - wallog_default
 
 
 volumes:

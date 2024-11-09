@@ -13,6 +13,7 @@ const envKeys = Object.keys(env).reduce((prev, next) => {
   return prev;
 }, {});
 
+console.log('REACT_APP_SITE_DOMAIN:', process.env.REACT_APP_SITE_DOMAIN);
 
 module.exports = {
   entry: './src/index.jsx',
@@ -48,9 +49,7 @@ module.exports = {
       tailwindcss: {},
       autoprefixer: {},
     }),
-    new webpack.DefinePlugin({
-      'process.env.REACT_APP_SITE_DOMAIN': JSON.stringify(process.env.REACT_APP_SITE_DOMAIN),
-    }),
+    new webpack.DefinePlugin(envKeys),
   ],
   devServer: {
     static: {

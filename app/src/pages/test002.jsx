@@ -1,7 +1,7 @@
 // SessionCheck.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-axios.defaults.baseURL = 'http://192.168.1.148:25000';
+axios.defaults.baseURL = `${process.env.REACT_APP_SITE_DOMAIN}`;
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
 axios.defaults.withCredentials = true; // Cookieを送受信できるように設定
 
@@ -13,7 +13,7 @@ const SessionCheck = () => {
     // コンポーネントがマウントされたときにセッション確認APIを呼び出す
     const checkSession = async () => {
       try {
-        const response = await axios.get('http://192.168.1.148:25000/api/user/login_check'); // APIのエンドポイントを変更する場合、ここを修正してください
+        const response = await axios.get(`${process.env.REACT_APP_SITE_DOMAIN}/api/user/login_check`); // APIのエンドポイントを変更する場合、ここを修正してください
         setSessionData(response.data);
       } catch (err) {
         setError(err.response ? err.response.data.error : 'Error connecting to server');

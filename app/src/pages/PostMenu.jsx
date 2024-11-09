@@ -13,7 +13,7 @@ const PostFeed = ({ isLoggedIn }) => {
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://192.168.1.148:25000/api/post/post_ws');
+    const ws = new WebSocket('wss:wallog.seitendan.com/api/post/post_ws');
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -104,7 +104,7 @@ const PostFeed = ({ isLoggedIn }) => {
   };
 
   const confirmDelete = () => {
-    fetch('http://192.168.1.148:25000/api/post/post_delete', {
+    fetch('http://wallog.seitendan.com/api/post/post_delete', {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

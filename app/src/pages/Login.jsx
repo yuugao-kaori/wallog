@@ -3,7 +3,7 @@ import React from 'react';
 
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-axios.defaults.baseURL = 'http://192.168.1.148:25000';
+axios.defaults.baseURL = `${process.env.REACT_APP_SITE_DOMAIN}`;
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
 axios.defaults.withCredentials = true; // Cookieを送受信できるように設定
 
@@ -17,7 +17,7 @@ function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://192.168.1.148:25000/api/user/login', {
+      const response = await axios.post(`${process.env.REACT_APP_SITE_DOMAIN}/api/user/login`, {
         username,
         password,
         rememberMe,
@@ -47,23 +47,23 @@ function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-800 bg-opacity-50">
-      <div className="bg-white p-6 rounded shadow-lg w-1/3">
+      <div className="bg-white p-6 rounded shadow-lg w-1/3 dark:bg-gray-800">
         <h2 className="text-lg font-bold mb-4">ログイン</h2>
         <form onSubmit={handleLogin}>
           <div className="mb-4">
-            <label className="block text-gray-700">ユーザ名</label>
+            <label className="block text-gray-700 dark:text-white">ユーザ名</label>
             <input
               type="text"
-              className="w-full p-2 border border-gray-300 rounded"
+              className="w-full p-2 border border-gray-300 rounded dark:text-gray-700"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
           </div>
           <div className="mb-4">
-            <label className="block text-gray-700">パスワード</label>
+            <label className="block text-gray-700 dark:text-white">パスワード</label>
             <input
               type="password"
-              className="w-full p-2 border border-gray-300 rounded"
+              className="w-full p-2 border border-gray-300 rounded dark:text-gray-700"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
