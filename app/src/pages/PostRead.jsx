@@ -15,7 +15,7 @@ const PostDetail = () => {
   useEffect(() => {
     const fetchPostDetail = async () => {
       try {
-        const response = await fetch('http://192.168.1.148:25000/api/post/post_read', {
+        const response = await fetch(`${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_read`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ const PostDetail = () => {
           if (!file_id) return { file_id, url: null, error: true };
 
           try {
-            const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
+            const response = await fetch(`${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file/${file_id}`);
             if (!response.ok) throw new Error('Fetch failed');
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);

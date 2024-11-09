@@ -42,7 +42,7 @@ const Card = React.memo(({ post, isLoggedIn, onDelete }) => {
           }
 
           try {
-            const response = await fetch(`http://192.168.1.148:25000/api/drive/file/${file_id}`);
+            const response = await fetch(`${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file/${file_id}`);
             if (!response.ok) throw new Error('Fetch failed');
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
@@ -162,7 +162,7 @@ const Card = React.memo(({ post, isLoggedIn, onDelete }) => {
               className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg hover:px-4 cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
               onClick={(e) => {
                 e.stopPropagation();
-                const url = `http://192.168.1.148:23000/diary/${post.post_id}`;
+                const url = `${process.env.REACT_APP_SITE_DOMAIN}/diary/${post.post_id}`;
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(url)
                     .then(() => {

@@ -1,11 +1,12 @@
-// PageCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom'; // 修正箇所
 
 const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, className }) => {
   const [images, setImages] = useState([]);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notification, setNotification] = useState(false); // 通知の状態
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -62,6 +63,14 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
     setMenuOpen(!menuOpen);
   };
 
+  const copyLink = () => {
+    const url = `${process.env.REACT_APP_SITE_DOMAIN}/diary/${post.post_id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setNotification(true);
+      setTimeout(() => setNotification(false), 2000); // 2秒間通知を表示
+    }).catch((err) => console.error("コピーに失敗しました", err));
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -76,10 +85,15 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
   }, []);
 
   return (
-    <div
-      key={post.post_id}
-      className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`}
-    >
+    <div className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`}>
+      {/* 通知メッセージをポータルとして描画 */}
+      {notification && ReactDOM.createPortal(
+        <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded shadow-lg z-[10000] text-sm">
+          クリップボードにURLがコピーされました
+        </div>,
+        document.body
+      )}
+
       <div className="absolute top-4 right-4">
         <button onClick={toggleMenu} className="p-2 text-gray-700">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -91,15 +105,34 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
       {menuOpen && (
         <div ref={menuRef} className="absolute top-14 right-4 bg-white shadow-lg rounded-lg p-2 z-10 dark:bg-gray-900">
           <ul>
+            <li
+              className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+              onClick={copyLink}
+            >
+              リンクをコピー
+            </li>
             {isLoggedIn && (
-              <li
-                className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                onClick={(event) => handleDeleteClick(event, post.post_id)}
-              >
-                削除
-              </li>
+              <>
+                <li
+                  className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  編集
+                </li>
+                <li
+                  className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={(event) => handleDeleteClick(event, post.post_id)}
+                >
+                  削除
+                </li>
+              </>
             )}
           </ul>
+        </div>
+      )}
+
+      {notification && (
+        <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded shadow-lg z-[1000] text-sm">
+          クリップボードにURLがコピーされました
         </div>
       )}
 

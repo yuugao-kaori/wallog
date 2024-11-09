@@ -11,7 +11,7 @@ const FileView = () => {
 
   useEffect(() => {
     // APIエンドポイント
-    const apiUrl = `http://192.168.1.148:25000/api/drive/file/${file_id}`;
+    const apiUrl = `${process.env.REACT_APP_SITE_DOMAIN}/api/drive/file/${file_id}`;
 
     // 画像のURLを設定
     setImageSrc(apiUrl);

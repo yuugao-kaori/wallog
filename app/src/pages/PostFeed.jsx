@@ -24,7 +24,7 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
   };
 
   const handlePostClick = (post_id) => {
-    navigate(`/diary/${post_id}`);
+    navigate(`${process.env.REACT_APP_SITE_DOMAIN}/diary/${post_id}`);
   };
 
   const formatHashtags = (text) => {

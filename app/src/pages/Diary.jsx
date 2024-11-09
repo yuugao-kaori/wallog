@@ -16,15 +16,18 @@ function Diary() {
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
 
-  // 投稿取得用の新しいステート
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [start_id, setstart_id] = useState(null);
-
-  // モーダルの状態
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const bottomBoundaryRef = useRef(null); // スクロールの終点を追跡するための参照
+  
+  // 新しい ref を追加
+  const observerRef = useRef(null);
+  const loadingRef = useRef(false);
+  const bottomBoundaryRef = useRef(null);
+  const lastRequestTimeRef = useRef(0);
+  const retryTimeoutRef = useRef(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -41,69 +44,97 @@ function Diary() {
     checkSession();
   }, []);
 
-// 投稿を取得する関数
-const loadMorePosts = useCallback(async () => {
-  if (loading || !hasMore) return;
+  const loadMorePosts = useCallback(async (retryCount = 0) => {
+    const now = Date.now();
+    const TIME_BETWEEN_REQUESTS = 500; // 500ms に短縮
 
-  setLoading(true);
-
-  try {
-    let url = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_list`;
-    const params = { limit: 10 };
-    if (start_id !== null) {
-      params.start_id = start_id;
+    // 既に読み込み中か、これ以上投稿がない場合は処理を中止
+    if (loadingRef.current || !hasMore) return;
+    
+    // 前回のリクエストからの経過時間をチェック
+    if (now - lastRequestTimeRef.current < TIME_BETWEEN_REQUESTS) {
+      // リトライタイムアウトが既に設定されている場合はクリア
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+      // 少し待ってから再試行
+      retryTimeoutRef.current = setTimeout(() => {
+        loadMorePosts(retryCount);
+      }, TIME_BETWEEN_REQUESTS);
+      return;
     }
 
-    const response = await axios.get(url, { params });
-    const newPosts = Array.isArray(response.data) ? response.data : [];
+    loadingRef.current = true;
+    setLoading(true);
+    lastRequestTimeRef.current = now;
 
-    if (newPosts.length > 0) {
-      setPosts((prevPosts) => [...prevPosts, ...newPosts]);
+    try {
+      let url = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_list`;
+      const params = { limit: 20 }; // 一度に読み込む投稿数を増やす
+      if (start_id !== null) {
+        params.start_id = start_id;
+      }
 
-      // 修正点: 配列の最後のpost_idを次のstart_idとして設定
-      const lastPostId = newPosts[newPosts.length - 1].post_id;
-      setstart_id(lastPostId);
+      const response = await axios.get(url, { params });
+      const newPosts = Array.isArray(response.data) ? response.data : [];
 
-      // 取得した投稿数がlimitに満たない場合のみ、投稿が終わりと判断
-      if (newPosts.length < 10) {
+      if (newPosts.length > 0) {
+        setPosts((prevPosts) => [...prevPosts, ...newPosts]);
+        const lastPostId = newPosts[newPosts.length - 1].post_id;
+        setstart_id(lastPostId - 1000000);
+        setHasMore(newPosts.length >= params.limit);
+      } else {
         setHasMore(false);
       }
-    } else {
-      // 取得した投稿がゼロ件の場合も、hasMoreをfalseに
-      setHasMore(false);
+    } catch (error) {
+      console.error('Failed to load posts', error);
+      setStatus('投稿の読み込みに失敗しました。');
+      // エラー時のリトライ処理
+      if (retryCount < 3) {
+        retryTimeoutRef.current = setTimeout(() => {
+          loadMorePosts(retryCount + 1);
+        }, 1000 * (retryCount + 1));
+      }
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Failed to load posts', error);
-    setStatus('投稿の読み込みに失敗しました。');
-  } finally {
-    setLoading(false);
-  }
-}, [loading, hasMore, start_id]);
+  }, [hasMore, start_id]);
 
+  useEffect(() => {
+    // 初回読み込み
+    loadMorePosts();
 
-useEffect(() => {
-  // 初回読み込み
-  loadMorePosts();
+    // Intersection Observer の設定
+    const options = {
+      root: null,
+      rootMargin: '500px', // より早めに検知するように余裕を持たせる
+      threshold: 0.1 // 閾値を下げて、より早く検知するように
+    };
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0].isIntersecting) {
+    const handleObserver = (entries) => {
+      const target = entries[0];
+      if (target.isIntersecting && !loadingRef.current && hasMore) {
         loadMorePosts();
       }
-    },
-    { threshold: 1.0 }
-  );
+    };
 
-  if (bottomBoundaryRef.current) {
-    observer.observe(bottomBoundaryRef.current);
-  }
+    observerRef.current = new IntersectionObserver(handleObserver, options);
 
-  return () => {
     if (bottomBoundaryRef.current) {
-      observer.unobserve(bottomBoundaryRef.current);
+      observerRef.current.observe(bottomBoundaryRef.current);
     }
-  };
-}, [loadMorePosts]);
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, [loadMorePosts, hasMore]);
+
 
   const handleFiles = async (selectedFiles) => {
     const fileArray = Array.from(selectedFiles);
@@ -268,8 +299,18 @@ useEffect(() => {
             hasMore={hasMore}
             loadMorePosts={loadMorePosts}
           />
-          {/* スクロールの終点を示す要素 */}
-<div id="page-bottom-boundary" ref={bottomBoundaryRef}></div>
+          {/* ローディングインジケーター */}
+          {loading && (
+            <div className="w-full py-4 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+            </div>
+          )}
+          {/* スクロールの終点 */}
+          <div 
+            id="page-bottom-boundary" 
+            ref={bottomBoundaryRef}
+            className="h-10 w-full"
+          ></div>
         </div>
       </div>
 

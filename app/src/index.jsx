@@ -54,6 +54,8 @@ const TitleUpdater = () => {
   return (
     <Helmet>
       <title>{title}</title>
+      <link rel="icon" href="https://wallog.seitendan.com/api/drive/file/file-1729302780901-814424877" />
+
     </Helmet>
   );
 };
