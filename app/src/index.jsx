@@ -3,8 +3,13 @@ import './index.css';
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client'; // React 18 以降では createRoot を使用
 import { BrowserRouter as Router, Route, Routes, Link, useParams, useLocation } from 'react-router-dom';
+import { FaSquareXTwitter } from 'react-icons/fa6'; // アイコンをインポート
+import { FaTwitter  } from 'react-icons/fa'; // アイコンをインポート
+import { PiFediverseLogoFill  } from 'react-icons/pi'; // アイコンをインポート
+import { FaGithub  } from 'react-icons/fa6'; // アイコンをインポート
 import Diary from './pages/Diary.jsx';
 import Drive from './pages/Drive.jsx';
+import Blog from './pages/Blog.jsx';
 import PostDetail from './pages/PostRead.jsx';
 import Search from './pages/Search.jsx';
 import FileRead from './pages/file_read.jsx';
@@ -16,7 +21,9 @@ import Test003 from './pages/test003.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import axios from 'axios';
+
 console.log('SITE DOMAIN:', process.env.REACT_APP_SITE_DOMAIN);
+
 // TitleUpdaterコンポーネントを定義
 const TitleUpdater = () => {
   const location = useLocation();
@@ -32,6 +39,8 @@ const TitleUpdater = () => {
         return `Diary | ${siteTitle}`;
       case '/drive':
         return `Drive | ${siteTitle}`;
+        case '/blog':
+          return `Blog | ${siteTitle}`;
       case '/test000':
         return `Test000 | ${siteTitle}`;
       case '/test001':
@@ -55,13 +64,11 @@ const TitleUpdater = () => {
     <Helmet>
       <title>{title}</title>
       <link rel="icon" href="https://wallog.seitendan.com/api/drive/file/file-1729302780901-814424877" />
-
     </Helmet>
   );
 };
 
 const Home = ({ startLoading, stopLoading }) => {
-  // ロード状態は外部から提供されるため、Home内部では直接管理しない
   return <h1 className="text-xl font-bold">HelloWorld</h1>;
 };
 
@@ -71,7 +78,6 @@ const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false); // 追加
   const { theme, toggleTheme } = useTheme();
 
-  // ナビゲーションの表示状態を管理するための状態
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   const toggleLoginPopup = () => {
@@ -90,7 +96,7 @@ const App = () => {
 
   useEffect(() => {
     const checkSession = async () => {
-      startLoading(); // セッションチェック開始
+      startLoading();
       try {
         const response = await axios.get(`${process.env.REACT_APP_SITE_DOMAIN}/api/user/login_check`);
         if (response.status === 200) {
@@ -99,17 +105,16 @@ const App = () => {
       } catch (err) {
         setIsLoggedIn(false);
       } finally {
-        stopLoading(); // セッションチェック終了後に読み込み停止
+        stopLoading();
       }
     };
 
     checkSession();
   }, []);
 
-  // 画面のリサイズに応じてナビゲーションを閉じる
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) { // md以上の画面幅
+      if (window.innerWidth >= 768) {
         setIsNavOpen(false);
       }
     };
@@ -127,7 +132,7 @@ const App = () => {
           onClick={() => setIsNavOpen(true)}
           className="md:hidden z-50 fixed top-4 left-4 bg-gray-800 text-white dark:bg-gray-200 dark:text-black p-2 rounded shadow-lg"
         >
-          &#9776; {/* ハンバーガーアイコン */}
+          &#9776;
         </button>
 
         {/* テーマ切り替えボタン */}
@@ -140,81 +145,117 @@ const App = () => {
 
         {/* ナビゲーション: 大きい画面では常に表示, 小さい画面ではオーバーレイ */}
         <nav
-  className={`fixed top-0 left-0 h-full bg-gray-200 dark:bg-gray-800 p-4 transform transition-transform duration-300 ease-in-out
-    ${isNavOpen ? 'translate-x-0' : '-translate-x-full'} 
-    md:relative md:translate-x-0 md:w-1/5
-  `}
-  style={{ zIndex: 50 }} // ナビゲーションの z-index を明示的に設定して他の要素の背後に隠れないようにします
->
-  {/* クローズボタン: 小さい画面でのみ表示 */}
-  <div className="flex justify-between items-center md:hidden">
-    <button
-      onClick={() => setIsNavOpen(false)}
-      className="text-2xl font-bold"
-    >
-      &times;
-    </button>
-  </div>
+          className={`fixed top-0 left-0 h-full bg-gray-200 dark:bg-gray-800 p-4 transform transition-transform duration-300 ease-in-out
+            ${isNavOpen ? 'translate-x-0' : '-translate-x-full'} 
+            md:relative md:translate-x-0 md:w-1/5
+          `}
+          style={{ zIndex: 50 }}
+        >
+          <div className="flex justify-between items-center md:hidden">
+            <button
+              onClick={() => setIsNavOpen(false)}
+              className="text-2xl font-bold"
+            >
+              &times;
+            </button>
+          </div>
 
-  {/* ナビゲーション内容 */}
-  <div className="flex flex-col items-center mb-8">
-  <h1 className="text-2xl font-bold text-center mb-2 dark:text-gray-100">My Sustainer</h1>
-  <p className="text-center text-sm dark:text-gray-300">繋がらないマイクロブログ</p>
-</div>
-  <ul className="flex flex-col space-y-4 mt-4 md:mt-0">
-    <li>
-      <Link
-        to="/diary"
-        className="mt-8 block text-center font-bold p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
-        onClick={() => setIsNavOpen(false)}
-      >
-        日記-Diary-
-      </Link>
-    </li>
-    <li>
-      <Link
-        to="/test002"
-        className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
-        onClick={() => setIsNavOpen(false)}
-      >
-        ブログ-Blog-
-      </Link>
-    </li>
-    <li>
-      <Link
-        to="/search"
-        className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
-        onClick={() => setIsNavOpen(false)}
-      >
-        検索-Search-
-      </Link>
-    </li>
-    {isLoggedIn && ( // ログインしている場合のみ表示
-      <>
-        <li>
-          <Link
-            to="/drive"
-            className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
-            onClick={() => setIsNavOpen(false)}
-          >
-            ドライブ-Drive-
-          </Link>
-        </li>
-        <li>
-          <Link
-            to="/test002"
-            className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
-            onClick={() => setIsNavOpen(false)}
-          >
-            設定-Settings-
-          </Link>
-        </li>
-      </>
-    )}
-  </ul>
-</nav>
+          <div className="flex flex-col items-center mb-8">
+            <h1 className="text-2xl font-bold text-center mb-2 dark:text-gray-100">My Sustainer</h1>
+            <p className="text-center text-sm dark:text-gray-300">繋がらないマイクロブログ</p>
+          </div>
+          <ul className="flex flex-col space-y-4 mt-4 md:mt-0">
+            <li>
+              <Link
+                to="/diary"
+                className="mt-8 block text-center font-bold p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
+                onClick={() => setIsNavOpen(false)}
+              >
+                日記-Diary-
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/blog"
+                className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
+                onClick={() => setIsNavOpen(false)}
+              >
+                ブログ-Blog-
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/search"
+                className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
+                onClick={() => setIsNavOpen(false)}
+              >
+                検索-Search-
+              </Link>
+            </li>
+            {isLoggedIn && (
+              <>
+                <li>
+                  <Link
+                    to="/drive"
+                    className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
+                    onClick={() => setIsNavOpen(false)}
+                  >
+                    ドライブ-Drive-
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/test002"
+                    className="block text-center p-2 bg-blue-500 text-white dark:bg-blue-700 dark:text-gray-300 rounded"
+                    onClick={() => setIsNavOpen(false)}
+                  >
+                    設定-Settings-
+                  </Link>
+                </li>
+              </>
+            )}
+          </ul>
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mt-4 md:mt-0">
+            {/* Twitterアカウントのリンク */}
+            <a
+              href="https://x.com/takumin3211"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+            >
+              <FaTwitter  size={30} />
+            </a>
+            {/* Xアカウントのリンク */}
+            <a
+              href="https://x.com/none_none_days"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+            >
+              <FaSquareXTwitter size={30} />
+            </a>
 
-        {/* オーバーレイ: ナビゲーションが開いている時に表示 */}
+            {/* Fediverseアカウントのリンク */}
+            <a
+              href="https://misskey.seitendan.com/@takumin3211"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+            >
+              <PiFediverseLogoFill size={30} />
+            </a>
+              {/* Githubアカウントのリンク */}
+              <a
+              href="https://github.com/yuugao-kaori/wallog"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+            >
+              <FaGithub size={30} />
+            </a>
+          </div>
+        </nav>
+
         {isNavOpen && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
@@ -222,19 +263,17 @@ const App = () => {
           ></div>
         )}
 
-        {/* メインコンテンツ */}
         <div className={`flex-1 h-full px-4 relative bg-white dark:bg-gray-900 text-black dark:text-white overflow-hidden md:w-4/5`}>
-        {/* loading状態に基づいてオーバーレイを表示 */}
-        {loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="text-white">読み込み中...</div>
-          </div>
-        )}
-        <Routes>
-          <Route
-            path="/"
-            element={<Home startLoading={startLoading} stopLoading={stopLoading} />}
-          />
+          {loading && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="text-white">読み込み中...</div>
+            </div>
+          )}
+          <Routes>
+            <Route
+              path="/"
+              element={<Home startLoading={startLoading} stopLoading={stopLoading} />}
+            />
             <Route
               path="/diary"
               element={<Diary startLoading={startLoading} stopLoading={stopLoading} />}
@@ -278,6 +317,10 @@ const App = () => {
             <Route
               path="/file/:file_id"
               element={<FileRead startLoading={startLoading} stopLoading={stopLoading} />}
+            />
+                        <Route
+              path="/blog"
+              element={<Blog startLoading={startLoading} stopLoading={stopLoading} />}
             />
           </Routes>
         </div>

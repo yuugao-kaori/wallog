@@ -63,3 +63,13 @@ curl -X GET "http://192.168.1.148:25000/api/post/tag_search/タグテスト" \
      -G \
      --data-urlencode "offset=20241231103421559642" \
      --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/tag2" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/タグテスト" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"

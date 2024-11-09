@@ -41,17 +41,26 @@ const esClient = new ESClient({
 
 // APIエンドポイントの実装
 router.get('/tag_search/:tag_text', async (req, res) => {
-  const { tag_text } = req.params;
+  let { tag_text } = req.params;
   const { offset, limit = 10 } = req.query;
 
   try {
+    // 先頭に '#' を結合
+    tag_text = `#${tag_text}`;
+
     // ① ElasticSearchで検索
     const esQuery = {
       index: ELASTICSEARCH_INDEX,
       size: limit,
       sort: [{ post_id: 'desc' }],
       query: {
-        match: { post_tag: tag_text },
+        bool: {
+          must: [
+            {
+              wildcard: { post_tag: `*${tag_text}*` }, // タグ部分一致
+            },
+          ],
+        },
       },
     };
 
