@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import PostFeed from './PostFeed';
+import PostForm from '../component/PostForm'; // インポートを追加
+
 
 axios.defaults.baseURL = `${process.env.REACT_APP_SITE_DOMAIN}`;
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
@@ -174,7 +176,11 @@ function Diary() {
         setPostText('');
         setFiles([]);
         // 新しい投稿を先頭に追加
+        
+    if (response.data.post_text && response.data.created_at !== 'Date unavailable') {
         setPosts((prevPosts) => [response.data, ...prevPosts]);
+    }
+    
         setIsModalOpen(false);
       } catch (error) {
         setStatus('投稿に失敗しました。');
@@ -280,7 +286,14 @@ function Diary() {
         <h2 className="text-xl font-bold mb-2">新規投稿</h2>
         {isLoggedIn ? (
           <>
-            <NewPostForm />
+            <PostForm
+              postText={postText}
+              setPostText={setPostText}
+              handleSubmit={handleSubmit}
+              files={files}
+              handleFiles={handleFiles}
+              handleDelete={handleDelete}
+            />
             {status && <p className="mt-4 text-red-500">{status}</p>}
           </>
         ) : (
