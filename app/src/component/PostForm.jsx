@@ -1,4 +1,4 @@
-// NewPostForm.jsx
+// PostForm.jsx
 import React, { useRef } from 'react';
 
 function NewPostForm({ postText, setPostText, handleSubmit, files, handleFiles, handleDelete }) {

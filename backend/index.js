@@ -33,6 +33,7 @@ import fileReadRoute from './api/drive/file_read.js';  // 変更: インポー�
 import fileDeleteRoute from './api/drive/file_delete.js';  // 変更: インポート名を変更
 import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
+import post_sseRoute from './api/post/post_sse.js';
 import post_listRoute from './api/post/post_list.js';
 import post_searchRoute from './api/post/post_search.js';
 import tag_searchRoute from './api/post/tag_search.js';
@@ -47,7 +48,7 @@ import test4Route from './api/test/test4.js';
 
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
-app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute);
+app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 

@@ -54,7 +54,7 @@ const PostFeed = React.memo(({ posts, setPosts, isLoggedIn, loading, hasMore, lo
                 className="text-blue-500 font-bold cursor-pointer hover:underline"
                 onClick={(e) => {
                   e.stopPropagation();
-                  // ハッシュタグクリック時の処理をここに追加
+                  navigate(`/search?searchText=${encodeURIComponent(tag)}&searchType=タグ検索`);
                 }}
               >
                 {part}

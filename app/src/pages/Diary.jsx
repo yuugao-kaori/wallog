@@ -137,6 +137,23 @@ function Diary() {
     };
   }, [loadMorePosts, hasMore]);
 
+  useEffect(() => {
+    const eventSource = new EventSource(`${process.env.REACT_APP_SITE_DOMAIN}/api/post/post_sse`);
+    eventSource.onmessage = (event) => {
+      const newPosts = JSON.parse(event.data);
+      setPosts((prevPosts) => [...newPosts, ...prevPosts]); // 新しい投稿を先頭に追加
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE接続エラー:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
 
   const handleFiles = async (selectedFiles) => {
     const fileArray = Array.from(selectedFiles);
@@ -177,7 +194,7 @@ function Diary() {
         setFiles([]);
         // 新しい投稿を先頭に追加
         
-    if (response.data.post_text && response.data.created_at !== 'Date unavailable') {
+    if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
         setPosts((prevPosts) => [response.data, ...prevPosts]);
     }
     
