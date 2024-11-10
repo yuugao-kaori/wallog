@@ -35,7 +35,11 @@ const getNewPosts = async () => {
         if (post.post_file === '{""}') {
             delete post.post_file;
         }
-        return post;
+        return {
+            ...post,
+            created_at: post.post_createat,
+            post_createat: undefined, // 不要なキーを削除
+        };
     });
 };
 

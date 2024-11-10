@@ -1,0 +1,21 @@
+# /etc/systemd/system/wallog.service　として保存する
+# sudo systemctl daemon-reload　でリロードする
+# sudo systemctl enable wallog.service　を実行する
+# sudo systemctl start wallog.service　を実行する
+
+
+[Unit]
+Description=Wallog daemon
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/web/wallog/
+ExecStart=/usr/bin/docker-compose down
+ExecStartPost=/usr/bin/docker-compose up -d
+RemainAfterExit=true
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
