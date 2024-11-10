@@ -2,72 +2,82 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Card from '../component/SearchCard';
 import axios from 'axios';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const SearchPage = () => {
-  const { searchText: urlSearchText } = useParams(); // URLから検索テキストを取得
-  const [searchText, setSearchText] = useState(urlSearchText || '');
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // クエリパラメータを取得
+  const queryParams = new URLSearchParams(location.search);
+  const urlSearchText = queryParams.get('searchText') || '';
+  const urlSearchType = queryParams.get('searchType') || '全文検索';
+
+  const [searchText, setSearchText] = useState(urlSearchText);
+  const [searchType, setSearchType] = useState(urlSearchType);
   const [results, setResults] = useState([]);
   const [offset, setOffset] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasMore, setHasMore] = useState(false);
-  const navigate = useNavigate();
-  const isLoggedIn = true; // ログイン状態を適切に管理してください
-
   const observer = useRef();
   const loadMoreRef = useRef();
+  const isLoggedIn = true; // ログイン状態を適切に管理してください
 
-  // 日付をyyyymmddhhMMss000000形式にフォーマットするヘルパー関数
   const formatDate = (date) => {
     const pad = (n) => String(n).padStart(2, '0');
     return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}000000`;
   };
 
   // 検索を実行する関数
-  const performSearch = useCallback(async (searchTerm, initial = true) => {
-    if (searchTerm.trim() === '') {
-      alert('検索文字を入力してください。');
-      return;
-    }
+  const performSearch = useCallback(
+    async (searchTerm, searchMode, initial = true) => {
+      if (searchTerm.trim() === '') {
+        alert('検索文字を入力してください。');
+        return;
+      }
 
-    if (initial) {
-      setLoading(true);
-      setError(null);
-      setResults([]);
-      setOffset(null);
-      setHasMore(false);
-    }
-
-    // 現在の日時をyyyymmddhhMMss000000形式で取得
-    const now = new Date();
-    const formattedDate = formatDate(now);
-
-    const apiUrl = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchTerm)}`;
-
-    const params = new URLSearchParams({
-      offset: initial ? formattedDate : offset,
-      limit: '10',
-    });
-
-    try {
-      const response = await axios.get(`${apiUrl}?${params.toString()}`);
-      const data = response.data;
-      setResults((prevResults) => (initial ? data : [...prevResults, ...data]));
-      if (data.length === 10) {
-        const lastPost = data[data.length - 1];
-        const lastPostDate = new Date(lastPost.post_createat);
-        setOffset(formatDate(lastPostDate));
-        setHasMore(true);
-      } else {
+      if (initial) {
+        setLoading(true);
+        setError(null);
+        setResults([]);
+        setOffset(null);
         setHasMore(false);
       }
-    } catch (err) {
-      setError(err.message || 'エラーが発生しました。');
-    } finally {
-      setLoading(false);
-    }
-  }, [offset]);
+
+      const now = new Date();
+      const formattedDate = formatDate(now);
+
+      const apiUrl =
+        searchMode === '全文検索'
+          ? `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchTerm)}`
+          : `${process.env.REACT_APP_SITE_DOMAIN}/api/post/tag_search/${encodeURIComponent(searchTerm)}`;
+
+      const params = new URLSearchParams({
+        offset: initial ? formattedDate : offset,
+        limit: '10',
+      });
+
+      try {
+        const response = await axios.get(`${apiUrl}?${params.toString()}`);
+        const data = response.data;
+        setResults((prevResults) => (initial ? data : [...prevResults, ...data]));
+        if (data.length === 10) {
+          const lastPost = data[data.length - 1];
+          const lastPostDate = new Date(lastPost.post_createat);
+          setOffset(formatDate(lastPostDate));
+          setHasMore(true);
+        } else {
+          setHasMore(false);
+        }
+      } catch (err) {
+        setError(err.message || 'エラーが発生しました。');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [offset]
+  );
 
   // 検索ボタンがクリックされたときの処理
   const handleSearch = () => {
@@ -75,16 +85,27 @@ const SearchPage = () => {
       alert('検索文字を入力してください。');
       return;
     }
-    navigate(`/search/${encodeURIComponent(searchText)}`); // URLを更新
+
+    // クエリパラメータに検索条件を追加
+    navigate(`/search?searchText=${encodeURIComponent(searchText)}&searchType=${encodeURIComponent(searchType)}`);
   };
 
-  // 追加データをロードする関数
+  // クエリパラメータが変更されたときに検索を実行
+  useEffect(() => {
+    if (urlSearchText) {
+      performSearch(urlSearchText, urlSearchType, true);
+    }
+  }, [urlSearchText, urlSearchType, performSearch]);
+
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
     setLoading(true);
     setError(null);
 
-    const apiUrl = `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchText)}`;
+    const apiUrl =
+      searchType === '全文検索'
+        ? `${process.env.REACT_APP_SITE_DOMAIN}/api/post/search/${encodeURIComponent(searchText)}`
+        : `${process.env.REACT_APP_SITE_DOMAIN}/api/post/tag_search/${encodeURIComponent(searchText)}`;
 
     const params = new URLSearchParams({
       offset: offset,
@@ -109,14 +130,7 @@ const SearchPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [loading, hasMore, offset, searchText]);
-
-  // URLパラメータが変更されたときに検索を実行
-  useEffect(() => {
-    if (urlSearchText) {
-      performSearch(urlSearchText, true);
-    }
-  }, [urlSearchText, performSearch]);
+  }, [loading, hasMore, offset, searchText, searchType]);
 
   // 無限スクロールの設定
   useEffect(() => {
@@ -175,7 +189,7 @@ const SearchPage = () => {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 flex flex-col">
       <div className="max-w-4xl mx-auto mb-6">
-        <div className="flex">
+        <div className="flex items-center">
           <input
             type="text"
             value={searchText}
@@ -183,6 +197,14 @@ const SearchPage = () => {
             placeholder="検索キーワードを入力"
             className="flex-1 px-4 py-2 border border-gray-300 dark:bg-gray-800 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <select
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value)}
+            className="border border-gray-300 dark:bg-gray-800 px-2 py-1 mx-2 rounded-md"
+          >
+            <option value="全文検索">全文検索</option>
+            <option value="タグ検索">タグ検索</option>
+          </select>
           <button
             onClick={handleSearch}
             className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-r-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"

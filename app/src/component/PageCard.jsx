@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom'; // 修正箇所
+import ReactDOM from 'react-dom';
 
-const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, className }) => {
+const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className }) => {
   const [images, setImages] = useState([]);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [notification, setNotification] = useState(false); // 通知の状態
+  const [notification, setNotification] = useState(false);
   const menuRef = useRef(null);
-
+  const renderText = (text) => {
+    if (!text) return null;
+    
+    // ハッシュタグを含むテキストの場合
+    if (renderHashtagsContainer) {
+      return renderHashtagsContainer(text);
+    }
+    
+    // 通常のテキスト（改行を保持）
+    return (
+      <div className="whitespace-pre-wrap break-words text-gray-800 text-base dark:text-gray-100">
+        {text}
+      </div>
+    );
+  };
   useEffect(() => {
     let isMounted = true;
     const fetchImages = async () => {
@@ -67,7 +81,7 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
     const url = `${process.env.REACT_APP_SITE_DOMAIN}/diary/${post.post_id}`;
     navigator.clipboard.writeText(url).then(() => {
       setNotification(true);
-      setTimeout(() => setNotification(false), 2000); // 2秒間通知を表示
+      setTimeout(() => setNotification(false), 2000);
     }).catch((err) => console.error("コピーに失敗しました", err));
   };
 
@@ -84,9 +98,20 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
     };
   }, []);
 
+  // テキストの改行を処理する関数
+  const formatText = (text) => {
+    if (!text) return '';
+    // まず改行文字をBRタグに変換し、その後でHTMLとして安全にレンダリング
+    return text.split('\n').map((line, index) => (
+      <React.Fragment key={index}>
+        {line}
+        {index < text.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ));
+  };
+
   return (
     <div className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative ${className}`}>
-      {/* 通知メッセージをポータルとして描画 */}
       {notification && ReactDOM.createPortal(
         <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded shadow-lg z-[10000] text-sm">
           クリップボードにURLがコピーされました
@@ -130,19 +155,17 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
         </div>
       )}
 
-      {notification && (
-        <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded shadow-lg z-[1000] text-sm">
-          クリップボードにURLがコピーされました
-        </div>
-      )}
-
       <div className="text-gray-500 text-sm">
         Created at: {formatDate(post.post_createat)}
       </div>
-      <p
-        className="mt-2 text-gray-800 text-base dark:text-gray-100 whitespace-pre-wrap"
-        dangerouslySetInnerHTML={{ __html: formatHashtags(post.post_text || '') }}
-      ></p>
+      {renderHashtagsContainer ? (
+        renderHashtagsContainer(post.post_text)
+      ) : (
+        <div className="mt-2 text-gray-800 text-base dark:text-gray-100 whitespace-pre-wrap break-words">
+          {renderText(post.post_text)}
+        </div>
+      )}
+
       {images.length > 0 && (
         <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
           {images.map((img) => (
@@ -170,6 +193,7 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
       )}
     </div>
   );
+  
 });
 
 export default Card;
