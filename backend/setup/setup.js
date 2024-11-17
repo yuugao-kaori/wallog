@@ -237,7 +237,7 @@ if (fs.existsSync(envFilePath)) {
           SELECT 1
           FROM information_schema.tables 
           WHERE table_schema = 'public'
-          AND table_name = 'settings'
+          AND table_name = 'sessions'
         );
       `);
 

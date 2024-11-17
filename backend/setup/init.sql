@@ -4,6 +4,18 @@ CREATE TABLE IF NOT EXISTS "settings" (
     settings_value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    session_key VARCHAR(255) NOT NULL UNIQUE,
+    expires TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX sessions_session_key_idx ON sessions(session_key);
+CREATE INDEX sessions_user_id_idx ON sessions(user_id);
+CREATE INDEX sessions_expires_idx ON sessions(expires);
 
 -- postテーブルの作成
 CREATE TABLE IF NOT EXISTS "post" (

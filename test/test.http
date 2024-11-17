@@ -75,4 +75,4 @@ curl -X GET "http://wallog.seitendan.com/api/post/tag_search/タグテスト" \
      --data-urlencode "limit=10"
 
 ###
-https://wallog.seitendan.com/api/post/tag_search/tag?offset=20241109231851000000&limit=10
+curl -X GET "https://wallog.seitendan.com/api/test/test001"

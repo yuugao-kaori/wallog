@@ -225,7 +225,7 @@ const App = () => {
             >
               <FaTwitter  size={30} />
             </a>
-            {/* Xアカウントのリンク */}
+            {/* Xアカウントのリンク
             <a
               href="https://x.com/none_none_days"
               target="_blank"
@@ -234,7 +234,7 @@ const App = () => {
             >
               <FaSquareXTwitter size={30} />
             </a>
-
+               */}
             {/* Fediverseアカウントのリンク */}
             <a
               href="https://misskey.seitendan.com/@takumin3211"
