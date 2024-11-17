@@ -1,25 +1,5 @@
 services:
-  next_app:
-    container_name: next_app
-    build:
-      context: .
-      dockerfile: dockerfile.next_app
-    volumes:
-      - ./next_app:/usr/src/app
-      - ./.env:/usr/src/app/.env
-    command: sh -c "npm run dev"
-    ports:
-      - "23001:3000"
-    environment:
-      - WATCHPACK_POLLING=true
-      - NODE_ENV=development
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
-    depends_on:
-      - db
-      - elasticsearch
-    networks:
-      - wallog_default
+
 
   app:
     container_name: app
