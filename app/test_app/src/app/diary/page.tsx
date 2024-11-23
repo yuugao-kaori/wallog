@@ -86,25 +86,37 @@ function Diary() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const eventSource = new EventSource(
-      `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
-      { 
-        withCredentials: true
-      }
-    );
-    
-    eventSource.onmessage = (event) => {
-      const newPosts = JSON.parse(event.data);
-      setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
+    let eventSource: EventSource;
+    const connectSSE = () => {
+      eventSource = new EventSource(
+        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
+        { withCredentials: true }
+      );
+      
+      eventSource.onmessage = (event) => {
+        const newPosts = JSON.parse(event.data);
+        setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
+      };
+
+      eventSource.onerror = () => {
+        console.log('SSE接続が切断されました。再接続を試みます...');
+        eventSource.close();
+        // 3秒後に再接続
+        setTimeout(connectSSE, 3000);
+      };
+
+      eventSource.onopen = () => {
+        console.log('SSE接続が確立されました');
+      };
     };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE接続エラー:', error);
-      eventSource.close();
-    };
+    connectSSE();
 
     return () => {
-      eventSource.close();
+      if (eventSource) {
+        console.log('SSEクリーンアップ: 接続を終了します');
+        eventSource.close();
+      }
     };
   }, []);
 
@@ -261,7 +273,7 @@ function Diary() {
       // 既存ファイルの場合は、添付のみを解除
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
     } else {
-      // 新規アップロードファイルの場合は、APIで削除
+      // 新規アップロードフ���イルの場合は、APIで削除
       try {
         await api.post('/api/drive/file_delete', { file_id: fileId });
         setFiles((prev) => prev.filter((file) => file.id !== fileId));

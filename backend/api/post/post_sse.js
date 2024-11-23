@@ -50,6 +50,11 @@ router.get('/post_sse', async (req, res) => {
 
     console.log('新しいSSE接続が確立されました');
 
+    // キープアライブの間隔を設定（45秒）
+    const keepAliveInterval = setInterval(() => {
+        res.write(':keepalive\n\n');
+    }, 45000);
+
     const listener = async (notification) => {
         if (notification.channel === 'post_updates') {
             const newPosts = await getNewPosts();
@@ -62,6 +67,7 @@ router.get('/post_sse', async (req, res) => {
 
     req.on('close', () => {
         console.log('SSE接続が閉じられました');
+        clearInterval(keepAliveInterval);
         client.removeListener('notification', listener);
         res.end();
     });
