@@ -213,92 +213,94 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
 
     } catch (error) {
       console.error('Error deleting post:', error);
-      addNotification('削除に失敗しました');
+      addNotification('削除に失��しました');
     } finally {
       setMenuOpen(false);
     }
   };
 
   return (
-    <div className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 ${className}`}>
-      {/* marginをmt-4（上方向のマージン）に変更 */}
-      <Notification 
-        notifications={notifications} 
-        onClose={removeNotification}
-      />
+    <div className="flex justify-center w-full">
+      <div className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-100 transition-all dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl ${className}`}>
+        {/* 既存のカードコンテンツ */}
+        <Notification 
+          notifications={notifications} 
+          onClose={removeNotification}
+        />
 
-      <div className="absolute top-4 right-4 z-10">
-        <button onClick={toggleMenu} className="p-2 text-gray-700 dark:text-gray-300">
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-          </svg>
-        </button>
-      </div>
+        <div className="absolute top-4 right-4 z-10">
+          <button onClick={toggleMenu} className="p-2 text-gray-700 dark:text-gray-300">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+            </svg>
+          </button>
+        </div>
 
-      {menuOpen && (
-        <div ref={menuRef} className="absolute top-14 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
-          <ul>
-            <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                onClick={copyLink}>
-              リンクをコピー
-            </li>
-            {isLoggedIn && (
+        {menuOpen && (
+          <div ref={menuRef} className="absolute top-14 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
+            <ul>
               <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => setDeleteModalOpen(true)}>
-                削除
+                  onClick={copyLink}>
+                リンクをコピー
               </li>
-            )}
-          </ul>
-        </div>
-      )}
-
-      <DeleteConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onDelete={(e) => handleDelete(e, post.post_id)}
-      />
-
-      <ImageModal
-        isOpen={imageModalOpen}
-        imageUrl={selectedImage}
-        onClose={closeImageModal}
-      />
-
-      <div>
-        <div className="text-gray-500 text-sm">
-          Created at: {formatDate(post.post_createat)}
-        </div>
-
-        <div className="mt-2">
-          {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
-        </div>
-
-        {images.length > 0 && (
-          <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
-            {images.map((img) => (
-              <div key={img.file_id} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
-                {img.error ? (
-                  <div className="flex items-center justify-center h-full text-red-500 text-sm">
-                    画像を表示できませんでした。
-                  </div>
-                ) : (
-                  <img
-                    src={img.url || ''}
-                    alt={`Post image ${img.file_id}`}
-                    className="object-contain w-full h-full cursor-pointer bg-gray-700"
-                    onClick={(e) => { e.stopPropagation(); img.url && handleImageClick(img.url); }}
-                  />
-                )}
-              </div>
-            ))}
+              {isLoggedIn && (
+                <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => setDeleteModalOpen(true)}>
+                  削除
+                </li>
+              )}
+            </ul>
           </div>
         )}
+
+        <DeleteConfirmModal
+          isOpen={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          onDelete={(e) => handleDelete(e, post.post_id)}
+        />
 
         <ImageModal
           isOpen={imageModalOpen}
           imageUrl={selectedImage}
           onClose={closeImageModal}
         />
+
+        <div>
+          <div className="text-gray-500 text-sm">
+            Created at: {formatDate(post.post_createat)}
+          </div>
+
+          <div className="mt-2">
+            {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
+          </div>
+
+          {images.length > 0 && (
+            <div className={`mt-4 ${images.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
+              {images.map((img) => (
+                <div key={img.file_id} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
+                  {img.error ? (
+                    <div className="flex items-center justify-center h-full text-red-500 text-sm">
+                      画像を表示できませんでした。
+                    </div>
+                  ) : (
+                    <img
+                      src={img.url || ''}
+                      alt={`Post image ${img.file_id}`}
+                      className="object-contain w-full h-full cursor-pointer bg-gray-700"
+                      onClick={(e) => { e.stopPropagation(); img.url && handleImageClick(img.url); }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <ImageModal
+            isOpen={imageModalOpen}
+            imageUrl={selectedImage}
+            onClose={closeImageModal}
+          />
+        </div>
       </div>
     </div>
   );

@@ -337,10 +337,10 @@ function Diary() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
-      {/* 投稿一覧 */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 md:pr-[300px]">
+    <div className="flex min-h-screen bg-white dark:bg-gray-900">
+      {/* メインコンテンツ */}
+      <main className="flex-1 min-h-screen md:pl-64">
+        <div className="h-screen max-w-4xl mx-auto px-4 py-4 md:pr-[320px] overflow-y-auto scrollbar-hide">
           <PostFeed
             posts={posts}
             setPosts={setPosts}
@@ -354,17 +354,14 @@ function Diary() {
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
             </div>
           )}
-          <div 
-            ref={bottomBoundaryRef}
-            className="h-10 w-full"
-          />
+          <div ref={bottomBoundaryRef} className="h-10 w-full" />
         </div>
       </main>
 
       {/* デスクトップ用投稿フォーム */}
-      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
-        <div className="h-full pt-12 px-4 overflow-y-auto">
-          <h2 className="text-xl font-bold mb-2">新規投稿</h2>
+      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800 z-20">
+        <div className="p-4 h-full overflow-y-auto">
+          <h2 className="text-xl font-bold mb-2 dark:text-white">新規投稿</h2>
           {isLoggedIn ? (
             <>
               <PostForm
@@ -383,10 +380,10 @@ function Diary() {
         </div>
       </aside>
 
-      {/* モバイル用フローティングボタンとモーダルは変更なし */}
+      {/* モバイル用フローティングボタン */}
       {isLoggedIn && (
         <button
-          className="md:hidden fixed bottom-4 left-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-20"
+          className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
           onClick={() => setIsModalOpen(true)}
         >
           +
@@ -395,7 +392,7 @@ function Diary() {
 
       {/* モバイル用モーダル */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
           <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative">
             <button
               className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"

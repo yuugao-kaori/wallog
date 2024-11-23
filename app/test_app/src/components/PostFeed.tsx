@@ -115,7 +115,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   const MemoizedCard = useMemo(() => Card, []);
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="h-full overflow-y-auto scrollbar-hide">
       {posts.map(post => (
         <MemoizedCard
           key={post.post_id}

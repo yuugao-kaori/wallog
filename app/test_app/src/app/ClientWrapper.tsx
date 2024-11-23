@@ -11,7 +11,7 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     <NextThemeProvider>
       <ThemeContextProvider>
         <NavBar />
-        <div className="pl-[16.67%]">
+        <div>
           <NotificationButton />
           <ThemeButton />
           {children}

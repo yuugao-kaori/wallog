@@ -22,9 +22,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-hidden`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <ClientWrapper>{children}</ClientWrapper>
+          <ClientWrapper>
+            <div className="relative min-h-screen">
+              {children}
+            </div>
+          </ClientWrapper>
         </ThemeProvider>
       </body>
     </html>
