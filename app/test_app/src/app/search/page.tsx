@@ -91,7 +91,7 @@ export default function SearchPage() {
         setLoading(false);
       }
     },
-    [] // 依存配列から loading を���除
+    [] // 依存配列から loading を除外
   );
 
   const loadMore = useCallback(async () => {
@@ -212,64 +212,90 @@ export default function SearchPage() {
     };
   }, [urlSearchText, urlSearchType]); // performSearch を依存配列から削除
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [isModalOpen]);
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 flex flex-col">
-      <div className="max-w-4xl mx-auto mb-6">
-        <div className="flex items-center">
-          <input
-            type="text"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="検索キーワードを入力"
-            className="flex-1 px-4 py-2 border border-gray-300 dark:bg-gray-800 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={searchType}
-            onChange={(e) => setSearchType(e.target.value)}
-            className="border border-gray-300 dark:bg-gray-800 px-2 py-1 mx-2 rounded-md"
-          >
-            <option value="全文検索">全文検索</option>
-            <option value="タグ検索">タグ検索</option>
-          </select>
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-r-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            検索
-          </button>
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+      {/* メインコンテンツ */}
+      <main className="flex-1 min-h-screen md:pl-64">
+        <div className="h-screen max-w-4xl mx-auto px-4 py-4 md:pr-[320px] overflow-y-auto scrollbar-hide">
+          {loading && results.length === 0 && (
+            <div className="text-center text-gray-500">検索中...</div>
+          )}
+
+          {error && (
+            <div className="text-center text-red-500">エラー: {error}</div>
+          )}
+
+          <div className="flex flex-col space-y-4">
+            {results.map((post) => (
+              <PostCard
+                key={post.post_id}
+                post={post}
+                isLoggedIn={isLoggedIn}
+                onDelete={handleDelete}
+                handleDeleteClick={handleDelete}
+                formatDate={(date: string) => formatDate(new Date(date))}
+              />
+            ))}
+          </div>
+
+          {loading && (
+            <div className="text-center text-gray-500 my-4">読み込み中...</div>
+          )}
+
+          {hasMore && <div ref={loadMoreRef} className="h-1" />}
+
+          {(!loading && results.length === 0 && !error) && (
+            <div className="text-center text-gray-500 mt-4">結果が見つかりませんでした。</div>
+          )}
         </div>
-      </div>
+      </main>
 
-      {loading && results.length === 0 && (
-        <div className="text-center text-gray-500">検索中...</div>
-      )}
-
-      {error && (
-        <div className="text-center text-red-500">エラー: {error}</div>
-      )}
-
-      <div className="flex-1 overflow-y-auto max-h-[750px] mx-auto w-full max-w-4xl">
-        <div className="flex flex-col space-y-4">
-          {results.map((post) => (
-            <PostCard
-              key={post.post_id}
-              post={post}
-              isLoggedIn={isLoggedIn}
-              onDelete={handleDelete}
-              handleDeleteClick={handleDelete}
-              formatDate={(date: string) => formatDate(new Date(date))}
+      {/* デスクトップ用検索フォーム */}
+      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800 z-20">
+        <div className="p-4 h-full">
+          <h2 className="text-xl font-bold mb-4 dark:text-white">検索</h2>
+          <div className="flex flex-col space-y-4">
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="検索キーワードを入力"
+              className="w-full px-4 py-2 border border-gray-300 dark:bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          ))}
+            <select
+              value={searchType}
+              onChange={(e) => setSearchType(e.target.value)}
+              className="w-full border border-gray-300 dark:bg-gray-800 px-4 py-2 rounded-md"
+            >
+              <option value="全文検索">全文検索</option>
+              <option value="タグ検索">タグ検索</option>
+            </select>
+            <button
+              onClick={handleSearch}
+              className="w-full px-4 py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              検索
+            </button>
+          </div>
         </div>
-        {loading && (
-          <div className="text-center text-gray-500 my-4">読み込み中...</div>
-        )}
-        {hasMore && <div ref={loadMoreRef} className="h-1" />}
-      </div>
+      </aside>
 
-      {(!loading && results.length === 0 && !error) && (
-        <div className="text-center text-gray-500 mt-4">結果が見つかりませんでした。</div>
-      )}
+      {/* モバイル用検索ボタン */}
+      <button
+        className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
+        onClick={() => setIsModalOpen(true)}
+      >
+        🔍
+      </button>
     </div>
   );
 }

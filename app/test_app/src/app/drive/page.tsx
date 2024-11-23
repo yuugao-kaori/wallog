@@ -92,9 +92,10 @@ export default function DrivePage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 md:pr-[300px]">
+    <div className="flex min-h-screen bg-white dark:bg-gray-900">
+      {/* メインコンテンツ */}
+      <main className="flex-1 min-h-screen md:pl-64">
+        <div className="h-screen max-w-4xl mx-auto px-4 py-4 md:pr-[320px] overflow-y-auto scrollbar-hide">
           {loading ? (
             <div className="text-center text-gray-500 dark:text-gray-400">Loading...</div>
           ) : error ? (
@@ -119,9 +120,9 @@ export default function DrivePage() {
       </main>
 
       {/* デスクトップ用アップロードフォーム */}
-      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
-        <div className="h-full pt-12 px-4 overflow-y-auto">
-          <h2 className="text-xl font-bold mb-2">ファイルのアップロード</h2>
+      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800 z-20">
+        <div className="p-4 h-full overflow-y-auto">
+          <h2 className="text-xl font-bold mb-2 dark:text-white">ファイルのアップロード</h2>
           <FileUpload 
             showUpload={true} 
             onUploadComplete={handleUploadComplete}
@@ -130,16 +131,17 @@ export default function DrivePage() {
         </div>
       </aside>
 
-      {/* モバイル用フローティングボタンとモーダル */}
+      {/* モバイル用フローティングボタン */}
       <button 
         onClick={() => setShowUpload(!showUpload)} 
-        className="md:hidden fixed bottom-4 left-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-20"
+        className="md:hidden fixed bottom-20 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
       >
         <FaUpload size={24} />
       </button>
 
+      {/* モバイル用モーダル */}
       {showUpload && (
-        <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30">
+        <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
           <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative">
             <button
               className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"
@@ -147,7 +149,7 @@ export default function DrivePage() {
             >
               ×
             </button>
-            <h2 className="text-xl font-bold mb-4">ファイルのアップロード</h2>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルのアップロード</h2>
             <FileUpload 
               showUpload={true} 
               onUploadComplete={() => {
