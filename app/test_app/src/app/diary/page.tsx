@@ -262,12 +262,24 @@ function Diary() {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enterで送信
+        e.preventDefault();
+        handleSubmit(e as any);
+      }
+      // 通常のEnterは改行を許可
+    }
+  };
+
   const NewPostForm = () => (
     <form onSubmit={handleSubmit} className="mt-2">
       <textarea
         className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
         value={postText}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPostText(e.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="ここに投稿内容を入力してください"
         rows={4}
       />
@@ -325,30 +337,10 @@ function Diary() {
   );
 
   return (
-    <div className="px-4 dark:bg-gray-900 dark:text-gray-100 h-screen overflow-y-auto flex relative">
-      {/* デスクトップ用投稿フォーム */}
-      <nav className="hidden md:block w-1/5 fixed right-0 px-4 pt-12 min-h-full z-10 bg-white dark:bg-gray-900">
-        <h2 className="text-xl font-bold mb-2">新規投稿</h2>
-        {isLoggedIn ? (
-          <>
-            <PostForm
-              postText={postText}
-              setPostText={setPostText}
-              handleSubmit={handleSubmit}
-              files={files}
-              handleFiles={handleFiles}
-              handleDelete={handleDelete}
-            />
-            {status && <p className="mt-4 text-red-500">{status}</p>}
-          </>
-        ) : (
-          <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
-        )}
-      </nav>
-
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
       {/* 投稿一覧 */}
-      <div className="flex-1 mr-0 md:mr-1/5 z-0">
-        <div className="mt-4">
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 md:pr-[300px]">
           <PostFeed
             posts={posts}
             setPosts={setPosts}
@@ -367,9 +359,31 @@ function Diary() {
             className="h-10 w-full"
           />
         </div>
-      </div>
+      </main>
 
-      {/* モバイル用フローティングボタン */}
+      {/* デスクトップ用投稿フォーム */}
+      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
+        <div className="h-full pt-12 px-4 overflow-y-auto">
+          <h2 className="text-xl font-bold mb-2">新規投稿</h2>
+          {isLoggedIn ? (
+            <>
+              <PostForm
+                postText={postText}
+                setPostText={setPostText}
+                handleSubmit={handleSubmit}
+                files={files}
+                handleFiles={handleFiles}
+                handleDelete={handleDelete}
+              />
+              {status && <p className="mt-4 text-red-500">{status}</p>}
+            </>
+          ) : (
+            <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
+          )}
+        </div>
+      </aside>
+
+      {/* モバイル用フローティングボタンとモーダルは変更なし */}
       {isLoggedIn && (
         <button
           className="md:hidden fixed bottom-4 left-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-20"

@@ -1,0 +1,27 @@
+docker-compose exec backend /bin/sh
+
+docker exec -it app /bin/sh
+docker exec -it   cloudflare /bin/sh ping http://app:3000
+
+docker-compose down && docker-compose build --no-cache && docker-compose up
+docker system prune -a --volumes
+docker-compose restart nginx
+docker logs backend
+docker-compose up -d --build nginx
+
+
+
+ps aux --sort=-%mem | head
+
+
+
+
+
+docker network ls
+
+docker network prune
+
+docker network inspect wallog_default
+
+
+docker system prune

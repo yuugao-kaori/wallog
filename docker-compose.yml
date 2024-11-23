@@ -10,7 +10,7 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "13000:3000"
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install --force && npm run dev"
     environment:
       - NODE_ENV=development
     networks:
@@ -24,7 +24,7 @@ services:
     volumes:
       - ./backend:/usr/src/backend
       - ./.env:/usr/src/backend/.env
-      - app_data:/usr/src/app_data
+      - ./app_data:/usr/src/app_data
     command: sh -c "npm install && npm run start"
     ports:
       - "15000:5000"

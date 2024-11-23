@@ -59,7 +59,7 @@ router.get('/post_list', async (req, res) => {
         if (start_id === undefined || start_id === '' || isNaN(start_id)) {
             // start_idが存在しない場合: テーブルの最上部からデータを取得
             query = `
-                SELECT post_id, user_id, post_text AS title, post_createat AS created_at, post_updateat, post_tag, post_file, post_attitude
+                SELECT post_id, user_id, post_text, post_createat, post_updateat, post_tag, post_file, post_attitude
                 FROM post
                 ORDER BY post_id DESC
                 LIMIT $1;
@@ -74,7 +74,7 @@ router.get('/post_list', async (req, res) => {
             }
 
             query = `
-                SELECT post_id, user_id, post_text AS title, post_createat AS created_at, post_updateat, post_tag, post_file, post_attitude
+                SELECT post_id, user_id, post_text, post_createat, post_updateat, post_tag, post_file, post_attitude
                 FROM post
                 WHERE post_id <= $1
                 ORDER BY post_id DESC

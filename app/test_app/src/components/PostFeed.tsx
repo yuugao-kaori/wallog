@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Card from '@/components/PageCard';
+import Card from '@/components/PostCard';
 import axios from 'axios';
 interface Post {
   post_id: string;
@@ -50,11 +50,15 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   const renderHashtagsContainer = (text: string): React.ReactNode => {
     if (typeof text !== 'string') return null;
 
+    // ハッシュタグとURLを検出するための正規表現パターン
+    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
+    const parts = text.split(pattern);
+
     return (
       <div className="whitespace-pre-wrap break-words">
-        {text.split(/(\s)/).map((part, index) => {
-          if (part.trim().startsWith('#')) {
-            const tag = part.trim().slice(1);
+        {parts.map((part, index) => {
+          if (part.match(/^#[^\s]+$/)) {
+            const tag = part.slice(1);
             return (
               <span
                 key={index}
@@ -66,6 +70,19 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
               >
                 {part}
               </span>
+            );
+          } else if (part.match(/^https?:\/\/[^\s]+$/)) {
+            return (
+              <a
+                key={index}
+                href={part}
+                className="text-blue-500 hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {part}
+              </a>
             );
           }
           return <span key={index}>{part}</span>;

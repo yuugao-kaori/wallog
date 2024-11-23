@@ -1,0 +1,96 @@
+curl -X POST http://192.168.1.148:23000/api/user/login \
+-H "Content-Type: application/json" \
+-d '{
+"user_id": "myuser", 
+"user_password": "mypassword"
+}'
+###
+
+POST http://192.168.1.148:23000/api/user/login \
+
+###
+
+
+GET http://192.168.1.148:25000/api/test/test1 \
+###
+
+
+GET http://192.168.1.148:25000/api/test/test1
+
+###
+
+curl -X POST http://192.168.1.148:25000/api/test/test2 \
+-H "Content-Type: application/json" \
+-d '{
+"test_body1": "test"
+}'
+
+###
+GET http://192.168.1.148:25000/api/test/test3
+###
+
+curl -X POST http://192.168.1.148:25000/api/user/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "myuser", "password": "mypassword", "rememberMe": true}'
+
+###
+
+curl -X DELETE http://192.168.1.148:25000/api/post/post_delete \
+-H "Content-Type: application/json" \
+-d '{"post_id": "20241012034110785680"}'
+###
+
+curl -X post http://192.168.1.148:25000/api/post/post_read \
+-H "Content-Type: application/json" \
+-d '{"post_id": "20241011140544727674"}'
+###
+curl -X POST \
+     -H "Content-Type: multipart/form-data; boundary=boundary" \
+     -F "image=@./test.png" \
+     http://192.168.1.148:25000/api/drive/file_create
+###
+
+curl -X GET "http://192.168.1.148:29300/_cluster/health?pretty"
+
+###
+@search_text = "Elastic　テスト"
+curl -X GET "http://192.168.1.148:25000/api/post/search/テスト　Elastic" \
+     -G \
+     --data-urlencode "offset=20241031103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://192.168.1.148:25000/api/post/tag_search/タグテスト" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/tag2" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/タグテスト" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+
+###
+curl -X GET "https://wallog.seitendan.com/api/test/test001"
+###
+curl -X POST 'http://wallog.seitendan.com/api/post/search' \
+-H 'Content-Type: application/json' \
+-d '{
+  "post_id": [1, 2, 3],
+  "limit": 10
+}'
+
+###
+curl -X POST 'http://wallog.seitendan.com/api/post/search' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer YOUR_TOKEN_HERE' \
+--verbose \
+-d '{
+  "post_id": [1, 2, 3],
+  "limit": 10
+}'
