@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import PostFeed from '@/components/PostFeed';
 import PostForm from '@/components/PostForm';
+import { FaTimes } from 'react-icons/fa';
+import PostFormPopup from '@/components/PostFormPopup';
 
 // 型定義
 interface Post {
@@ -19,6 +21,14 @@ interface FileItem {
   id: number;
   url: string;
   isImage: boolean;
+  isExisting?: boolean; // 追加
+}
+
+// DriveFile インターフェースを修正
+interface DriveFile {
+  file_id: number;  // string から number に変更
+  file_createat: string;
+  content_type?: string;  // 追加
 }
 
 const api = axios.create({
@@ -30,6 +40,8 @@ const api = axios.create({
   },
   withCredentials: true
 });
+
+const NON_IMAGE_TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar'];
 
 function Diary() {
   const [postText, setPostText] = useState<string>('');
@@ -45,6 +57,8 @@ function Diary() {
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [start_id, setstart_id] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
@@ -60,7 +74,7 @@ function Diary() {
           setIsLoggedIn(true);
         }
       } catch (err) {
-        setSessionError('セッションの確認に失敗しました。');
+        setSessionError('セッションの確認に失敗しました');
         setIsLoggedIn(false);
       }
     };
@@ -188,15 +202,24 @@ function Diary() {
         const uploadResponse = await api.post('/api/drive/file_create', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+
+        const metadataResponse = await api.get('/api/drive/file_list');
+        const fileMetadata = metadataResponse.data.files.find(
+          (f: DriveFile) => f.file_id === uploadResponse.data.file_id
+        );
         
         const fileId = uploadResponse.data.file_id;
-        const fileDataResponse = await api.get(`/api/drive/file/${fileId}`, {
-          responseType: 'blob'
-        });
+        const fileFormat = fileMetadata?.file_format?.toLowerCase() || '';
+        const isImage = !NON_IMAGE_TYPES.includes(fileFormat);
+        const url = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
         
-        const isImage = file.type.startsWith('image/');
-        const url = URL.createObjectURL(new Blob([fileDataResponse.data]));
-        setFiles(prev => [...prev, { id: fileId, url, isImage }]);
+        setFiles(prev => [...prev, { 
+          id: fileId, 
+          url, 
+          isImage,
+          contentType: fileFormat,
+          isExisting: false  // 追加: 新規アップロードファイルとしてマーク
+        }]);
       } catch (error) {
         setStatus('ファイルのアップロードに失敗しました。');
       }
@@ -230,11 +253,21 @@ function Diary() {
   );
 
   const handleDelete = async (fileId: number) => {
-    try {
-      await api.post('/api/drive/file_delete', { file_id: fileId });
+    const fileToDelete = files.find(file => file.id === fileId);
+    
+    if (!fileToDelete) return;
+
+    if (fileToDelete.isExisting) {
+      // 既存ファイルの場合は、添付のみを解除
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
-    } catch (error) {
-      setStatus('ファイルの削除に失敗しました。');
+    } else {
+      // 新規アップロードファイルの場合は、APIで削除
+      try {
+        await api.post('/api/drive/file_delete', { file_id: fileId });
+        setFiles((prev) => prev.filter((file) => file.id !== fileId));
+      } catch (error) {
+        setStatus('ファイルの削除に失敗しました。');
+      }
     }
   };
 
@@ -273,6 +306,48 @@ function Diary() {
     }
   };
 
+  const loadDriveFiles = async () => {
+    try {
+      const response = await api.get('/api/drive/file_list');
+      setDriveFiles(response.data.files || []);
+    } catch (error) {
+      console.error('Failed to load drive files:', error);
+    }
+  };
+
+  const handleSelectExistingFiles = () => {
+    setShowFileSelector(true);
+    loadDriveFiles();
+  };
+
+  const handleSelectFile = async (fileId: number) => {
+    try {
+      const metadataResponse = await api.get(`/api/drive/file_list`);
+      const fileMetadata = metadataResponse.data.files.find(
+        (file: DriveFile) => file.file_id === fileId
+      );
+      
+      const fileFormat = fileMetadata?.file_format?.toLowerCase() || '';
+      const isImage = !NON_IMAGE_TYPES.includes(fileFormat);
+      const url = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
+      
+      if (!files.some(file => file.id === fileId)) {
+        setFiles(prev => [...prev, { 
+          id: fileId, 
+          url, 
+          isImage,
+          contentType: fileFormat,
+          isExisting: true  // 追加: 既存ファイルとしてマーク
+        }]);
+      }
+
+      setShowFileSelector(false);
+    } catch (error) {
+      console.error('Failed to select file:', error);
+      setStatus('ファイルの選択に失敗しました。');
+    }
+  };
+
   const NewPostForm = () => (
     <form onSubmit={handleSubmit} className="mt-2">
       <textarea
@@ -301,20 +376,19 @@ function Diary() {
         />
       </div>
       {files.length > 0 && (
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
           {files.map((file) => (
-            <div key={file.id} className="relative w-24 h-24 bg-gray-200">
-              {file.isImage ? (
-                <img src={file.url} alt="preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-gray-400 flex items-center justify-center">
-                  <span>ファイル</span>
-                </div>
-              )}
+            <div
+              key={file.id}
+              className="border rounded p-2 relative bg-white dark:bg-gray-800"
+            >
+              <div className="text-sm truncate dark:text-gray-300">
+                ファイルID: {file.id}
+              </div>
               <button
                 type="button"
                 onClick={() => handleDelete(file.id)}
-                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
               >
                 ×
               </button>
@@ -324,7 +398,7 @@ function Diary() {
       )}
       <button
         type="submit"
-        className={`mt-2 p-2 text-white rounded ${
+        className={`w-full p-2 text-white rounded transition-colors ${
           postText.trim() === '' && files.length === 0
             ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
@@ -371,6 +445,7 @@ function Diary() {
                 files={files}
                 handleFiles={handleFiles}
                 handleDelete={handleDelete}
+                onSelectExistingFiles={handleSelectExistingFiles}
               />
               {status && <p className="mt-4 text-red-500">{status}</p>}
             </>
@@ -391,23 +466,67 @@ function Diary() {
       )}
 
       {/* モバイル用モーダル */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative">
+      <PostFormPopup
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        postText={postText}
+        setPostText={setPostText}
+        handleSubmit={handleSubmit}
+        files={files}
+        handleFiles={handleFiles}
+        handleDelete={handleDelete}
+        isLoggedIn={isLoggedIn}
+        status={status}
+        onSelectExistingFiles={handleSelectExistingFiles}  // 追加
+      />
+
+      {/* ファイル選択モーダル */}
+      {showFileSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto">
             <button
-              className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"
-              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
+              onClick={() => setShowFileSelector(false)}
             >
-              ×
+              <FaTimes />
             </button>
-            <h2 className="text-xl font-bold mb-4">新規投稿</h2>
-            {isLoggedIn ? (
-              <>
-                <NewPostForm />
-                {status && <p className="mt-4 text-red-500">{status}</p>}
-              </>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルを選択</h2>
+            {driveFiles.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {driveFiles.map((file) => (
+                  <div
+                    key={file.file_id}
+                    className="border rounded p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSelectFile(file.file_id)}
+                  >
+                    <div 
+                      className="w-full aspect-video mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden"
+                    >
+                      <img
+                        src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}`}
+                        alt={`File ${file.file_id}`}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement!.classList.add('flex', 'items-center', 'justify-center');
+                          target.parentElement!.innerHTML = '<span class="text-gray-500 text-xl">No Preview</span>';
+                        }}
+                      />
+                    </div>
+                    <div className="text-sm truncate dark:text-gray-300">
+                      ファイルID: {file.file_id}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(file.file_createat).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-gray-500">投稿を作成するにはログインしてください。</p>
+              <div className="text-center text-gray-500 dark:text-gray-400">
+                ファイルが見つかりません
+              </div>
             )}
           </div>
         </div>

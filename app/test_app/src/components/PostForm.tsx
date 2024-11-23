@@ -4,6 +4,8 @@ interface FileItem {
   id: number;
   url: string;
   isImage: boolean;
+  contentType?: string;
+  isExisting?: boolean;  // 追加: 既存ファイルかどうかのフラグ
 }
 
 interface PostFormProps {
@@ -13,6 +15,7 @@ interface PostFormProps {
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
   handleDelete: (fileId: number) => void;
+  onSelectExistingFiles: () => void;
 }
 
 const PostForm: React.FC<PostFormProps> = ({
@@ -21,7 +24,8 @@ const PostForm: React.FC<PostFormProps> = ({
   handleSubmit,
   files,
   handleFiles,
-  handleDelete
+  handleDelete,
+  onSelectExistingFiles
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -69,17 +73,89 @@ const PostForm: React.FC<PostFormProps> = ({
           onKeyDown={handleKeyDown}
           className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
           placeholder="ここに投稿内容を入力してください"
-          rows={6}  // 4から6に変更
+          rows={4}
         />
-        {/* ...existing form content... */}
+        <div
+          ref={dropRef}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          ファイルをドラッグ＆ドロップするか、クリックして選択
+          <input
+            type="file"
+            multiple
+            ref={fileInputRef}
+            className="hidden"
+            onChange={(e) => e.target.files && handleFiles(e.target.files)}
+          />
+        </div>
+        {files.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {files.map((file) => (
+              <div key={file.id} className="border rounded p-2 relative bg-white dark:bg-gray-800">
+                <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+                  {file.isImage ? (
+                    <img
+                      src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.id}`}
+                      alt={`File ${file.id}`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.parentElement!.innerHTML = '<span class="text-gray-500">読み込みエラー</span>';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-2xl text-gray-500">
+                        {file.contentType ? file.contentType.split('/')[1].toUpperCase() : 'ファイル'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm truncate dark:text-gray-300">
+                  ファイルID: {file.id}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(file.id)}
+                  className={`absolute top-2 right-2 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
+                    file.isExisting 
+                      ? 'bg-gray-500 hover:bg-gray-600' 
+                      : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                  title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
+                >
+                  {file.isExisting ? '−' : '×'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={onSelectExistingFiles}
+            className="w-full p-2 text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors dark:bg-blue-600 dark:hover:bg-blue-700"
+          >
+            アップロード済みファイルから選択
+          </button>
+        </div>
       </form>
 
       <div className="mt-4 border-t pt-4">
         <form onSubmit={handleSubmit} className="space-y-2">
           <button
             type="submit"
-            className="w-full p-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-            disabled={!postText.trim()}
+            className={`w-full p-2 text-white rounded transition-colors ${
+              postText.trim() === '' && files.length === 0
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-500 hover:bg-green-600'
+            }`}
+            disabled={postText.trim() === '' && files.length === 0}
           >
             投稿
           </button>
