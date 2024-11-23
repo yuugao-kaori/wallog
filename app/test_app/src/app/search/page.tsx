@@ -91,7 +91,7 @@ export default function SearchPage() {
         setLoading(false);
       }
     },
-    [loading]
+    [] // 依存配列から loading を���除
   );
 
   const loadMore = useCallback(async () => {
@@ -199,12 +199,18 @@ export default function SearchPage() {
 
   // URLパラメータの変更を監視して検索を実行
   useEffect(() => {
-    if (urlSearchText) {  // 空文字列チェックを削除し、存在チェックのみに変更
+    let isInitialMount = true;
+
+    if (urlSearchText && isInitialMount) {
       setSearchText(urlSearchText);
       setSearchType(urlSearchType);
       performSearch(urlSearchText, urlSearchType, true);
     }
-  }, [urlSearchText, urlSearchType, performSearch]); // performSearch��依存配列に追加
+
+    return () => {
+      isInitialMount = false;
+    };
+  }, [urlSearchText, urlSearchType]); // performSearch を依存配列から削除
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 flex flex-col">
@@ -235,7 +241,7 @@ export default function SearchPage() {
       </div>
 
       {loading && results.length === 0 && (
-        <div className="text-center text-gray-500">検索���...</div>
+        <div className="text-center text-gray-500">検索中...</div>
       )}
 
       {error && (
