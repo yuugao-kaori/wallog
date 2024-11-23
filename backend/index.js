@@ -12,8 +12,9 @@ const envFilePath = './.env';
 const REACT_APP_SITE_DOMAIN = 'https://wallog.seiteidan.com'
 // CORSの設定
 app.use(cors({
-    origin: REACT_APP_SITE_DOMAIN,
+    origin: [REACT_APP_SITE_DOMAIN, 'http://192.168.1.148:13001'],
     credentials: true,
+    optionsSuccessStatus: 200
 }));
 app.options('*', cors());
 
