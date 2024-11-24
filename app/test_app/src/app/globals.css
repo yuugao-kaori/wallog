@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  [data-theme="light"] {
+    --background: 255 255 255;
+    --foreground: 0 0 0;
+  }
+  
+  [data-theme="dark"] {
+    --background: 10 10 10;
+    --foreground: 237 237 237;
+  }
+}
+
+body {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 追加のカスタムスタイル */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}

@@ -1,10 +1,10 @@
-1. 
-2. Tagについて、中間テーブルに収容する
-3. タグ検索APIを実装
-4.  タグフロントエンドの実装
-5.  URLコピーの実装
-6.  修正の実装
-7.  
+   
+   
+
+8. ルートページを何とかする（HelloWorldにはしない。DiaryListの初期取得を配置するとか。
+10. ブログに対応する
+11. 設定ページに対応する
+12. Misskeyからの投稿インポートに対応する（データベースの再整備。reply、renote、Misskey_ID、Misskey_reply、Misskey_renoteId、Misskey_FileURL、Misskey_Import_Attitude、X_ID、X_reply、X_renoteId、X_File、X_Import_Attitudeの各列を追加）。処理は一行ずつ。テキストはテキスト列に収容、CreateAtも同様に収容（変換は実施）、CreateAtから生成したタイムスタンプを新IDとして生成（下六桁はランダム？）、リプライ、リノート、ファイル、旧ID、ファイルURLは新規列に収容。旧ファイルURLからダウンロードを実施してファイルクリエイト&ファイル列に登録。最後に新IDの順番にソート。リプライとリノートは旧ID列で紹介を掛けて新規IDとのリレーションを実施して新リプライと新リノート列に書き込み。
 
 通常ページのノンタグ
 10行以上が折りたたまれる

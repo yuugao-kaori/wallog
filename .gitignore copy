@@ -1,6 +1,5 @@
 */wallog_next/*
-**/db_data/**
-*.gz
+
 # Logs
 logs
 *.log

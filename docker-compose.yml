@@ -1,40 +1,33 @@
-version: '3.8'
-
 services:
+
   app:
-    container_name: app
+    container_name: app_unique
     build:
       context: .
       dockerfile: dockerfile.app
     volumes:
-      - ./app:/usr/src/app
+      - ./app/test_app:/usr/src/app
       - ./.env:/usr/src/app/.env
-    command: sh -c "npm install && npm run start"
     ports:
-      - "23000:3000"
+      - "13000:3000"
+    command: sh -c "npm install --force && npm run dev"
     environment:
       - NODE_ENV=development
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
-      - KAFKA_BROKER=kafka:9092
-    depends_on:
-      - db
-      - elasticsearch
     networks:
-      - wallog_default
+      - wallog_default2
 
   backend:
-    container_name: backend
+    container_name: backend_unique
     build:
       context: .
       dockerfile: dockerfile.backend
     volumes:
       - ./backend:/usr/src/backend
       - ./.env:/usr/src/backend/.env
-      - app_data:/usr/src/app_data
+      - ./app_data:/usr/src/app_data
     command: sh -c "npm install && npm run start"
     ports:
-      - "25000:5000"
+      - "15000:5000"
     environment:
       - NODE_ENV=development
       - ELASTICSEARCH_HOST=elasticsearch
@@ -45,10 +38,10 @@ services:
       - redis
       - elasticsearch
     networks:
-      - wallog_default
+      - wallog_default2
 
   db:
-    container_name: ${POSTGRES_NAME}
+    container_name: db_unique
     image: postgres:16
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -60,97 +53,104 @@ services:
       - ./postgres/postgres-init/check-and-init.sh:/docker-entrypoint-initdb.d/check-and-init.sh
       - db_data:/var/lib/postgresql/data
     ports:
-      - "25432:5432"
+      - "15432:5432"
     networks:
-      - wallog_default
+      - wallog_default2
 
   pgadmin:
-    container_name: pgadmin
+    container_name: pgadmin_unique
     image: dpage/pgadmin4
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
-      - "25050:80"
+      - "15050:80"
     depends_on:
       - db
     networks:
-      - wallog_default
+      - wallog_default2
 
   redis:
+    container_name: redis_unique
     image: redis:latest
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
     ports:
-      - '26379:6379'
+      - '16379:6379'
     volumes:
       - "./redis:/data"
       - "./redis/redis.conf:/etc/redis/redis.conf"
     command: ["redis-server", "/etc/redis/redis.conf"]
     networks:
-      - wallog_default
+      - wallog_default2
 
   rediscommander:
+    container_name: rediscommander_unique
     image: rediscommander/redis-commander:latest
     ports:
-      - 28081:8081
+      - 18081:8081
     depends_on:
       - redis
     environment:
       - REDIS_HOSTS=local:redis:6379
     networks:
-      - wallog_default
+      - wallog_default2
 
   elasticsearch:
+    container_name: elasticsearch_unique
     build:
       context: .
       dockerfile: dockerfile.elasticsearch
-    container_name: elasticsearch
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - xpack.security.enabled=false
     ports:
-      - "29200:9200"
-      - "29300:9300"
+      - "19200:9200"
+      - "19300:9300"
     volumes:
       - es_data:/usr/share/elasticsearch/data
     networks:
-      - wallog_default
+      - wallog_default2
     ulimits:
       memlock:
         soft: -1
         hard: -1
 
   kibana:
+    container_name: kibana_unique
     build:
       context: .
       dockerfile: dockerfile.kibana
-    container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_HOST=0.0.0.0
     ports:
-      - "25601:5601"
+      - "15601:5601"
     depends_on:
       - elasticsearch
     networks:
-      - wallog_default
+      - wallog_default2
     volumes:
       - kibana_data:/usr/share/kibana/data
     ulimits:
       memlock:
         soft: -1
         hard: -1
-  cloudflare:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=eyJhIjoiMTUyNzA5MWY0ODQ0ZmQxMzcxZTdmZjUwNGM1OTI4Y2YiLCJ0IjoiOTEzNzI4NDQtZjJiYS00YzI0LWE5NmUtN2UxM2NlNTI5NWNjIiwicyI6Ik4yWmxZbVpoT1dRdE1ETXdaUzAwWVdZMExXSm1PREl0WkdNd01ERTVPRFJtTVRZeiJ9
+
+  nginx:
+    container_name: nginx_unique
+    image: nginx:latest
+    ports:
+      - "20000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - app
+      - backend
     networks:
-      - wallog_default
+      - wallog_default2
 
 
 volumes:
@@ -160,5 +160,5 @@ volumes:
   kibana_data:
 
 networks:
-  wallog_default:
+  wallog_default2:
     driver: bridge

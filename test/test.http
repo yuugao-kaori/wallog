@@ -63,3 +63,34 @@ curl -X GET "http://192.168.1.148:25000/api/post/tag_search/タグテスト" \
      -G \
      --data-urlencode "offset=20241231103421559642" \
      --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/tag2" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+###
+curl -X GET "http://wallog.seitendan.com/api/post/tag_search/タグテスト" \
+     -G \
+     --data-urlencode "offset=20241231103421559642" \
+     --data-urlencode "limit=10"
+
+###
+curl -X GET "https://wallog.seitendan.com/api/test/test001"
+###
+curl -X POST 'http://wallog.seitendan.com/api/post/search' \
+-H 'Content-Type: application/json' \
+-d '{
+  "post_id": [1, 2, 3],
+  "limit": 10
+}'
+
+###
+curl -X POST 'http://wallog.seitendan.com/api/post/search' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer YOUR_TOKEN_HERE' \
+--verbose \
+-d '{
+  "post_id": [1, 2, 3],
+  "limit": 10
+}'
