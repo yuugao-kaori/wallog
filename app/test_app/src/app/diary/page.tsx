@@ -382,7 +382,7 @@ function Diary() {
         <div className="h-full overflow-auto px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <PostFeed
           posts={posts}
-          setPosts={setPosts}
+          setPosts={setPosts} /* md:ml-64 を追加 */
           isLoggedIn={isLoggedIn}
           loading={loading}
           hasMore={hasMore}

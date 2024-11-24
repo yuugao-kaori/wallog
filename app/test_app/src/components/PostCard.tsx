@@ -207,15 +207,13 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
         throw new Error('削除に失敗しました');
       }
 
-      const data = await response.json();
       addNotification('投稿を削除しました');
-      onDelete(event, postId); // 親コンポーネントに削除を通知
+      onDelete(event, postId); // 削除成功後に親コンポーネントに通知
+      setMenuOpen(false);
 
     } catch (error) {
       console.error('Error deleting post:', error);
       addNotification('削除に失敗しました');
-    } finally {
-      setMenuOpen(false);
     }
   };
 

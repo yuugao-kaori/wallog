@@ -91,10 +91,9 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
     );
   };
 
-  const handleDeleteClick = (event: React.MouseEvent, post_id: string): void => {
-    event.stopPropagation();
-    setSelectedPostId(post_id);
-    setIsModalOpen(true);
+  const handleDeleteClick = (event: React.MouseEvent, postId: string): void => {
+    // 削除イベントを受け取ったら直接postsステートを更新
+    setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
   };
 
   const fetchImagesForPost = async (postId: string): Promise<string[]> => {
@@ -108,7 +107,8 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   };
 
   const confirmDelete = async (): Promise<void> => {
-    // 削除処理の実装
+    // 投稿削除後、postsステートから該当の投���を削除
+    setPosts(prevPosts => prevPosts.filter(post => post.post_id !== selectedPostId));
     setIsModalOpen(false);
   };
 
@@ -120,7 +120,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
         <MemoizedCard
           key={post.post_id}
           post={post}
-          onDelete={handleDeleteClick}
+          onDelete={handleDeleteClick}  // 削除ハンドラーを渡す
           isLoggedIn={isLoggedIn}
           handleDeleteClick={handleDeleteClick}
           formatDate={formatDate}
