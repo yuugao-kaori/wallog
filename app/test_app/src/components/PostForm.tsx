@@ -16,6 +16,8 @@ interface PostFormProps {
   handleFiles: (files: FileList | null) => void;
   handleDelete: (fileId: number) => void;
   onSelectExistingFiles: () => void;
+  fixedHashtags: string;
+  setFixedHashtags: (tags: string) => void;
 }
 
 const PostForm: React.FC<PostFormProps> = ({
@@ -25,7 +27,9 @@ const PostForm: React.FC<PostFormProps> = ({
   files,
   handleFiles,
   handleDelete,
-  onSelectExistingFiles
+  onSelectExistingFiles,
+  fixedHashtags,
+  setFixedHashtags
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -51,9 +55,10 @@ const PostForm: React.FC<PostFormProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (e.shiftKey) {
-        // Shift+Enterで送信
         e.preventDefault();
-        handleSubmit(e as any);
+        if (postText.trim() !== '' || files.length > 0) {
+          handleSubmit(e as any);
+        }
       } else {
         // 通常のEnterは改行を許可（textareaの場合）
         if (e.currentTarget.tagName.toLowerCase() !== 'textarea') {
@@ -63,10 +68,24 @@ const PostForm: React.FC<PostFormProps> = ({
     }
   };
 
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // ハッシュタグが存在する場合、本文の末尾に追加
+    if (fixedHashtags.trim()) {
+      const updatedText = `${postText}\n${fixedHashtags.trim()}`;
+      setPostText(updatedText);
+      // 状態の更新を待ってから送信
+      await new Promise(resolve => setTimeout(resolve, 0));
+      handleSubmit(e);
+    } else {
+      handleSubmit(e);
+    }
+  };
+
   return (
     <div>
       {/* 既存の投稿フォーム */}
-      <form onSubmit={handleSubmit} className="mt-2">
+      <form onSubmit={handleFormSubmit} className="mt-2">
         <textarea
           value={postText}
           onChange={(e) => setPostText(e.target.value)}
@@ -143,11 +162,20 @@ const PostForm: React.FC<PostFormProps> = ({
           >
             アップロード済みファイルから選択
           </button>
+          <div className="mt-2">
+            <input
+              type="text"
+              value={fixedHashtags}
+              onChange={(e) => setFixedHashtags(e.target.value)}
+              className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+              placeholder="ハッシュタグの固定"
+            />
+          </div>
         </div>
       </form>
 
       <div className="mt-4 border-t pt-4">
-        <form onSubmit={handleSubmit} className="space-y-2">
+        <form onSubmit={handleFormSubmit} className="space-y-2">
           <button
             type="submit"
             className={`w-full p-2 text-white rounded transition-colors ${

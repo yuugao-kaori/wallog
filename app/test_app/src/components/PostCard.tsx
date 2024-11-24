@@ -213,15 +213,15 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
 
     } catch (error) {
       console.error('Error deleting post:', error);
-      addNotification('削除に失��しました');
+      addNotification('削除に失敗しました');
     } finally {
       setMenuOpen(false);
     }
   };
 
   return (
-    <div className="flex justify-center w-full">
-      <div className={`block bg-white shadow-md rounded-lg p-4 hover:bg-gray-700  hover:text-gray-800 transition-all dark:text-gray-100  dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl ${className}`}>
+    <div className="w-full px-2 sm:px-4">
+      <div className={`block bg-white shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-700 hover:text-gray-800 transition-all dark:text-gray-100 dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
         {/* 既存のカードコンテンツ */}
         <Notification 
           notifications={notifications} 
@@ -266,11 +266,11 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
         />
 
         <div>
-          <div className="text-gray-500 text-sm">
+          <div className="text-gray-500 text-sm break-words">
             Created at: {formatDate(post.post_createat)}
           </div>
 
-          <div className="mt-2">
+          <div className="mt-2 break-words">
             {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
           </div>
 

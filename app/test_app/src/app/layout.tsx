@@ -21,11 +21,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-hidden`}>
+    <html lang="en" suppressHydrationWarning className="h-full">
+      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-full`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <ClientWrapper>
-            <div className="relative min-h-screen">
+            <div className="flex flex-col min-h-screen">
               {children}
             </div>
           </ClientWrapper>

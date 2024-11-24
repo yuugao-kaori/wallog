@@ -15,9 +15,11 @@ interface PostFormPopupProps {
   isLoggedIn: boolean;
   status: string;
   onSelectExistingFiles: () => void;  // 追加
+  fixedHashtags: string;
+  setFixedHashtags: (tags: string) => void;
 }
 
-const PostFormPopup = ({
+const PostFormPopup: React.FC<PostFormPopupProps> = ({
   isOpen,
   onClose,
   postText,
@@ -28,8 +30,10 @@ const PostFormPopup = ({
   handleDelete,
   isLoggedIn,
   status,
-  onSelectExistingFiles  // 追加
-}: PostFormPopupProps) => {
+  onSelectExistingFiles,  // 追加
+  fixedHashtags,
+  setFixedHashtags,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +64,9 @@ const PostFormPopup = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as any);
+      if (postText.trim() !== '' || files.length > 0) {
+        handleSubmit(e as any);
+      }
     }
   };
 

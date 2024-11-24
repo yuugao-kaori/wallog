@@ -59,6 +59,7 @@ function Diary() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
+  const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
   
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
@@ -86,37 +87,25 @@ function Diary() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    let eventSource: EventSource;
-    const connectSSE = () => {
-      eventSource = new EventSource(
-        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
-        { withCredentials: true }
-      );
-      
-      eventSource.onmessage = (event) => {
-        const newPosts = JSON.parse(event.data);
-        setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
-      };
-
-      eventSource.onerror = () => {
-        console.log('SSE接続が切断されました。再接続を試みます...');
-        eventSource.close();
-        // 3秒後に再接続
-        setTimeout(connectSSE, 3000);
-      };
-
-      eventSource.onopen = () => {
-        console.log('SSE接続が確立されました');
-      };
+    const eventSource = new EventSource(
+      `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
+      { 
+        withCredentials: true
+      }
+    );
+    
+    eventSource.onmessage = (event) => {
+      const newPosts = JSON.parse(event.data);
+      setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
     };
 
-    connectSSE();
+    eventSource.onerror = (error) => {
+      console.error('SSE接続エラー:', error);
+      eventSource.close();
+    };
 
     return () => {
-      if (eventSource) {
-        console.log('SSEクリーンアップ: 接続を終了します');
-        eventSource.close();
-      }
+      eventSource.close();
     };
   }, []);
 
@@ -242,8 +231,13 @@ function Diary() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       try {
+        // ハッシュタグがある場合、本文に追加
+        const finalPostText = fixedHashtags.trim() 
+          ? `${postText}\n${fixedHashtags.trim()}`
+          : postText;
+
         const payload = {
-          post_text: postText,
+          post_text: finalPostText,
           ...(files.length > 0 && { post_file: files.map(file => file.id) })
         };
 
@@ -261,7 +255,7 @@ function Diary() {
         setStatus('投稿に失敗しました。');
       }
     },
-    [postText, files]
+    [postText, files, fixedHashtags]  // fixedHashtagsを依存配列に追加
   );
 
   const handleDelete = async (fileId: number) => {
@@ -273,7 +267,7 @@ function Diary() {
       // 既存ファイルの場合は、添付のみを解除
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
     } else {
-      // 新規アップロードフ���イルの場合は、APIで削除
+      // 新規アップロードファイルの場合は、APIで削除
       try {
         await api.post('/api/drive/file_delete', { file_id: fileId });
         setFiles((prev) => prev.filter((file) => file.id !== fileId));
@@ -360,93 +354,33 @@ function Diary() {
     }
   };
 
-  const NewPostForm = () => (
-    <form onSubmit={handleSubmit} className="mt-2">
-      <textarea
-        className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-        value={postText}
-        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPostText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="ここに投稿内容を入力してください"
-        rows={4}
-      />
-      <div
-        ref={dropRef}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        ファイルをドラッグ＆ドロップするか、クリックして選択
-        <input
-          type="file"
-          multiple
-          ref={fileInputRef}
-          className="hidden"
-          onChange={(e) => e.target.files && handleFiles(e.target.files)}
-        />
-      </div>
-      {files.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className="border rounded p-2 relative bg-white dark:bg-gray-800"
-            >
-              <div className="text-sm truncate dark:text-gray-300">
-                ファイルID: {file.id}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(file.id)}
-                className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <button
-        type="submit"
-        className={`w-full p-2 text-white rounded transition-colors ${
-          postText.trim() === '' && files.length === 0
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
-        }`}
-        disabled={postText.trim() === '' && files.length === 0}
-      >
-        投稿
-      </button>
-    </form>
-  );
-
   return (
-    <div className="flex min-h-screen bg-white dark:bg-gray-900">
+    <div className="fixed inset-0 flex bg-white dark:bg-gray-900">
       {/* メインコンテンツ */}
-      <main className="flex-1 min-h-screen md:pl-64">
-        <div className="h-screen max-w-4xl mx-auto px-4 py-4 md:pr-[320px] overflow-y-auto scrollbar-hide">
-          <PostFeed
-            posts={posts}
-            setPosts={setPosts}
-            isLoggedIn={isLoggedIn}
-            loading={loading}
-            hasMore={hasMore}
-            loadMorePosts={loadMorePosts}
-          />
-          {loading && (
-            <div className="w-full py-4 text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
-            </div>
-          )}
-          <div ref={bottomBoundaryRef} className="h-10 w-full" />
+      <main className="flex-1 relative md:ml-64">  {/* md:ml-64 を追加 */}
+        <div className="absolute inset-0 md:pr-[300px]">
+          <div className="h-full overflow-auto px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <PostFeed
+              posts={posts}
+              setPosts={setPosts}
+              isLoggedIn={isLoggedIn}
+              loading={loading}
+              hasMore={hasMore}
+              loadMorePosts={loadMorePosts}
+            />
+            {loading && (
+              <div className="w-full py-4 text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
+              </div>
+            )}
+            <div ref={bottomBoundaryRef} className="h-10 w-full" />
+          </div>
         </div>
       </main>
 
       {/* デスクトップ用投稿フォーム */}
-      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800 z-20">
-        <div className="p-4 h-full overflow-y-auto">
+      <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
+        <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
           <h2 className="text-xl font-bold mb-2 dark:text-white">新規投稿</h2>
           {isLoggedIn ? (
             <>
@@ -458,6 +392,8 @@ function Diary() {
                 handleFiles={handleFiles}
                 handleDelete={handleDelete}
                 onSelectExistingFiles={handleSelectExistingFiles}
+                fixedHashtags={fixedHashtags}
+                setFixedHashtags={setFixedHashtags}
               />
               {status && <p className="mt-4 text-red-500">{status}</p>}
             </>
@@ -477,7 +413,7 @@ function Diary() {
         </button>
       )}
 
-      {/* モバイル用モーダル */}
+      {/* モバイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -489,13 +425,15 @@ function Diary() {
         handleDelete={handleDelete}
         isLoggedIn={isLoggedIn}
         status={status}
-        onSelectExistingFiles={handleSelectExistingFiles}  // 追加
+        onSelectExistingFiles={handleSelectExistingFiles}
+        fixedHashtags={fixedHashtags}
+        setFixedHashtags={setFixedHashtags}
       />
 
       {/* ファイル選択モーダル */}
       {showFileSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             <button
               className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
               onClick={() => setShowFileSelector(false)}
