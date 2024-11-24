@@ -6,6 +6,7 @@ import PostFeed from '@/components/PostFeed';
 import PostForm from '@/components/PostForm';
 import { FaTimes } from 'react-icons/fa';
 import PostFormPopup from '@/components/PostFormPopup';
+import NotificationComponent from '@/components/Notification';
 
 // 型定義
 interface Post {
@@ -29,6 +30,12 @@ interface DriveFile {
   file_id: number;  // string から number に変更
   file_createat: string;
   content_type?: string;  // 追加
+}
+
+// 型定義に NotificationItem を追加
+interface NotificationItem {
+  id: string;
+  message: string;
 }
 
 const api = axios.create({
@@ -60,7 +67,8 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
-  
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
   const bottomBoundaryRef = useRef<HTMLDivElement>(null);
@@ -227,6 +235,18 @@ function Diary() {
     }
   };
 
+  const addNotification = useCallback((message: string) => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(notification => notification.id !== id));
+    }, 3000);
+  }, []);
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -242,7 +262,7 @@ function Diary() {
         };
 
         const response = await api.post('/api/post/post_create', payload);
-        setStatus('投稿が成功しました！');
+        addNotification('投稿が成功しました！');  // 変更
         setPostText('');
         setFiles([]);
         
@@ -252,10 +272,10 @@ function Diary() {
         
         setIsModalOpen(false);
       } catch (error) {
-        setStatus('投稿に失敗しました。');
+        addNotification('投稿に失敗しました。');  // 変更
       }
     },
-    [postText, files, fixedHashtags]  // fixedHashtagsを依存配列に追加
+    [postText, files, fixedHashtags, addNotification]  // fixedHashtagsを依存配列に追加
   );
 
   const handleDelete = async (fileId: number) => {
@@ -358,129 +378,133 @@ function Diary() {
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900">
       {/* メインコンテンツ */}
       <main className="flex-1 relative md:ml-64">  {/* md:ml-64 を追加 */}
-        <div className="absolute inset-0 md:pr-[300px]">
-          <div className="h-full overflow-auto px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-            <PostFeed
-              posts={posts}
-              setPosts={setPosts}
-              isLoggedIn={isLoggedIn}
-              loading={loading}
-              hasMore={hasMore}
-              loadMorePosts={loadMorePosts}
-            />
-            {loading && (
-              <div className="w-full py-4 text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
-              </div>
-            )}
-            <div ref={bottomBoundaryRef} className="h-10 w-full" />
+      <div className="absolute inset-0 md:pr-[300px]">
+        <div className="h-full overflow-auto px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <PostFeed
+          posts={posts}
+          setPosts={setPosts}
+          isLoggedIn={isLoggedIn}
+          loading={loading}
+          hasMore={hasMore}
+          loadMorePosts={loadMorePosts}
+        />
+        {loading && (
+          <div className="w-full py-4 text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
           </div>
+        )}
+        <div ref={bottomBoundaryRef} className="h-10 w-full" />
         </div>
+      </div>
       </main>
 
       {/* デスクトップ用投稿フォーム */}
       <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
-        <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-          <h2 className="text-xl font-bold mb-2 dark:text-white">新規投稿</h2>
-          {isLoggedIn ? (
-            <>
-              <PostForm
-                postText={postText}
-                setPostText={setPostText}
-                handleSubmit={handleSubmit}
-                files={files}
-                handleFiles={handleFiles}
-                handleDelete={handleDelete}
-                onSelectExistingFiles={handleSelectExistingFiles}
-                fixedHashtags={fixedHashtags}
-                setFixedHashtags={setFixedHashtags}
-              />
-              {status && <p className="mt-4 text-red-500">{status}</p>}
-            </>
-          ) : (
-            <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
-          )}
-        </div>
+      <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <h2 className="text-xl font-bold mb-2 dark:text-white">新規投稿</h2>
+        {isLoggedIn ? (
+        <>
+          <PostForm
+          postText={postText}
+          setPostText={setPostText}
+          handleSubmit={handleSubmit}
+          files={files}
+          handleFiles={handleFiles}
+          handleDelete={handleDelete}
+          onSelectExistingFiles={handleSelectExistingFiles}
+          fixedHashtags={fixedHashtags}
+          setFixedHashtags={setFixedHashtags}
+          />
+          {status && <p className="mt-4 text-red-500">{status}</p>}
+        </>
+        ) : (
+        <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
+        )}
+      </div>
       </aside>
 
       {/* モバイル用フローティングボタン */}
       {isLoggedIn && (
-        <button
-          className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
-          onClick={() => setIsModalOpen(true)}
-        >
-          +
-        </button>
+      <button
+        className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
+        onClick={() => setIsModalOpen(true)}
+      >
+        +
+      </button>
       )}
 
       {/* モバイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        postText={postText}
-        setPostText={setPostText}
-        handleSubmit={handleSubmit}
-        files={files}
-        handleFiles={handleFiles}
-        handleDelete={handleDelete}
-        isLoggedIn={isLoggedIn}
-        status={status}
-        onSelectExistingFiles={handleSelectExistingFiles}
-        fixedHashtags={fixedHashtags}
-        setFixedHashtags={setFixedHashtags}
+      isOpen={isModalOpen}
+      onClose={() => setIsModalOpen(false)}
+      postText={postText}
+      setPostText={setPostText}
+      handleSubmit={handleSubmit}
+      files={files}
+      handleFiles={handleFiles}
+      handleDelete={handleDelete}
+      isLoggedIn={isLoggedIn}
+      status={status}
+      onSelectExistingFiles={handleSelectExistingFiles}
+      fixedHashtags={fixedHashtags}
+      setFixedHashtags={setFixedHashtags}
       />
 
       {/* ファイル選択モーダル */}
       {showFileSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-            <button
-              className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
-              onClick={() => setShowFileSelector(false)}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <button
+          className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
+          onClick={() => setShowFileSelector(false)}
+        >
+          <FaTimes />
+        </button>
+        <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルを選択</h2>
+        {driveFiles.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {driveFiles.map((file: DriveFile) => (
+            <div
+            key={file.file_id}
+            className="border rounded p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+            onClick={() => handleSelectFile(file.file_id)}
             >
-              <FaTimes />
-            </button>
-            <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルを選択</h2>
-            {driveFiles.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {driveFiles.map((file) => (
-                  <div
-                    key={file.file_id}
-                    className="border rounded p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                    onClick={() => handleSelectFile(file.file_id)}
-                  >
-                    <div 
-                      className="w-full aspect-video mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden"
-                    >
-                      <img
-                        src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}`}
-                        alt={`File ${file.file_id}`}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.classList.add('flex', 'items-center', 'justify-center');
-                          target.parentElement!.innerHTML = '<span class="text-gray-500 text-xl">No Preview</span>';
-                        }}
-                      />
-                    </div>
-                    <div className="text-sm truncate dark:text-gray-300">
-                      ファイルID: {file.file_id}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(file.file_createat).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400">
-                ファイルが見つかりません
-              </div>
-            )}
+            <div 
+              className="w-full aspect-video mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden"
+            >
+              <img
+              src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}`}
+              alt={`File ${file.file_id}`}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.parentElement!.classList.add('flex', 'items-center', 'justify-center');
+                target.parentElement!.innerHTML = '<span class="text-gray-500 text-xl">No Preview</span>';
+              }}
+              />
+            </div>
+            <div className="text-sm truncate dark:text-gray-300">
+              ファイルID: {file.file_id}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date(file.file_createat).toLocaleDateString()}
+            </div>
+            </div>
+          ))}
           </div>
+        ) : (
+          <div className="text-center text-gray-500 dark:text-gray-400">
+          ファイルが見つかりません
+          </div>
+        )}
         </div>
+      </div>
       )}
+      <NotificationComponent
+      notifications={notifications}
+      onClose={removeNotification}
+      />
     </div>
   );
 }
