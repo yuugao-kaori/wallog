@@ -91,9 +91,28 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
     );
   };
 
-  const handleDeleteClick = (event: React.MouseEvent, postId: string): void => {
-    // 削除イベントを受け取ったら直接postsステートを更新
-    setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+  const handleDeleteClick = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
+    event.stopPropagation();
+    try {
+      const response = await fetch('/api/post/post_delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: postId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('削除に失敗しました');
+      }
+
+      setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+      return true; // 成功を明示的に返す
+
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      return false; // 失敗を明示的に返す
+    }
   };
 
   const fetchImagesForPost = async (postId: string): Promise<string[]> => {
@@ -107,7 +126,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   };
 
   const confirmDelete = async (): Promise<void> => {
-    // 投稿削除後、postsステートから該当の投���を削除
+    // 投稿削除後、postsステートから該当の投稿を削除
     setPosts(prevPosts => prevPosts.filter(post => post.post_id !== selectedPostId));
     setIsModalOpen(false);
   };
@@ -120,10 +139,11 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
         <MemoizedCard
           key={post.post_id}
           post={post}
-          onDelete={handleDeleteClick}  // 削除ハンドラーを渡す
+          onDelete={handleDeleteClick}
           isLoggedIn={isLoggedIn}
           handleDeleteClick={handleDeleteClick}
           formatDate={formatDate}
+          renderHashtagsContainer={renderHashtagsContainer}
         />
       ))}
     </div>

@@ -6,6 +6,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import ImageModal from './ImageModal';
 import { useRouter } from 'next/navigation';
 
+
 interface Post {
   post_id: string;
   post_text: string;
@@ -21,7 +22,7 @@ interface Props {
   formatHashtags?: (text: string) => string;
   renderHashtagsContainer?: (text: string) => React.ReactNode;
   className?: string;
-  onDelete: (event: React.MouseEvent, post_id: string) => void;
+  onDelete: (event: React.MouseEvent, post_id: string) => Promise<boolean>;
 }
 
 interface ImageData {
@@ -65,7 +66,7 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
             return (
               <a
                 key={index}
-                href={`/search?searchText=${searchText}&searchType=タグ検索`}
+                href={`/search?searchText=${searchText}&searchType=タグ���索`}
                 className="text-blue-500 font-bold hover:underline"
                 onClick={(e) => handleHashtagClick(part, e)}
               >
@@ -195,22 +196,14 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
     setDeleteModalOpen(false);
     
     try {
-      const response = await fetch('/api/post/post_delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ post_id: postId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('削除に失敗しました');
-      }
-
-      addNotification('投稿を削除しました');
-      onDelete(event, postId); // 削除成功後に親コンポーネントに通知
+      const success = await onDelete(event, postId);
       setMenuOpen(false);
-
+      
+      if (success) {
+        addNotification('投稿を削除しました');
+      } else {
+        addNotification('削除に失敗しました');
+      }
     } catch (error) {
       console.error('Error deleting post:', error);
       addNotification('削除に失敗しました');
