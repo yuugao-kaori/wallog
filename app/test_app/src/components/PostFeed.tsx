@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/PostCard';
 import axios from 'axios';
+import Notification from '@/components/Notification'; // Add this import statement
 interface Post {
   post_id: string;
   post_text: string;
@@ -28,6 +29,19 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedPostId, setSelectedPostId] = useState<string>('');
   const [accumulatedNewPosts, setAccumulatedNewPosts] = useState<Post[]>([]);
+  const [notifications, setNotifications] = useState<{ id: string; message: string; }[]>([]);
+
+  const addNotification = useCallback((message: string) => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(notification => notification.id !== id));
+    }, 3000);
+  }, []);
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
 
   const handleBackButtonClick = (): void => {
     if (containerRef.current) {
@@ -107,11 +121,13 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
       }
 
       setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
-      return true; // 成功を明示的に返す
+      addNotification('投稿を削除しました');
+      return true;
 
     } catch (error) {
       console.error('Error deleting post:', error);
-      return false; // 失敗を明示的に返す
+      addNotification('投稿の削除に失敗しました');
+      return false;
     }
   };
 
@@ -135,6 +151,10 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
 
   return (
     <div ref={containerRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+      <Notification
+        notifications={notifications}
+        onClose={removeNotification}
+      />
       {posts.map(post => (
         <MemoizedCard
           key={post.post_id}

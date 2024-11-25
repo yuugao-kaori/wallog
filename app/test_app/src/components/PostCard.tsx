@@ -66,7 +66,7 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
             return (
               <a
                 key={index}
-                href={`/search?searchText=${searchText}&searchType=タグ���索`}
+                href={`/search?searchText=${searchText}&searchType=タグ検索`}
                 className="text-blue-500 font-bold hover:underline"
                 onClick={(e) => handleHashtagClick(part, e)}
               >
@@ -194,25 +194,13 @@ const Card = React.memo(({ post, isLoggedIn, handleDeleteClick, formatDate, form
   const handleDelete = async (event: React.MouseEvent, postId: string) => {
     event.stopPropagation();
     setDeleteModalOpen(false);
-    
-    try {
-      const success = await onDelete(event, postId);
-      setMenuOpen(false);
-      
-      if (success) {
-        addNotification('投稿を削除しました');
-      } else {
-        addNotification('削除に失敗しました');
-      }
-    } catch (error) {
-      console.error('Error deleting post:', error);
-      addNotification('削除に失敗しました');
-    }
+    await onDelete(event, postId);
+    setMenuOpen(false);
   };
 
   return (
     <div className="w-full px-2 sm:px-4">
-      <div className={`block bg-white shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-700 hover:text-gray-800 transition-all dark:text-gray-100 dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
+      <div className={`block bg-white shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-700 hover:text-gray-100 transition-all dark:text-gray-100 dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
         {/* 既存のカードコンテンツ */}
         <Notification 
           notifications={notifications} 
