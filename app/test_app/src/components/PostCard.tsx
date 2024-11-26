@@ -150,7 +150,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
-      // 状態を更新する前に既存のfullUrlがあれば解放
+      // 状態を更���する前に既存のfullUrlがあれば解放
       if (imageData[fileId]?.fullUrl) {
         URL.revokeObjectURL(imageData[fileId].fullUrl);
       }
@@ -173,33 +173,36 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
   const handleImageClick = useCallback(async (fileId: string) => {
     try {
-      const existingUrl = imageData[fileId]?.fullUrl;
-      
-      if (existingUrl) {
+      // すでに完全な画像URLが存在する場合はそれを使用
+      if (imageData[fileId]?.fullUrl) {
         setUiState(prev => ({
           ...prev,
           imageModalOpen: true,
-          selectedImage: existingUrl
+          selectedImage: imageData[fileId].fullUrl
         }));
         return;
       }
 
-      // サムネイルを一時的に表示
+      // モーダルを開く前に画像の読み込みを開始
+      const fullImageUrl = await loadFullImage(fileId);
+      if (!fullImageUrl) {
+        throw new Error('Failed to load image');
+      }
+
+      // 読み込みが完了してからモーダルを開く
+      setUiState(prev => ({
+        ...prev,
+        imageModalOpen: true,
+        selectedImage: fullImageUrl
+      }));
+    } catch (error) {
+      console.error('Error in handleImageClick:', error);
+      // エラー時にはサムネイルを表示
       setUiState(prev => ({
         ...prev,
         imageModalOpen: true,
         selectedImage: imageData[fileId]?.thumbnailUrl || null
       }));
-      
-      const fullImageUrl = await loadFullImage(fileId);
-      if (fullImageUrl) {
-        setUiState(prev => ({
-          ...prev,
-          selectedImage: fullImageUrl
-        }));
-      }
-    } catch (error) {
-      console.error('Error in handleImageClick:', error);
     }
   }, [loadFullImage, imageData]);
 
