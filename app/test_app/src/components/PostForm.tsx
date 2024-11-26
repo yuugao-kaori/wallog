@@ -72,7 +72,14 @@ const PostForm: React.FC<PostFormProps> = ({
     e.preventDefault();
     // ハッシュタグが存在する場合、本文の末尾に追加
     if (fixedHashtags.trim()) {
-      const updatedText = `${postText}\n${fixedHashtags.trim()}`;
+      // スペースで分割し、#が付いていない場合は追加
+      const processedTags = fixedHashtags
+        .trim()
+        .split(/\s+/)
+        .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
+        .join(' ');
+      
+      const updatedText = `${postText}\n${processedTags}`;
       setPostText(updatedText);
       // 状態の更新を待ってから送信
       await new Promise(resolve => setTimeout(resolve, 0));

@@ -439,7 +439,7 @@ function Diary() {
           {status && <p className="mt-4 text-red-500">{status}</p>}
         </>
         ) : (
-        <p className="text-gray-500 mt-4">投稿を作成するにはログインしてください。</p>
+        <p className="text-gray-500 mt-4">　</p>
         )}
       </div>
       </aside>
