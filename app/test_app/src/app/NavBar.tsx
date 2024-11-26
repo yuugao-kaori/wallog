@@ -60,6 +60,7 @@ const NavBarClient = () => {
   const api = useApi();
 
   useEffect(() => {
+    // マウント後にのみ状態を更新
     setIsMounted(true);
     const checkSession = async () => {
       try {
@@ -72,8 +73,13 @@ const NavBarClient = () => {
     checkSession();
   }, [api]);
 
+  // サーバーサイドレンダリング時やマウント前は何も表示しない
   if (!isMounted) {
-    return null; // 初期マウント時は何も表示しない
+    return (
+      <nav className="w-64 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4 
+        transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-30">
+      </nav>
+    );
   }
 
   const toggleMenu = () => setIsOpen(prev => !prev);
@@ -151,7 +157,6 @@ const NavBarClient = () => {
 // Dynamic importを使用してクライアントサイドのみでレンダリング
 const NavBar = dynamic(() => Promise.resolve(NavBarClient), {
   ssr: false,
-  loading: () => null
 });
 
 export default NavBar;
