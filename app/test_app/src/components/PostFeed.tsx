@@ -1,8 +1,16 @@
+'use client'
+
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/PostCard';
 import axios from 'axios';
-import Notification from '@/components/Notification'; // Add this import statement
+import dynamic from 'next/dynamic';
+
+// 動的インポートでNotificationコンポーネントを読み込む
+const Notification = dynamic(() => import('@/components/Notification'), {
+  ssr: false
+});
+
 interface Post {
   post_id: string;
   post_text: string;
