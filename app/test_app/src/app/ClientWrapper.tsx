@@ -1,22 +1,23 @@
 'use client'
 
-import { ThemeProvider as NextThemeProvider } from "./ThemeProvider";
+import { memo } from 'react';
+import { ThemeProvider } from "next-themes";
 import { ThemeProvider as ThemeContextProvider } from "./ThemeContext";
-import NotificationButton from "./NotificationButton";
 import ThemeButton from "./ThemeButton";
 import NavBar from "./NavBar";
 
-export default function ClientWrapper({ children }: { children: React.ReactNode }) {
+const ClientWrapper = memo(function ClientWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <NextThemeProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeContextProvider>
         <NavBar />
         <div>
-          <NotificationButton />
           <ThemeButton />
           {children}
         </div>
       </ThemeContextProvider>
-    </NextThemeProvider>
+    </ThemeProvider>
   );
-}
+});
+
+export default ClientWrapper;

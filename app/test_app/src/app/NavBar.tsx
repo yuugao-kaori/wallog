@@ -1,21 +1,58 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import React,{ useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 
-const api = axios.create({
-  baseURL: 'https://wallog.seitendan.com',
-  headers: { 
-    'Content-Type': 'application/json;charset=utf-8',
-    'Access-Control-Allow-Credentials': 'true'
-  },
-  withCredentials: true
-});
+// APIインスタンスをメモ化
+const useApi = () => {
+  return useMemo(() => axios.create({
+    baseURL: 'https://wallog.seitendan.com',
+    headers: { 
+      'Content-Type': 'application/json;charset=utf-8',
+      'Access-Control-Allow-Credentials': 'true'
+    },
+    withCredentials: true
+  }), []);
+};
+
+// メニューリンクコンポーネント
+const MenuLink = React.memo(({ href, children }: { href: string, children: React.ReactNode }) => (
+  <Link 
+    href={href} 
+    className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+  >
+    {children}
+  </Link>
+));
+
+// ハンバーガーメニューボタン
+const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className="fixed bottom-4 left-4 p-3 rounded-full bg-gray-100 dark:bg-gray-800 md:hidden shadow-lg z-40"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-6 w-6"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 6h16M4 12h16m-7 6h7"
+      />
+    </svg>
+  </button>
+));
 
 export default function NavBar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const api = useApi();
 
   useEffect(() => {
     const checkSession = async () => {
@@ -30,7 +67,9 @@ export default function NavBar() {
     };
 
     checkSession();
-  }, []);
+  }, [api]);
+
+  const toggleMenu = () => setIsOpen(prev => !prev);
 
   return (
     <>
@@ -40,63 +79,15 @@ export default function NavBar() {
         md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col space-y-4">
-          <Link 
-            href="/diary" 
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            Diary
-          </Link>
-          <Link 
-            href="/blog" 
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            Blog
-          </Link>
-          <Link 
-            href="/search" 
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            Search
-          </Link>
-          {isLoggedIn && (
-            <Link 
-              href="/drive" 
-              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              Drive
-            </Link>
-          )}
-          {isLoggedIn && (
-            <Link 
-              href="/settings" 
-              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              Settings
-            </Link>
-          )}
+          <MenuLink href="/diary">Diary</MenuLink>
+          <MenuLink href="/blog">Blog</MenuLink>
+          <MenuLink href="/search">Search</MenuLink>
+          {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
+          {isLoggedIn && <MenuLink href="/settings">Settings</MenuLink>}
         </div>
       </nav>
 
-      {/* モバイル用トグルボタン */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-4 left-4 p-3 rounded-full bg-gray-100 dark:bg-gray-800 md:hidden shadow-lg z-40"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6h16M4 12h16m-7 6h7"
-          />
-        </svg>
-      </button>
+      <MenuToggleButton isOpen={isOpen} onClick={toggleMenu} />
     </>
   )
 }
