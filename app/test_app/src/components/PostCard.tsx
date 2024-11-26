@@ -33,6 +33,7 @@ interface ImageData {
   thumbnailUrl: string | null;
   fullUrl: string | null;
   loading: boolean;
+  status: 'idle' | 'loading' | 'error';
 }
 
 const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete }: Props) => {
@@ -51,6 +52,10 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     selectedImage: null as string | null,
   });
   const [notifications, setNotifications] = useState<{ id: string, message: string }[]>([]);
+
+  // リトライ回数を管理するための状態を追加
+  const [retryCount, setRetryCount] = useState<Record<string, number>>({});
+  const MAX_RETRY = 3;
 
   const handleHashtagClick = (hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -105,104 +110,67 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   };
 
   const loadThumbnail = useCallback(async (fileId: string) => {
-    if (!inView || imageData[fileId]?.thumbnailUrl) return;
-
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}/thumbnail`);
-      if (!response.ok) throw new Error('Fetch failed');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      setImageData(prev => ({
-        ...prev,
-        [fileId]: {
-          ...prev[fileId],
-          thumbnailUrl: url,
-          loading: false
-        }
-      }));
-    } catch (error) {
-      console.error('Error loading thumbnail:', error);
-      setImageData(prev => ({
-        ...prev,
-        [fileId]: {
-          ...prev[fileId],
-          loading: false
-        }
-      }));
-    }
-  }, [inView, imageData]);
+    if (!inView) return;
+    
+    const thumbnailUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}/thumbnail`;
+    setImageData(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        thumbnailUrl,
+        loading: false
+      }
+    }));
+  }, [inView]);
 
   const loadFullImage = useCallback(async (fileId: string) => {
     try {
-      // すでに読み込み済みの場合は早期リターン
-      if (imageData[fileId]?.fullUrl) {
-        return imageData[fileId].fullUrl;
-      }
-  
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`, {
-        credentials: 'include',
-        cache: 'force-cache', // キャッシュを強制的に使用
-      });
-      
-      if (!response.ok) throw new Error('Fetch failed');
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      // 状態を更���する前に既存のfullUrlがあれば解放
-      if (imageData[fileId]?.fullUrl) {
-        URL.revokeObjectURL(imageData[fileId].fullUrl);
-      }
+      setImageData(prev => ({
+        ...prev,
+        [fileId]: { ...prev[fileId], status: 'loading' }
+      }));
 
+      const fullUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
+      
       setImageData(prev => ({
         ...prev,
         [fileId]: {
           ...prev[fileId],
-          fullUrl: url,
-          loading: false
+          fullUrl,
+          loading: false,
+          status: 'idle'
         }
       }));
-  
-      return url;
+
+      return fullUrl;
     } catch (error) {
       console.error('Error loading full image:', error);
-      return null;
+      setImageData(prev => ({
+        ...prev,
+        [fileId]: { ...prev[fileId], status: 'error' }
+      }));
+      return `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
     }
-  }, [imageData]);
+  }, []);
 
   const handleImageClick = useCallback(async (fileId: string) => {
     try {
-      // すでに完全な画像URLが存在する場合はそれを使用
-      if (imageData[fileId]?.fullUrl) {
+      setUiState(prev => ({
+        ...prev,
+        imageModalOpen: true,
+        selectedImage: imageData[fileId]?.thumbnailUrl // 最初にサムネイルを表示
+      }));
+
+      const fullImageUrl = await loadFullImage(fileId);
+      if (fullImageUrl) {
         setUiState(prev => ({
           ...prev,
-          imageModalOpen: true,
-          selectedImage: imageData[fileId].fullUrl
+          selectedImage: fullImageUrl
         }));
-        return;
       }
-
-      // モーダルを開く前に画像の読み込みを開始
-      const fullImageUrl = await loadFullImage(fileId);
-      if (!fullImageUrl) {
-        throw new Error('Failed to load image');
-      }
-
-      // 読み込みが完了してからモーダルを開く
-      setUiState(prev => ({
-        ...prev,
-        imageModalOpen: true,
-        selectedImage: fullImageUrl
-      }));
     } catch (error) {
       console.error('Error in handleImageClick:', error);
-      // エラー時にはサムネイルを表示
-      setUiState(prev => ({
-        ...prev,
-        imageModalOpen: true,
-        selectedImage: imageData[fileId]?.thumbnailUrl || null
-      }));
+      // エラー時はサムネイルを維持
     }
   }, [loadFullImage, imageData]);
 
@@ -227,16 +195,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         loadThumbnail(fileId);
       });
     }
-
-    return () => {
-      // クリーンアップ時に未使用のBlobURLを解放
-      files.forEach(file => {
-        const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
-        const data = imageData[fileId];
-        if (data?.thumbnailUrl) URL.revokeObjectURL(data.thumbnailUrl);
-        if (data?.fullUrl) URL.revokeObjectURL(data.fullUrl);
-      });
-    };
   }, [inView, post.post_file, loadThumbnail]);
 
   useEffect(() => {
@@ -253,6 +211,23 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       });
     };
   }, []); // 空の依存配列で、コンポーネントのマウント解除時のみ実行
+
+  // 画像データが更新されたときのクリーンアップ
+  useEffect(() => {
+    const cleanup = () => {
+      Object.values(imageData).forEach(data => {
+        if (!data) return;
+        if (data.thumbnailUrl && !document.querySelector(`img[src="${data.thumbnailUrl}"]`)) {
+          URL.revokeObjectURL(data.thumbnailUrl);
+        }
+        if (data.fullUrl && !uiState.imageModalOpen) {
+          URL.revokeObjectURL(data.fullUrl);
+        }
+      });
+    };
+
+    return cleanup;
+  }, [imageData, uiState.imageModalOpen]);
 
   const toggleMenu = (event: React.MouseEvent): void => {
     event.stopPropagation();
@@ -342,17 +317,31 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           return (
             <div key={fileId} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
               {!data?.thumbnailUrl ? (
-                <div className="animate-pulse w-full h-full bg-gray-300" />
+                <div className="animate-pulse w-full h-full bg-gray-300 flex items-center justify-center">
+                  <span className="text-gray-600">読み込み中...</span>
+                </div>
               ) : (
-                <Image
-                  src={data.thumbnailUrl}
-                  alt={`Post image ${fileId}`}
-                  width={300}
-                  height={200}
-                  loading="lazy"
-                  className="transition-opacity duration-300 cursor-pointer object-contain w-full h-full"
-                  onClick={() => handleImageClick(fileId)}
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={data.thumbnailUrl}
+                    alt={`Post image ${fileId}`}
+                    width={300}
+                    height={200}
+                    loading="lazy"
+                    className="transition-opacity duration-300 cursor-pointer object-contain w-full h-full"
+                    onClick={() => handleImageClick(fileId)}
+                  />
+                  {data.status === 'loading' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <span className="text-white">画像を読み込み中...</span>
+                    </div>
+                  )}
+                  {data.status === 'error' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <span className="text-white">読み込みに失敗しました</span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           );
