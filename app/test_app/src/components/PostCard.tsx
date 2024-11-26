@@ -150,7 +150,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
-      // 状態を更新する前に既存のfullUrlがあれば解放
+      // 状態を更���する前に既存のfullUrlがあれば解放
       if (imageData[fileId]?.fullUrl) {
         URL.revokeObjectURL(imageData[fileId].fullUrl);
       }
