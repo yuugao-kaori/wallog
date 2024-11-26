@@ -56,8 +56,14 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   };
 
   const formatDate = (dateString: string): string => {
+    if (!dateString) return 'Date unavailable';
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Date unavailable';
+    if (isNaN(date.getTime())) {
+      // ISO 8601形式での解析を試みる
+      const isoDate = new Date(dateString.replace(' ', 'T'));
+      if (isNaN(isoDate.getTime())) return 'Date unavailable';
+      return isoDate.toLocaleString();
+    }
     return date.toLocaleString();
   };
 
