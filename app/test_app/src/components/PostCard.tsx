@@ -354,7 +354,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
   return (
     <div ref={ref} className="w-full px-2 sm:px-4">
-      <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-100 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
+      <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
         <Notification 
           notifications={notifications} 
           onClose={removeNotification}

@@ -22,7 +22,13 @@ body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: Arial, Helvetica, sans-serif;
-  transition: none; /* トランジションを無効化 */
+}
+
+/* 文字色の即時切り替えのために追加 */
+*, *::before, *::after {
+  transition: background-color 0.6s ease;
+  transition-property: background-color;
+  color: rgb(var(--foreground));
 }
 
 /* 追加のカスタムスタイル */
