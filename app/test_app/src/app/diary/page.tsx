@@ -95,23 +95,44 @@ function Diary() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const eventSource = new EventSource(
-      `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
-      { 
-        withCredentials: true
-      }
-    );
+    let reconnectAttempt = 0;
+    const maxReconnectAttempts = 5;
+    const baseDelay = 1000; // 1秒
+
+    const createEventSource = () => {
+      const eventSource = new EventSource(
+        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
+        { withCredentials: true }
+      );
+      
+      eventSource.onmessage = (event) => {
+        const newPosts = JSON.parse(event.data);
+        setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
+        reconnectAttempt = 0; // 成功したらリセット
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE接続エラー:', error);
+        eventSource.close();
+        
+        if (reconnectAttempt < maxReconnectAttempts) {
+          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt), 30000); // 最大30秒
+          console.log(`${delay}ms後に再接続を試みます(試行${reconnectAttempt + 1}/${maxReconnectAttempts})`);
+          
+          setTimeout(() => {
+            reconnectAttempt++;
+            createEventSource();
+          }, delay);
+        } else {
+          console.error('最大再接続試行回数に達しました');
+        }
+      };
+
+      return eventSource;
+    };
+
+    const eventSource = createEventSource();
     
-    eventSource.onmessage = (event) => {
-      const newPosts = JSON.parse(event.data);
-      setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE接続エラー:', error);
-      eventSource.close();
-    };
-
     return () => {
       eventSource.close();
     };

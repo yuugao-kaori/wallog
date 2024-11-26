@@ -4,7 +4,7 @@
     "description": "backend",
     "main": "index.js",
     "scripts": {
-      "start": "node ./setup/setup.js && node ./setup/maintenance.js && node index.js"
+      "start": "node ./setup/setup.js && node ./setup/maintenance.js && nodemon index.js"
     },
     "dependencies": {
       "express": "^4.18.2",
@@ -21,8 +21,12 @@
       "date-utils": "^1.2.21",
       "file-viewer": "^1.2.0",
       "@elastic/elasticsearch": "^8.15.1",
-      "mime-types" : "^2.1.35"
+      "mime-types" : "^2.1.35",
+      "sharp":"0.33.5"
 
+    },
+    "devDependencies": {
+      "nodemon": "^3.1.7"
     },
     "type": "module"
   }

@@ -29,9 +29,10 @@ interface Props {
 }
 
 interface ImageData {
-  file_id: string;
-  url: string | null;
-  error: boolean;
+  fileId: string;
+  thumbnailUrl: string | null;
+  fullUrl: string | null;
+  loading: boolean;
 }
 
 const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete }: Props) => {
@@ -42,7 +43,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     threshold: 0.1
   });
 
-  const [imageStates, setImageStates] = useState<Record<string, { loaded: boolean, url: string | null }>>({});
+  const [imageData, setImageData] = useState<Record<string, ImageData>>({});
   const [uiState, setUiState] = useState({
     menuOpen: false,
     deleteModalOpen: false, // 削除モーダル用の状態
@@ -50,7 +51,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     selectedImage: null as string | null,
   });
   const [notifications, setNotifications] = useState<{ id: string, message: string }[]>([]);
-  const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
 
   const handleHashtagClick = (hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -104,74 +104,152 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     );
   };
 
-  const loadImage = useCallback(async (fileId: string) => {
-    if (!inView || imageStates[fileId]?.url) return;
+  const loadThumbnail = useCallback(async (fileId: string) => {
+    if (!inView || imageData[fileId]?.thumbnailUrl) return;
 
     try {
-      const response = await fetch(`https://wallog.seitendan.com/api/drive/file/${fileId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}/thumbnail`);
       if (!response.ok) throw new Error('Fetch failed');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
-      setBlobUrls(prev => ({
+      setImageData(prev => ({
         ...prev,
-        [fileId]: url
-      }));
-
-      setImageStates(prev => ({
-        ...prev,
-        [fileId]: { loaded: true, url }
+        [fileId]: {
+          ...prev[fileId],
+          thumbnailUrl: url,
+          loading: false
+        }
       }));
     } catch (error) {
-      setImageStates(prev => ({
+      console.error('Error loading thumbnail:', error);
+      setImageData(prev => ({
         ...prev,
-        [fileId]: { loaded: true, url: null }
+        [fileId]: {
+          ...prev[fileId],
+          loading: false
+        }
       }));
     }
-  }, [inView, imageStates]);
+  }, [inView, imageData]);
 
-  useEffect(() => {
-    const files = post.post_file
-      ? (Array.isArray(post.post_file)
-        ? post.post_file 
-        : post.post_file.split(',').map(file => file.trim().replace(/^"|"$/g, '')))
-      : [];
-
-    if (inView) {
-      files.forEach(file => {
-        const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
-        loadImage(fileId);
-      });
-    }
-    
-    // コンポーネントのアンマウント時のみBlobURLをクリーンアップ
-    return () => {
-      if (!uiState.imageModalOpen) {
-        Object.values(blobUrls).forEach(url => {
-          URL.revokeObjectURL(url);
-        });
+  const loadFullImage = useCallback(async (fileId: string) => {
+    try {
+      // すでに読み込み済みの場合は早期リターン
+      if (imageData[fileId]?.fullUrl) {
+        return imageData[fileId].fullUrl;
       }
-    };
-  }, [inView, post.post_file, loadImage]);
+  
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`, {
+        credentials: 'include',
+        cache: 'force-cache', // キャッシュを強制的に使用
+      });
+      
+      if (!response.ok) throw new Error('Fetch failed');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      // 状態を更新する前に既存のfullUrlがあれば解放
+      if (imageData[fileId]?.fullUrl) {
+        URL.revokeObjectURL(imageData[fileId].fullUrl);
+      }
 
-  const handleImageClick = useCallback((fileId: string) => {
-    const url = blobUrls[fileId];
-    if (url) {
+      setImageData(prev => ({
+        ...prev,
+        [fileId]: {
+          ...prev[fileId],
+          fullUrl: url,
+          loading: false
+        }
+      }));
+  
+      return url;
+    } catch (error) {
+      console.error('Error loading full image:', error);
+      return null;
+    }
+  }, [imageData]);
+
+  const handleImageClick = useCallback(async (fileId: string) => {
+    try {
+      const existingUrl = imageData[fileId]?.fullUrl;
+      
+      if (existingUrl) {
+        setUiState(prev => ({
+          ...prev,
+          imageModalOpen: true,
+          selectedImage: existingUrl
+        }));
+        return;
+      }
+
+      // サムネイルを一時的に表示
       setUiState(prev => ({
         ...prev,
         imageModalOpen: true,
-        selectedImage: url
+        selectedImage: imageData[fileId]?.thumbnailUrl || null
       }));
+      
+      const fullImageUrl = await loadFullImage(fileId);
+      if (fullImageUrl) {
+        setUiState(prev => ({
+          ...prev,
+          selectedImage: fullImageUrl
+        }));
+      }
+    } catch (error) {
+      console.error('Error in handleImageClick:', error);
     }
-  }, [blobUrls]);
+  }, [loadFullImage, imageData]);
 
-  const closeImageModal = useCallback((): void => {
+  const handleCloseModal = useCallback(() => {
     setUiState(prev => ({
       ...prev,
       imageModalOpen: false,
       selectedImage: null
     }));
   }, []);
+
+  useEffect(() => {
+    if (!post.post_file) return;
+
+    const files = Array.isArray(post.post_file)
+      ? post.post_file
+      : post.post_file.split(',').map(file => file.trim().replace(/^"|"$/g, ''));
+
+    if (inView) {
+      files.forEach(file => {
+        const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
+        loadThumbnail(fileId);
+      });
+    }
+
+    return () => {
+      // クリーンアップ時に未使用のBlobURLを解放
+      files.forEach(file => {
+        const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
+        const data = imageData[fileId];
+        if (data?.thumbnailUrl) URL.revokeObjectURL(data.thumbnailUrl);
+        if (data?.fullUrl) URL.revokeObjectURL(data.fullUrl);
+      });
+    };
+  }, [inView, post.post_file, loadThumbnail]);
+
+  useEffect(() => {
+    const currentImageData = { ...imageData };
+
+    return () => {
+      Object.values(currentImageData).forEach(data => {
+        if (data?.thumbnailUrl) {
+          URL.revokeObjectURL(data.thumbnailUrl);
+        }
+        if (data?.fullUrl) {
+          URL.revokeObjectURL(data.fullUrl);
+        }
+      });
+    };
+  }, []); // 空の依存配列で、コンポーネントのマウント解除時のみ実行
 
   const toggleMenu = (event: React.MouseEvent): void => {
     event.stopPropagation();
@@ -242,7 +320,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   };
 
   const handleImageLoad = useCallback((fileId: string) => {
-    setImageStates(prev => ({ ...prev, [fileId]: { loaded: true, url: prev[fileId]?.url || null } }));
+    setImageData(prev => ({ ...prev, [fileId]: { ...prev[fileId], loading: false } }));
   }, []);
 
   const renderImages = useCallback(() => {
@@ -256,33 +334,29 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       <div className={`mt-4 ${files.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
         {files.map(file => {
           const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
-          const imageState = imageStates[fileId];
+          const data = imageData[fileId];
 
           return (
             <div key={fileId} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
-              {!imageState?.loaded ? (
+              {!data?.thumbnailUrl ? (
                 <div className="animate-pulse w-full h-full bg-gray-300" />
-              ) : imageState.url ? (
+              ) : (
                 <Image
-                  src={imageState.url}
+                  src={data.thumbnailUrl}
                   alt={`Post image ${fileId}`}
                   width={300}
                   height={200}
                   loading="lazy"
-                  className="transition-opacity duration-300 cursor-pointer"
+                  className="transition-opacity duration-300 cursor-pointer object-contain w-full h-full"
                   onClick={() => handleImageClick(fileId)}
                 />
-              ) : (
-                <div className="flex items-center justify-center h-full text-red-500 text-sm">
-                  画像を表示できませんでした。
-                </div>
               )}
             </div>
           );
         })}
       </div>
     );
-  }, [post.post_file, imageStates, handleImageClick]);
+  }, [post.post_file, imageData, handleImageClick]);
 
   return (
     <div ref={ref} className="w-full px-2 sm:px-4">
@@ -332,7 +406,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         <ImageModal
           isOpen={uiState.imageModalOpen}
           imageUrl={uiState.selectedImage}
-          onClose={closeImageModal}
+          onClose={handleCloseModal}
         />
 
         <div>
@@ -346,15 +420,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
           {inView && renderImages()}
 
-          <ImageModal
-            isOpen={uiState.imageModalOpen}
-            imageUrl={uiState.selectedImage}
-            onClose={() => setUiState(prev => ({
-              ...prev,
-              imageModalOpen: false,
-              selectedImage: null
-            }))}
-          />
         </div>
       </div>
     </div>
