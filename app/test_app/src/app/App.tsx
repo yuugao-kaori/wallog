@@ -1,6 +1,7 @@
+
 'use client';
 
-import { createContext, useContext, useLayoutEffect, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 interface ThemeContextType {
   theme: string;
@@ -10,34 +11,21 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState('system');
+  const [theme, setTheme] = useState('light');
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       setTheme(savedTheme);
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(prefersDark ? 'dark' : 'light');
     }
   }, []);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const handleChange = () => {
-      if (theme === 'system') {
-        document.documentElement.className = mediaQuery.matches ? 'dark' : 'light';
-      }
-    };
-
-    if (theme === 'system') {
-      handleChange();
-    } else {
-      document.documentElement.className = theme;
-    }
-    
+    document.documentElement.className = theme;
     localStorage.setItem('theme', theme);
-    mediaQuery.addEventListener('change', handleChange);
-    
-    return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
   const toggleTheme = () => {

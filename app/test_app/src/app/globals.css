@@ -3,14 +3,18 @@
 @tailwind utilities;
 
 @layer base {
-  [data-theme="light"] {
+  :root {
     --background: 255 255 255;
     --foreground: 0 0 0;
+    --card: 255 255 255;
+    --card-foreground: 0 0 0;
   }
   
-  [data-theme="dark"] {
-    --background: 10 10 10;
-    --foreground: 237 237 237;
+  .dark {
+    --background: 17 24 39;
+    --foreground: 255 255 255;
+    --card: 31 41 55;
+    --card-foreground: 255 255 255;
   }
 }
 
@@ -18,6 +22,7 @@ body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: Arial, Helvetica, sans-serif;
+  transition: none; /* トランジションを無効化 */
 }
 
 /* 追加のカスタムスタイル */

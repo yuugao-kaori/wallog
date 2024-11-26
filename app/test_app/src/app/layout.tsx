@@ -37,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" suppressHydrationWarning={true}>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
           <Suspense fallback={<Loading />}>
             <DynamicClientWrapper>
               <div className="flex flex-col min-h-screen">

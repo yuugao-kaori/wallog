@@ -396,11 +396,11 @@ function Diary() {
   };
 
   return (
-    <div className="fixed inset-0 flex bg-white dark:bg-gray-900">
+    <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
-      <main className="flex-1 relative md:ml-64">  {/* md:ml-64 を追加 */}
+      <main className="flex-1 relative md:ml-64 bg-white dark:bg-gray-900 duration-300">  {/* md:ml-64 を追加 */}
       <div className="absolute inset-0 md:pr-[300px]">
-        <div className="h-full overflow-auto px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <div className="h-full overflow-auto px-4 bg-white dark:bg-gray-900 duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <PostFeed
           posts={posts}
           setPosts={setPosts} /* md:ml-64 を追加 */
@@ -476,7 +476,7 @@ function Diary() {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <button
-          className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
+          className="absolute top-4 right-4 text-gray-600 dark:text-white"
           onClick={() => setShowFileSelector(false)}
         >
           <FaTimes />
@@ -505,17 +505,17 @@ function Diary() {
               }}
               />
             </div>
-            <div className="text-sm truncate dark:text-gray-300">
+            <div className="text-sm truncate dark:text-white">
               ファイルID: {file.file_id}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="text-xs text-gray-500 dark:text-white">
               {new Date(file.file_createat).toLocaleDateString()}
             </div>
             </div>
           ))}
           </div>
         ) : (
-          <div className="text-center text-gray-500 dark:text-gray-400">
+          <div className="text-center text-gray-500 dark:text-white">
           ファイルが見つかりません
           </div>
         )}

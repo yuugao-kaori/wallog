@@ -45,7 +45,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   });
 
   // hydration errorを防ぐため、useEffectで初期化
-  const [mounted, setMounted] = useState(false);
   const [imageData, setImageData] = useState<Record<string, ImageData>>({});
   const [uiState, setUiState] = useState({
     menuOpen: false,
@@ -54,11 +53,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     selectedImage: null as string | null,
   });
   const [notifications, setNotifications] = useState<{ id: string, message: string }[]>([]);
-
-  // コンポーネントのマウント状態を管理
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // リトライ回数を管理するための状態を追加
   const [retryCount, setRetryCount] = useState<Record<string, number>>({});
@@ -82,7 +76,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     const parts = text.split(pattern);
     
     return (
-      <div className="whitespace-pre-wrap break-words text-gray-800 text-base dark:text-gray-100">
+      <div className="whitespace-pre-wrap break-words text-base">
         {parts.map((part, index) => {
           if (part.match(/^#[^\s]+$/)) {
             const searchText = encodeURIComponent(part.slice(1));
@@ -309,7 +303,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   }, []);
 
   const renderImages = useCallback(() => {
-    if (!post.post_file || !mounted) return null;
+    if (!post.post_file) return null;
 
     const files = Array.isArray(post.post_file)
       ? post.post_file
@@ -323,7 +317,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
           return (
             <div key={fileId} className="relative w-full aspect-video bg-gray-200 rounded overflow-hidden">
-              {(!mounted || !data?.thumbnailUrl) ? (
+              {(!data?.thumbnailUrl) ? (
                 <div className="animate-pulse w-full h-full bg-gray-300 flex items-center justify-center">
                   <span className="text-gray-600">読み込み中...</span>
                 </div>
@@ -335,16 +329,16 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
                     width={300}
                     height={200}
                     loading="lazy"
-                    className="transition-opacity duration-300 cursor-pointer object-contain w-full h-full"
+                    className="cursor-pointer object-contain w-full h-full"
                     onClick={() => handleImageClick(fileId)}
                     onLoad={() => handleImageLoad(fileId)}
                   />
-                  {data.status === 'loading' && mounted && (
+                  {data.status === 'loading' && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <span className="text-white">画像を読み込み中...</span>
                     </div>
                   )}
-                  {data.status === 'error' && mounted && (
+                  {data.status === 'error' && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <span className="text-white">読み込みに失敗しました</span>
                     </div>
@@ -356,27 +350,11 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         })}
       </div>
     );
-  }, [post.post_file, imageData, handleImageClick, handleImageLoad, mounted]);
-
-  // クライアントサイドでのみレンダリングする要素を制御
-  if (!mounted) {
-    return (
-      <div ref={ref} className="w-full px-2 sm:px-4">
-        <div className={`block bg-white shadow-md rounded-lg p-3 sm:p-4 dark:bg-gray-800 relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
-          <div className="text-gray-500 text-sm break-words">
-            Created at: {formatDate(post.post_createat)}
-          </div>
-          <div className="mt-2 break-words">
-            {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [post.post_file, imageData, handleImageClick, handleImageLoad]);
 
   return (
     <div ref={ref} className="w-full px-2 sm:px-4">
-      <div className={`block bg-white shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-700 hover:text-gray-100 transition-all dark:text-gray-100 dark:bg-gray-800 duration-200 cursor-pointer relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
+      <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-100 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words ${className}`}>
         <Notification 
           notifications={notifications} 
           onClose={removeNotification}
