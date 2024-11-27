@@ -62,7 +62,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     e.preventDefault();
     e.stopPropagation();
     const searchText = hashtag.slice(1); // # を除去
-    router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=タグ検索`);
+    router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   };
 
   const renderText = (text: string | null): React.ReactNode => {
@@ -79,16 +79,14 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       <div className="whitespace-pre-wrap break-words text-base">
         {parts.map((part, index) => {
           if (part.match(/^#[^\s]+$/)) {
-            const searchText = encodeURIComponent(part.slice(1));
             return (
-              <a
+              <span
                 key={index}
-                href={`/search?searchText=${searchText}&searchType=タグ検索`}
-                className="text-blue-500 font-bold hover:underline"
+                className="text-blue-500 font-bold hover:underline cursor-pointer"
                 onClick={(e) => handleHashtagClick(part, e)}
               >
                 {part}
-              </a>
+              </span>
             );
           } else if (part.match(/^https?:\/\/[^\s]+$/)) {
             return (

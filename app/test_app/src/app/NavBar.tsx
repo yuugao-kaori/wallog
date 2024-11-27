@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'  // 追加
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
@@ -19,15 +20,24 @@ const useApi = () => {
   }), []);
 };
 
-// メニューリンクコンポーネント
-const MenuLink = React.memo(({ href, children }: { href: string, children: React.ReactNode }) => (
-  <Link 
-    href={href} 
-    className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-  >
-    {children}
-  </Link>
-));
+// メニューリンクコンポーネントを更新
+const MenuLink = React.memo(({ href, children }: { href: string, children: React.ReactNode }) => {
+  const pathname = usePathname();
+  const isActive = pathname === href;
+  
+  return (
+    <Link 
+      href={href} 
+      className={`p-2 rounded transition-colors ${
+        isActive 
+          ? 'bg-gray-200 dark:bg-gray-700 font-bold'
+          : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+      }`}
+    >
+      {children}
+    </Link>
+  );
+});
 
 // ハンバーガーメニューボタン
 const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onClick: () => void }) => (
@@ -52,7 +62,7 @@ const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onC
   </button>
 ));
 
-// クライアントサイドのみで実行されるコンポーネントとして定義
+// クラ��アントサイドのみで実行されるコンポーネントとして定義
 const NavBarClient = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
