@@ -92,6 +92,10 @@ const NavBarClient = () => {
         md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         flex flex-col justify-between
       `}>
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold dark:text-white">Wallog</h2>
+          <p className="text-sm dark:text-white">繋がらないマイクロブログ</p>
+        </div>
         <div className="flex flex-col space-y-4">
           <MenuLink href="/diary">Diary</MenuLink>
           <MenuLink href="/blog">Blog</MenuLink>

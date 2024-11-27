@@ -91,6 +91,8 @@ const PostForm: React.FC<PostFormProps> = ({
 
   return (
     <div>
+      <h2 className="text-xl font-bold mt-2 mb-2 dark:text-white">新規投稿</h2>
+
       {/* 既存の投稿フォーム */}
       <form onSubmit={handleFormSubmit} className="mt-2">
         <textarea

@@ -422,7 +422,6 @@ function Diary() {
       {/* デスクトップ用投稿フォーム */}
       <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
       <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-        <h2 className="text-xl font-bold mb-2 dark:text-white">新規投稿</h2>
         {isLoggedIn ? (
         <>
           <PostForm
