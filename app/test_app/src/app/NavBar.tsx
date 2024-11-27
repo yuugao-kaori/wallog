@@ -148,7 +148,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Version 2024.11.26.2037
+            Version 2024.11.27.1107
           </div>
         </div>
       </nav>

@@ -11,7 +11,7 @@ interface FileItem {
 interface PostFormProps {
   postText: string;
   setPostText: (text: string) => void;
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (e: React.FormEvent, finalText?: string) => void;  // 引数を追加
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
   handleDelete: (fileId: number) => void;
@@ -68,31 +68,28 @@ const PostForm: React.FC<PostFormProps> = ({
     }
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // ハッシュタグが存在する場合、本文の末尾に追加
+    
+    let finalPostText = postText;
+    
+    // ハッシュタグが存在する場合、本文用の文字列を��成
     if (fixedHashtags.trim()) {
-      // スペースで分割し、#が付いていない場合は追加
       const processedTags = fixedHashtags
         .trim()
         .split(/\s+/)
         .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
         .join(' ');
       
-      const updatedText = `${postText}\n${processedTags}`;
-      setPostText(updatedText);
-      // 状態の更新を待ってから送信
-      await new Promise(resolve => setTimeout(resolve, 0));
-      handleSubmit(e);
-    } else {
-      handleSubmit(e);
+      finalPostText = `${postText}\n${processedTags}`;
     }
+    
+    // 最終的な本文を第2引数として渡す
+    handleSubmit(e, finalPostText);
   };
 
   return (
     <div>
-      <h2 className="text-xl font-bold mt-2 mb-2 dark:text-white">新規投稿</h2>
-
       {/* 既存の投稿フォーム */}
       <form onSubmit={handleFormSubmit} className="mt-2">
         <textarea

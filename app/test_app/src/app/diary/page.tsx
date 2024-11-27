@@ -269,21 +269,17 @@ function Diary() {
   };
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: React.FormEvent, finalText?: string) => {
       e.preventDefault();
       try {
-        // ハッシュタグがある場合、本文に追加
-        const finalPostText = fixedHashtags.trim() 
-          ? `${postText}\n${fixedHashtags.trim()}`
-          : postText;
-
+        // finalTextをそのまま使用し、追加の処理は行わない
         const payload = {
-          post_text: finalPostText,
+          post_text: finalText || postText,  // finalTextが渡された場合はそのまま使用
           ...(files.length > 0 && { post_file: files.map(file => file.id) })
         };
 
         const response = await api.post('/api/post/post_create', payload);
-        addNotification('投稿が成功しました！');  // 変更
+        addNotification('投稿が成功しました！');
         setPostText('');
         setFiles([]);
         
@@ -293,10 +289,10 @@ function Diary() {
         
         setIsModalOpen(false);
       } catch (error) {
-        addNotification('投稿に失敗しました。');  // 変更
+        addNotification('投稿に失敗しました。');
       }
     },
-    [postText, files, fixedHashtags, addNotification]  // fixedHashtagsを依存配列に追加
+    [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
   );
 
   const handleDelete = async (fileId: number) => {
