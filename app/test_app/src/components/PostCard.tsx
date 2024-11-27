@@ -401,6 +401,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           isOpen={uiState.imageModalOpen}
           imageUrl={uiState.selectedImage}
           onClose={handleCloseModal}
+          className="z-49"  // z-indexを49に設定
         />
 
         <div>
