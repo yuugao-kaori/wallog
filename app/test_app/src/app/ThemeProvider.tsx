@@ -41,7 +41,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'dark' ? 'light' : 'dark'));
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const systemIsDark = mediaQuery.matches;
+    
+    if (theme === 'system') {
+      setTheme(systemIsDark ? 'light' : 'dark');
+    } else if (theme === 'dark') {
+      setTheme('light');
+    } else {
+      setTheme('dark');
+    }
   };
 
   return (
