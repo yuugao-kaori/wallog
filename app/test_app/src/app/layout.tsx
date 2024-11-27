@@ -30,6 +30,13 @@ const inter = Inter({
   preload: true,
 });
 
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Wallog',
+    default: 'Wallog',
+  },
+};
+
 export default function RootLayout({
   children,
 }: {

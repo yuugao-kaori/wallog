@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'  // 追加
+import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
@@ -43,7 +43,8 @@ const MenuLink = React.memo(({ href, children }: { href: string, children: React
 const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onClick: () => void }) => (
   <button
     onClick={onClick}
-    className="fixed bottom-4 left-4 p-3 rounded-full bg-gray-100 dark:bg-gray-800 md:hidden shadow-lg z-40"
+    className={`fixed bottom-4 left-4 p-3 rounded-full bg-gray-100 dark:bg-gray-800 md:hidden shadow-lg z-40 transition-opacity
+      ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -62,8 +63,9 @@ const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onC
   </button>
 ));
 
-// クラ��アントサイドのみで実行されるコンポーネントとして定義
+// クライアントサイドのみで実行されるコンポーネントとして定義
 const NavBarClient = () => {
+  const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState<boolean>(false);
@@ -83,6 +85,25 @@ const NavBarClient = () => {
     checkSession();
   }, [api]);
 
+  useEffect(() => {
+    // パスに基づいてタイトルを更新
+    const pageName = pathname.substring(1);
+    const formattedPageName = pageName ? pageName.charAt(0).toUpperCase() + pageName.slice(1) : 'Home';
+    document.title = `${formattedPageName} | Wallog`;
+  }, [pathname]);
+
+  // スクロール制御のためのuseEffect追加
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   // サーバーサイドレンダリング時やマウント前は何も表示しない
   if (!isMounted) {
     return (
@@ -93,9 +114,17 @@ const NavBarClient = () => {
   }
 
   const toggleMenu = () => setIsOpen(prev => !prev);
+  const closeMenu = () => setIsOpen(false);
 
   return (
     <>
+      {/* オーバーレイを追加 */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+          onClick={closeMenu}
+        />
+      )}
       <nav className={`
         w-64 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4
         transform transition-transform duration-300 ease-in-out z-30
@@ -158,7 +187,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Version 2024.11.27.1107
+            Version 2024.11.27.2021
           </div>
         </div>
       </nav>

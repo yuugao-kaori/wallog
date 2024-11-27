@@ -58,12 +58,12 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   const [retryCount, setRetryCount] = useState<Record<string, number>>({});
   const MAX_RETRY = 3;
 
-  const handleHashtagClick = (hashtag: string, e: React.MouseEvent) => {
+  const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const searchText = hashtag.slice(1); // # を除去
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
-  };
+  }, [router]);
 
   const renderText = (text: string | null): React.ReactNode => {
     if (!text) return null;
@@ -79,14 +79,19 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       <div className="whitespace-pre-wrap break-words text-base">
         {parts.map((part, index) => {
           if (part.match(/^#[^\s]+$/)) {
+            const tag = part.slice(1); // # を除去
             return (
-              <span
+              <a
                 key={index}
-                className="text-blue-500 font-bold hover:underline cursor-pointer"
-                onClick={(e) => handleHashtagClick(part, e)}
+                href={`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`}
+                className="text-blue-500 font-bold hover:underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleHashtagClick(part, e);
+                }}
               >
                 {part}
-              </span>
+              </a>
             );
           } else if (part.match(/^https?:\/\/[^\s]+$/)) {
             return (
@@ -254,7 +259,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     
     navigator.clipboard.writeText(url)
       .then(() => {
-        addNotification("クリップボードにURLがコピーされました");
+        addNotification("クリップ��ードにURLがコピーされました");
       })
       .catch((err) => {
         console.error("コピーに失敗しました", err);

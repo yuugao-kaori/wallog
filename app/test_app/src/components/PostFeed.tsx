@@ -69,10 +69,9 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
     return date.toLocaleString();
   };
 
-  const renderHashtagsContainer = (text: string): React.ReactNode => {
+  const renderHashtagsContainer = useCallback((text: string): React.ReactNode => {
     if (typeof text !== 'string') return null;
 
-    // ハッシュタグとURLを検出するための正規表現パターン
     const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
     const parts = text.split(pattern);
 
@@ -80,18 +79,20 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
       <div className="whitespace-pre-wrap break-words">
         {parts.map((part, index) => {
           if (part.match(/^#[^\s]+$/)) {
-            const tag = part.slice(1);
+            const tag = part.slice(1); // # を除去
             return (
-              <span
+              <a
                 key={index}
+                href={`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`}
                 className="text-blue-500 font-bold cursor-pointer hover:underline"
-                onClick={(e: React.MouseEvent) => {
+                onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
-                  router.push(`/search?searchText=${encodeURIComponent(tag)}&searchType=タグ検索`);
+                  router.push(`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`);
                 }}
               >
                 {part}
-              </span>
+              </a>
             );
           } else if (part.match(/^https?:\/\/[^\s]+$/)) {
             return (
@@ -111,7 +112,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
         })}
       </div>
     );
-  };
+  }, [router]);
 
   const handleDeleteClick = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
     event.stopPropagation();
