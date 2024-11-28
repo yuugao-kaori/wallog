@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS "post" (
     post_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     post_tag TEXT, -- リスト形式でそのまま収容
     post_file TEXT, -- 半角コンマで区切るfile_id
-    post_attitude NUMERIC DEFAULT 1
+    post_attitude NUMERIC DEFAULT 1,
+    repost_id text[],
+    reply_id text[]
 );
 
 -- blogテーブルの作成
@@ -67,7 +69,9 @@ CREATE TABLE IF NOT EXISTS "user" (
     user_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     user_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     user_failcount SMALLSERIAL,
-    user_token TEXT
+    user_token TEXT,
+    user_hashtag text[],
+    user_auto_hashtag text[]
 );
 
 -- post_tagテーブルの作成
