@@ -32,7 +32,7 @@ router.use(
   })
 );
 
-// ユーザ���情報を更新する関数
+// ユーザー情報を更新する関数
 async function updateUserInfo(userId, updates) {
   const client = new Client({
     user: process.env.POSTGRES_USER,
@@ -49,18 +49,26 @@ async function updateUserInfo(userId, updates) {
     const values = [];
     let valueCounter = 1;
 
+    // user_hashtagの更新
     if (updates.user_hashtag) {
       updateFields.push(`user_hashtag = $${valueCounter}`);
-      values.push(updates.user_hashtag); // user_name を user_hashtag に修正
+      values.push(Array.isArray(updates.user_hashtag) ? updates.user_hashtag : [updates.user_hashtag]);
+      valueCounter++;
+    }
+
+    // user_auto_hashtagの更新
+    if (updates.user_auto_hashtag) {
+      updateFields.push(`user_auto_hashtag = $${valueCounter}`);
+      values.push(Array.isArray(updates.user_auto_hashtag) ? updates.user_auto_hashtag : [updates.user_auto_hashtag]);
       valueCounter++;
     }
 
     values.push(userId);
     const query = `
-      UPDATE user
-      SET ${updateFields.join(', ')}
+      UPDATE "user"
+      SET ${updateFields.join(', ')}, user_updateat = CURRENT_TIMESTAMP
       WHERE user_id = $${valueCounter}
-      RETURNING user_id, user_name, user_email, user_created_at
+      RETURNING user_id, user_hashtag, user_auto_hashtag, user_updateat
     `;
 
     const result = await client.query(query, values);
@@ -90,8 +98,8 @@ router.put('/user_update', async (req, res) => {
     }
 
     const updates = {
-      user_name: req.body.user_name,
-      user_email: req.body.user_email
+      user_hashtag: req.body.user_hashtag,
+      user_auto_hashtag: req.body.user_auto_hashtag
     };
 
     const updatedUser = await updateUserInfo(parsedSession.username, updates);

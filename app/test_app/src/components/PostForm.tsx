@@ -1,4 +1,4 @@
-import React, { useRef, ChangeEvent, DragEvent } from 'react';
+import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback } from 'react';
 
 interface FileItem {
   id: number;
@@ -33,6 +33,7 @@ const PostForm: React.FC<PostFormProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout>();
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -73,7 +74,7 @@ const PostForm: React.FC<PostFormProps> = ({
     
     let finalPostText = postText;
     
-    // ハッシュタグが存在する場合、本文用の文字列を��成
+    // ハッシュタグが存在する場合、本文用の文字列を生成
     if (fixedHashtags.trim()) {
       const processedTags = fixedHashtags
         .trim()
@@ -87,6 +88,65 @@ const PostForm: React.FC<PostFormProps> = ({
     // 最終的な本文を第2引数として渡す
     handleSubmit(e, finalPostText);
   };
+
+  // ハッシュタグの初期読み込み
+  useEffect(() => {
+    const fetchAutoHashtags = async () => {
+      try {
+        const response = await fetch('/api/user/user_read');
+        if (!response.ok) throw new Error('Failed to fetch hashtags');
+        const data = await response.json();
+        if (data.user_auto_hashtag) {
+          setFixedHashtags(data.user_auto_hashtag.join(' '));
+        }
+      } catch (error) {
+        console.error('Error fetching hashtags:', error);
+      }
+    };
+    fetchAutoHashtags();
+  }, []);
+
+  // ハッシュタグの自動保存（デバウンス処理付き）
+  const updateAutoHashtags = useCallback(async (tags: string) => {
+    try {
+      const tagsArray = tags.trim().split(/\s+/).filter(tag => tag);
+      await fetch('/api/user/user_update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_auto_hashtag: tagsArray
+        })
+      });
+    } catch (error) {
+      console.error('Error updating hashtags:', error);
+    }
+  }, []);
+
+  const handleHashtagChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setFixedHashtags(newValue);
+
+    // 既存のタイマーをクリア
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    // 新しいタイマーをセット（15秒後に更新）
+    updateTimeoutRef.current = setTimeout(() => {
+      updateAutoHashtags(newValue);
+    }, 15000);
+  };
+
+  // コンポーネントのクリーンアップ時にタイマーをクリア
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
 
@@ -175,7 +235,7 @@ const PostForm: React.FC<PostFormProps> = ({
             <input
               type="text"
               value={fixedHashtags}
-              onChange={(e) => setFixedHashtags(e.target.value)}
+              onChange={handleHashtagChange}
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
               placeholder="ハッシュタグの固定"
             />
