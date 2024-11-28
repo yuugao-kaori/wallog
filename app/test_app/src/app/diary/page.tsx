@@ -67,6 +67,7 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
+  const [autoAppendTags, setAutoAppendTags] = useState<boolean>(true);  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
   const [repostText, setRepostText] = useState<string>('');  // 追加
@@ -274,7 +275,7 @@ function Diary() {
     async (e: React.FormEvent, finalText?: string) => {
       e.preventDefault();
       try {
-        // finalTextをそのまま使用し、追���の処理は行わない
+        // finalTextをそのまま使用し、追加の処理は行わない
         const payload = {
           post_text: finalText || postText,  // finalTextが渡された場合はそのまま使用
           ...(files.length > 0 && { post_file: files.map(file => file.id) })
@@ -469,11 +470,13 @@ function Diary() {
           onSelectExistingFiles={handleSelectExistingFiles}
           fixedHashtags={fixedHashtags}
           setFixedHashtags={setFixedHashtags}
+          autoAppendTags={autoAppendTags}  // 追加
+          setAutoAppendTags={setAutoAppendTags}  // 追加
           />
           {status && <p className="mt-4 text-red-500">{status}</p>}
         </>
         ) : (
-        <p className="text-gray-500 mt-4">���</p>
+        <p className="text-gray-500 mt-4">投稿するにはログインが必要です。</p>
         )}
       </div>
       </aside>
@@ -525,6 +528,8 @@ function Diary() {
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
+      autoAppendTags={autoAppendTags}  // 追加
+      setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       />
 

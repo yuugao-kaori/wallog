@@ -18,6 +18,8 @@ interface PostFormProps {
   onSelectExistingFiles: () => void;
   fixedHashtags: string;
   setFixedHashtags: (tags: string) => void;
+  autoAppendTags: boolean;  // 追加
+  setAutoAppendTags: (value: boolean) => void;  // 追加
 }
 
 const PostForm: React.FC<PostFormProps> = ({
@@ -29,7 +31,9 @@ const PostForm: React.FC<PostFormProps> = ({
   handleDelete,
   onSelectExistingFiles,
   fixedHashtags,
-  setFixedHashtags
+  setFixedHashtags,
+  autoAppendTags,  // 追加
+  setAutoAppendTags  // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -74,8 +78,7 @@ const PostForm: React.FC<PostFormProps> = ({
     
     let finalPostText = postText;
     
-    // ハッシュタグが存在する場合、本文用の文字列を生成
-    if (fixedHashtags.trim()) {
+    if (autoAppendTags && fixedHashtags.trim()) {  // autoAppendTags を追加
       const processedTags = fixedHashtags
         .trim()
         .split(/\s+/)
@@ -85,7 +88,6 @@ const PostForm: React.FC<PostFormProps> = ({
       finalPostText = `${postText}\n${processedTags}`;
     }
     
-    // 最終的な本文を第2引数として渡す
     handleSubmit(e, finalPostText);
   };
 
@@ -231,7 +233,7 @@ const PostForm: React.FC<PostFormProps> = ({
           >
             アップロード済みファイルから選択
           </button>
-          <div className="mt-2">
+          <div className="mt-2 space-y-2">  {/* space-y-2 を追加 */}
             <input
               type="text"
               value={fixedHashtags}
@@ -239,6 +241,20 @@ const PostForm: React.FC<PostFormProps> = ({
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
               placeholder="ハッシュタグの固定"
             />
+            <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={autoAppendTags}
+                  onChange={(e) => setAutoAppendTags(e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  ハッシュタグを自動付与
+                </span>
+              </label>
+            </div>
           </div>
         </div>
       </form>
