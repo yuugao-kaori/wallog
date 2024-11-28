@@ -62,7 +62,18 @@ const PostForm: React.FC<PostFormProps> = ({
       if (e.shiftKey) {
         e.preventDefault();
         if (postText.trim() !== '' || files.length > 0) {
-          handleSubmit(e as any);
+          // ハッシュタグ処理を追加
+          let finalPostText = postText;
+          if (autoAppendTags && fixedHashtags.trim()) {
+            const processedTags = fixedHashtags
+              .trim()
+              .split(/\s+/)
+              .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
+              .join(' ');
+            
+            finalPostText = `${postText}\n${processedTags}`;
+          }
+          handleSubmit(e as any, finalPostText);
         }
       } else {
         // 通常のEnterは改行を許可（textareaの場合）
@@ -88,7 +99,7 @@ const PostForm: React.FC<PostFormProps> = ({
       finalPostText = `${postText}\n${processedTags}`;
     }
     
-    handleSubmit(e, finalPostText);
+    handleSubmit(e, finalPostText);  // finalPostTextを第2引数として渡す
   };
 
   // ハッシュタグの初期読み込み
