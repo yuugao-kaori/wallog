@@ -68,6 +68,8 @@ function Diary() {
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [repostData, setRepostData] = useState<Post | null>(null);
+  const [repostText, setRepostText] = useState<string>('');  // 追加
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
@@ -272,7 +274,7 @@ function Diary() {
     async (e: React.FormEvent, finalText?: string) => {
       e.preventDefault();
       try {
-        // finalTextをそのまま使用し、追加の処理は行わない
+        // finalTextをそのまま使用し、追���の処理は行わない
         const payload = {
           post_text: finalText || postText,  // finalTextが渡された場合はそのまま使用
           ...(files.length > 0 && { post_file: files.map(file => file.id) })
@@ -295,21 +297,51 @@ function Diary() {
     [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
   );
 
-  const handleDelete = async (fileId: number) => {
-    const fileToDelete = files.find(file => file.id === fileId);
-    
-    if (!fileToDelete) return;
+  const handleDelete = async (event: React.MouseEvent | number, postId?: string): Promise<boolean> => {
+    if (typeof event === 'number') {
+      // ファイル削除のケース
+      const fileId = event;
+      const fileToDelete = files.find(file => file.id === fileId);
+      
+      if (!fileToDelete) return false;
 
-    if (fileToDelete.isExisting) {
-      // 既存ファイルの場合は、添付のみを解除
-      setFiles((prev) => prev.filter((file) => file.id !== fileId));
-    } else {
-      // 新規アップロードファイルの場合は、APIで削除
-      try {
-        await api.post('/api/drive/file_delete', { file_id: fileId });
+      if (fileToDelete.isExisting) {
         setFiles((prev) => prev.filter((file) => file.id !== fileId));
+        return true;
+      } else {
+        try {
+          await api.post('/api/drive/file_delete', { file_id: fileId });
+          setFiles((prev) => prev.filter((file) => file.id !== fileId));
+          return true;
+        } catch (error) {
+          setStatus('ファイルの削除に失敗しました。');
+          return false;
+        }
+      }
+    } else {
+      // 投稿削除のケース
+      if (!postId) return false;
+      
+      try {
+        const response = await fetch('/api/post/post_delete', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ post_id: postId }),
+        });
+
+        if (!response.ok) {
+          throw new Error('削除に失敗しました');
+        }
+
+        setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+        addNotification('投稿を削除しました');
+        return true;
       } catch (error) {
-        setStatus('ファイルの削除に失敗しました。');
+        console.error('Error deleting post:', error);
+        addNotification('投稿の削除に失敗しました');
+        return false;
       }
     }
   };
@@ -391,6 +423,12 @@ function Diary() {
     }
   };
 
+  const handleRepost = async (post: Post) => {
+    setRepostData(post);
+    setRepostText(post.post_text);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
@@ -404,6 +442,7 @@ function Diary() {
           loading={loading}
           hasMore={hasMore}
           loadMorePosts={loadMorePosts}
+          onRepost={handleRepost}  // 追加
         />
         {loading && (
           <div className="w-full py-4 text-center">
@@ -434,7 +473,7 @@ function Diary() {
           {status && <p className="mt-4 text-red-500">{status}</p>}
         </>
         ) : (
-        <p className="text-gray-500 mt-4">　</p>
+        <p className="text-gray-500 mt-4">���</p>
         )}
       </div>
       </aside>
@@ -452,10 +491,32 @@ function Diary() {
       {/* モバイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
-      onClose={() => setIsModalOpen(false)}
-      postText={postText}
-      setPostText={setPostText}
-      handleSubmit={handleSubmit}
+      onClose={() => {
+        setIsModalOpen(false);
+        setRepostData(null);
+        setRepostText('');  // 追加: クリーンアップ
+      }}
+      postText={repostData ? repostText : postText}  // 変更: repostText を使用
+      setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
+      handleSubmit={async (e, finalText) => {
+        if (repostData) {
+          try {
+            // React.MouseEventとして新しいイベントを作成
+            const mouseEvent = { type: 'click' } as React.MouseEvent<Element, MouseEvent>;
+            const deleteSuccess = await handleDelete(mouseEvent, repostData.post_id);
+            
+            if (deleteSuccess) {
+              // 削除成功後に再投稿
+              await handleSubmit(e, finalText);
+            }
+          } catch (error) {
+            console.error('再投稿処理でエラーが発生しました:', error);
+            addNotification('再投稿に失敗しました');
+          }
+        } else {
+          await handleSubmit(e, finalText);
+        }
+      }}
       files={files}
       handleFiles={handleFiles}
       handleDelete={handleDelete}
@@ -464,6 +525,7 @@ function Diary() {
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
+      repostMode={!!repostData}  // 追加
       />
 
       {/* ファイル選択モーダル */}
@@ -471,7 +533,7 @@ function Diary() {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <button
-          className="absolute top-4 right-4 text-gray-600 dark:text-white"
+          className="absolute top-4 right-4 text-gray-600 dark:text白"
           onClick={() => setShowFileSelector(false)}
         >
           <FaTimes />
@@ -503,14 +565,14 @@ function Diary() {
             <div className="text-sm truncate dark:text-white">
               ファイルID: {file.file_id}
             </div>
-            <div className="text-xs text-gray-500 dark:text-white">
+            <div className="text-xs text-gray-500 dark:text白">
               {new Date(file.file_createat).toLocaleDateString()}
             </div>
             </div>
           ))}
           </div>
         ) : (
-          <div className="text-center text-gray-500 dark:text-white">
+          <div className="text-center text-gray-500 dark:text白">
           ファイルが見つかりません
           </div>
         )}

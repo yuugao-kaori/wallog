@@ -11,7 +11,7 @@ const Notification = dynamic(() => import('@/components/Notification'), {
   ssr: false
 });
 
-interface Post {
+export interface Post {
   post_id: string;
   post_text: string;
   post_file?: string | string[];
@@ -28,9 +28,10 @@ interface PostFeedProps {
   loading: boolean;
   hasMore: boolean;
   loadMorePosts: () => Promise<void>;
+  onRepost?: (post: Post) => Promise<void>;  // 追加
 }
 
-const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loading, hasMore, loadMorePosts }) => {
+const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loading, hasMore, loadMorePosts, onRepost }) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [newPostsAvailable, setNewPostsAvailable] = useState<boolean>(false);
@@ -173,6 +174,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
           handleDeleteClick={handleDeleteClick}
           formatDate={formatDate}
           renderHashtagsContainer={renderHashtagsContainer}
+          onRepost={onRepost}  // 追加
         />
       ))}
     </div>

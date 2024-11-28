@@ -5,20 +5,15 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useInView } from 'react-intersection-observer';
+import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
 
-interface Post {
-  post_id: string;
-  post_text: string;
-  post_file?: string | string[];
-  post_createat: string;
-}
-
+// 既存のPostインターフェースを削除し、PostFeedのものを使用
 interface Props {
-  post: Post;
+  post: PostFeedPost;  // 変更
   isLoggedIn: boolean;
   handleDeleteClick: (event: React.MouseEvent, postId: string) => void;
   formatDate: (date: string) => string;
@@ -26,6 +21,7 @@ interface Props {
   renderHashtagsContainer?: (text: string) => React.ReactNode;
   className?: string;
   onDelete: (event: React.MouseEvent, post_id: string) => Promise<boolean>;
+  onRepost?: (post: PostFeedPost) => Promise<void>;  // 変更
 }
 
 interface ImageData {
@@ -36,7 +32,7 @@ interface ImageData {
   status: 'idle' | 'loading' | 'error';
 }
 
-const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete }: Props) => {
+const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const { ref, inView } = useInView({
@@ -51,6 +47,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     deleteModalOpen: false, // 削除モーダル用の状態
     imageModalOpen: false,  // 画像モーダル用の状態
     selectedImage: null as string | null,
+    repostModalOpen: false, // 追加
   });
   const [notifications, setNotifications] = useState<{ id: string, message: string }[]>([]);
 
@@ -259,10 +256,10 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     
     navigator.clipboard.writeText(url)
       .then(() => {
-        addNotification("クリップ��ードにURLがコピーされました");
+        addNotification("クリップボードにURLがコピーされました");
       })
       .catch((err) => {
-        console.error("コピーに失敗しました", err);
+        console.error("コピーに失敗しま���た", err);
         addNotification("コピーに失敗しました");
       });
   };
@@ -304,6 +301,25 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   const handleImageLoad = useCallback((fileId: string) => {
     setImageData(prev => ({ ...prev, [fileId]: { ...prev[fileId], loading: false } }));
   }, []);
+
+  const handleRepost = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!onRepost) return;
+    
+    setUiState(prev => ({
+      ...prev,
+      repostModalOpen: false,
+      menuOpen: false
+    }));
+    
+    try {
+      await onRepost(post);
+      addNotification("投稿を再作成しました");
+    } catch (error) {
+      console.error("再投稿に失敗しました", error);
+      addNotification("再投稿に失敗しました");
+    }
+  };
 
   const renderImages = useCallback(() => {
     if (!post.post_file) return null;
@@ -379,13 +395,22 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
                 リンクをコピー
               </li>
               {isLoggedIn && (
-                <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                    onClick={() => setUiState(prev => ({
-                      ...prev,
-                      deleteModalOpen: true
-                    }))}>
-                  削除
-                </li>
+                <>
+                  <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => setUiState(prev => ({
+                        ...prev,
+                        deleteModalOpen: true
+                      }))}>
+                    削除
+                  </li>
+                  <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => setUiState(prev => ({
+                        ...prev,
+                        repostModalOpen: true
+                      }))}>
+                    削除して再投稿
+                  </li>
+                </>
               )}
             </ul>
           </div>
@@ -398,6 +423,18 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
             deleteModalOpen: false
           }))}
           onDelete={(e) => handleDelete(e, post.post_id)}
+        />
+
+        <DeleteConfirmModal
+          isOpen={uiState.repostModalOpen}
+          onClose={() => setUiState(prev => ({
+            ...prev,
+            repostModalOpen: false
+          }))}
+          onDelete={handleRepost}
+          title="削除して再投稿"
+          message="この投稿を削除して再投稿しますか？"
+          confirmText="再投稿"
         />
 
         <ImageModal
