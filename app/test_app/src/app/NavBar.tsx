@@ -140,7 +140,7 @@ const NavBarClient = () => {
           <MenuLink href="/blog">Blog</MenuLink>
           <MenuLink href="/search">Search</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
-          {isLoggedIn && <MenuLink href="/settings">Settings</MenuLink>}
+          {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
         </div>
 
         <div className="flex flex-col space-y-4">

@@ -51,15 +51,20 @@ router.put('/sticky_note_update', async (req, res) => {
       sticky_note_hashtag
     } = req.body;
 
+    // ハッシュタグを PostgreSQL の配列形式に変換
+    const formattedHashtags = sticky_note_hashtag
+      ? `{${sticky_note_hashtag.split(' ').join(',')}}`
+      : null;
+
     const updateQuery = `
       UPDATE "sticky-note"
       SET 
-        sticky_note_title = COALESCE($1, sticky_note_title),
-        sticky_note_text = COALESCE($2, sticky_note_text),
-        sticky_note_attitude = COALESCE($3, sticky_note_attitude),
-        sticky_note_hashtag = COALESCE($4, sticky_note_hashtag),
-        sticky_note_updateat = CURRENT_TIMESTAMP
-      WHERE sticky_note_id = $5
+        "sticky-note_title" = COALESCE($1, "sticky-note_title"),
+        "sticky-note_text" = COALESCE($2, "sticky-note_text"),
+        "sticky-note_attitude" = COALESCE($3, "sticky-note_attitude"),
+        "sticky-note_hashtag" = COALESCE($4, "sticky-note_hashtag"),
+        "sticky-note_updateat" = CURRENT_TIMESTAMP
+      WHERE "sticky-note_id" = $5
       RETURNING *;
     `;
 
@@ -67,7 +72,7 @@ router.put('/sticky_note_update', async (req, res) => {
       sticky_note_title,
       sticky_note_text,
       sticky_note_attitude,
-      sticky_note_hashtag,
+      formattedHashtags,  // 変換したハッシュタグを使用
       sticky_note_id
     ]);
 

@@ -67,7 +67,7 @@ async function deleteStickyNote(stickyNoteId) {
 }
 
 // 削除APIエンドポイント
-router.post('/sticky_note_delete', async (req, res) => {
+router.put('/sticky_note_delete', async (req, res) => {
   if (!req.session) {
     console.error('Session object is not found.');
     return res.status(401).json({ error: 'Session object not found' });

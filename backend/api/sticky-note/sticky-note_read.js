@@ -31,7 +31,11 @@ router.use(
   })
 );
 
-async function getStickyNotes(limit = 20, lastId = null) {
+router.get('/sticky_note_read', async (req, res) => {
+  if (!req.session) {
+    return res.status(401).json({ error: 'Session object not found' });
+  }
+
   const client = new Client({
     user: process.env.POSTGRES_USER,
     host: process.env.POSTGRES_NAME,
@@ -42,59 +46,23 @@ async function getStickyNotes(limit = 20, lastId = null) {
 
   try {
     await client.connect();
-    
-    let query = `
-      SELECT *
+    const query = `
+      SELECT 
+        "sticky-note_id",
+        "sticky-note_title",
+        "sticky-note_text",
+        "sticky-note_hashtag",
+        "sticky-note_createat"
       FROM "sticky-note"
-      WHERE "sticky-note_attitude" = 1
+      ORDER BY "sticky-note_createat" DESC;
     `;
-    
-    const params = [];
-    if (lastId) {
-      query += ` AND "sticky-note_id" < $1`;
-      params.push(lastId);
-    }
-    
-    query += `
-      ORDER BY "sticky-note_id" DESC
-      LIMIT $${params.length + 1}
-    `;
-    params.push(limit);
-
-    const result = await client.query(query, params);
-    return result.rows;
-  } finally {
-    await client.end();
-  }
-}
-
-router.get('/sticky_note_read', async (req, res) => {
-  if (!req.session) {
-    return res.status(401).json({ error: 'Session object not found' });
-  }
-
-  const sessionId = req.sessionID;
-
-  try {
-    const sessionData = await redis.get(`sess:${sessionId}`);
-    if (!sessionData) {
-      return res.status(401).json({ error: 'No session data found' });
-    }
-
-    const parsedSession = JSON.parse(sessionData);
-    if (!parsedSession.username) {
-      return res.status(401).json({ error: 'User not logged in' });
-    }
-
-    const limit = parseInt(req.query.limit) || 20;
-    const lastId = req.query.last_id || null;
-
-    const stickyNotes = await getStickyNotes(limit, lastId);
-    return res.status(200).json({ sticky_notes: stickyNotes });
-
+    const result = await client.query(query);
+    return res.status(200).json({ sticky_notes: result.rows });
   } catch (error) {
     console.error('Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    await client.end();
   }
 });
 
