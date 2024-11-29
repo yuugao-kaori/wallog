@@ -25,6 +25,7 @@ export default function StickyNote() {
     hashtags: ''
   });
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [emptyLineCount, setEmptyLineCount] = useState(0);
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -145,6 +146,48 @@ export default function StickyNote() {
     }
   };
 
+  const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      const textarea = e.currentTarget;
+      const { value, selectionStart } = textarea;
+      
+      const lastNewLine = value.lastIndexOf('\n', selectionStart - 1);
+      const currentLineStart = lastNewLine + 1;
+      const currentLine = value.slice(currentLineStart, selectionStart);
+      
+      // 現在の行が "- " で始まっているか、かつ内容が空かチェック
+      if (currentLine.trimStart().startsWith('- ')) {
+        const lineContent = currentLine.trim().slice(2); // "- " の後の内容
+
+        if (lineContent === '') {
+          // 空の行の場合、カウントを増やす
+          const newCount = emptyLineCount + 1;
+          setEmptyLineCount(newCount);
+
+          // 1回空行の場合、オートコレクトを中止
+          if (newCount >= 1) {
+            setEmptyLineCount(0);
+            return; // 通常の改行を許可
+          }
+        } else {
+          // 内容がある行の場合、カウントをリセット
+          setEmptyLineCount(0);
+        }
+
+        e.preventDefault();
+        const newText = value.slice(0, selectionStart) + '\n- ' + value.slice(selectionStart);
+        setFormData({...formData, text: newText});
+        
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = selectionStart + 3;
+        }, 0);
+      } else {
+        // "- "で始まっていない行の場合もカウントをリセット
+        setEmptyLineCount(0);
+      }
+    }
+  };
+
   return (
     <div className="p-4">
       <div className="mb-4">
@@ -158,7 +201,7 @@ export default function StickyNote() {
 
       {isModalOpen && (
         <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-96">
+          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg w-96">
             <h2 className="text-xl font-bold mb-4 dark:text-white">新規メモ作成</h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -167,7 +210,7 @@ export default function StickyNote() {
                   placeholder="タイトル"
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  className="w-full p-2 rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
                   required
                 />
               </div>
@@ -176,7 +219,8 @@ export default function StickyNote() {
                   placeholder="本文"
                   value={formData.text}
                   onChange={e => setFormData({...formData, text: e.target.value})}
-                  className="w-full p-2 border rounded h-32 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  onKeyDown={handleTextAreaKeyDown}
+                  className="w-full p-2 rounded h-64 dark:bg-gray-700 dark:text-white dark:border-gray-600"
                 />
               </div>
               <div className="mb-4">
@@ -185,7 +229,7 @@ export default function StickyNote() {
                   placeholder="タグ（スペース区切り）"
                   value={formData.hashtags}
                   onChange={e => setFormData({...formData, hashtags: e.target.value})}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  className="w-full p-2 rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -210,7 +254,7 @@ export default function StickyNote() {
 
       {isViewModalOpen && selectedNote && (
         <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-96 dark:bg-gray-800 dark:text-white">
+          <div className="bg-white p-3 rounded-lg w-96 dark:bg-gray-800 dark:text-white">
             <form onSubmit={handleEditSubmit}>
               <div className="mb-4">
                 <input
@@ -218,7 +262,7 @@ export default function StickyNote() {
                   placeholder="タイトル"
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full p-1 border rounded dark:bg-gray-800 dark:text-white"
+                  className="w-full p-1 rounded dark:bg-gray-800 dark:text-white"
                   required
                 />
               </div>
@@ -227,7 +271,8 @@ export default function StickyNote() {
                   placeholder="本文"
                   value={formData.text}
                   onChange={e => setFormData({...formData, text: e.target.value})}
-                  className="w-full p-1 border rounded h-48 dark:bg-gray-800 dark:text-white"
+                  onKeyDown={handleTextAreaKeyDown}
+                  className="w-full p-1 rounded h-64 dark:bg-gray-800 dark:text-white"
                 />
               </div>
               <div className="mb-4">
@@ -236,7 +281,7 @@ export default function StickyNote() {
                   placeholder="タグ（スペース区切り）"
                   value={formData.hashtags}
                   onChange={e => setFormData({...formData, hashtags: e.target.value})}
-                  className="w-full p-1 border rounded dark:bg-gray-800 dark:text-white"
+                  className="w-full p-1 rounded dark:bg-gray-800 dark:text-white"
                 />
               </div>
               <div className="flex justify-between gap-2">
