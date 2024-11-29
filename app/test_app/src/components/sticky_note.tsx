@@ -24,6 +24,7 @@ export default function StickyNote() {
     text: '',
     hashtags: ''
   });
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -112,6 +113,10 @@ export default function StickyNote() {
   };
 
   const handleDelete = async () => {
+    setIsDeleteConfirmationOpen(true);
+  };
+
+  const confirmDelete = async () => {
     if (!selectedNote) return;
 
     try {
@@ -128,6 +133,9 @@ export default function StickyNote() {
       if (response.ok) {
         setIsViewModalOpen(false);
         setSelectedNote(null);
+        setIsDeleteConfirmationOpen(false);
+        // フォームデータをクリア
+        setFormData({ title: '', text: '', hashtags: '' });
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
         setNotes(data.sticky_notes);
@@ -256,6 +264,29 @@ export default function StickyNote() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isDeleteConfirmationOpen && (
+        <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-80">
+            <h3 className="text-lg font-bold mb-4 dark:text-white">削除の確認</h3>
+            <p className="mb-6 dark:text-white">このメモを削除してもよろしいですか？</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsDeleteConfirmationOpen(false)}
+                className="bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-black dark:text-white font-bold py-2 px-4 rounded"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+              >
+                削除
+              </button>
+            </div>
           </div>
         </div>
       )}
