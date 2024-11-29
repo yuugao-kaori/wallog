@@ -106,7 +106,7 @@ async function indexPostToElasticsearch(post) {
 
 
 // 投稿とハッシュタグを挿入する関数
-async function insertPostAndTags(postId, postText, fileId, tags, parsedSession) {
+async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, repostId, replyId) {
   const client = new Client({
     user: process.env.POSTGRES_USER,
     host: process.env.POSTGRES_NAME,
@@ -125,8 +125,8 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession) 
 
     // postテーブルに挿入
     const insertPostQuery = `
-      INSERT INTO post (post_id, user_id, post_text, post_tag, post_file, post_attitude)
-      VALUES ($1, $2, $3, $4, $5, 1)
+      INSERT INTO post (post_id, user_id, post_text, post_tag, post_hashtag, post_file, post_attitude, repost_id, reply_id)
+      VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8)
       RETURNING *;
     `;
     const postValues = [
@@ -134,7 +134,10 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession) 
       parsedSession.username,
       postText,
       tags.length > 0 ? tags.join(' ') : 'none_data',
-      fileId
+      tags.length > 0 ? tags : null,  // post_hashtagにタグ配列を設定
+      fileId,
+      repostId || null,  // repost_idが存在しない場合はnull
+      replyId || null    // reply_idが存在しない場合はnull
     ];
 
     const postResult = await client.query(insertPostQuery, postValues);
@@ -240,7 +243,15 @@ router.post('/post_create', async (req, res) => {
       // 投稿とタグを挿入
       try {
         console.log('処理開始');
-        const newPost = await insertPostAndTags(post_id, req.body.post_text, req.body.post_file, post_tags, parsedSession);
+        const newPost = await insertPostAndTags(
+          post_id, 
+          req.body.post_text, 
+          req.body.post_file, 
+          post_tags, 
+          parsedSession,
+          req.body.repost_id,  // 新しく追加
+          req.body.reply_id    // 新しく追加
+        );
         console.log('New post:', newPost);
         // 新しい投稿をElasticsearchにインデックス登録
         await indexPostToElasticsearch(newPost);
