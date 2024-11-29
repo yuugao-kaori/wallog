@@ -145,7 +145,7 @@ export default function SettingsPage() {
             <main className="flex-1 relative md:ml-64 bg-white dark:bg-gray-900 duration-300">
                 <div className="absolute inset-0 overflow-auto">
                     <div className="p-8 max-w-4xl mx-auto">
-                        <h1 className="text-3xl font-bold mb-6">設定</h1>
+                        <h1 className="text-3xl font-bold mb-6">Private</h1>
 
                         <div className="mb-6">
                             <div className="border-b border-gray-200">
