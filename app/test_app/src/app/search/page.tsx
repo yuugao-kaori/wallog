@@ -19,7 +19,7 @@ export default function SearchPage() {
   const router = useRouter();
   
   const urlSearchText = searchParams.get('searchText') || '';
-  const urlSearchType = searchParams.get('searchType') || '全文検索';
+  const urlSearchType = searchParams.get('searchType') || 'full_text';
 
   const [searchText, setSearchText] = useState(urlSearchText);
   const [searchType, setSearchType] = useState(urlSearchType);
@@ -55,7 +55,7 @@ export default function SearchPage() {
       }
 
       try {
-        const apiUrl = searchMode === '全文検索'
+        const apiUrl = searchMode === 'full_text'
           ? `/api/post/search/${encodeURIComponent(searchTerm)}`
           : `/api/post/tag_search/${encodeURIComponent(searchTerm)}`;
 
@@ -99,7 +99,7 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
 
-    const apiUrl = searchType === '全文検索'
+    const apiUrl = searchType === 'full_text'
       ? `/api/post/search/${encodeURIComponent(searchText)}`
       : `/api/post/tag_search/${encodeURIComponent(searchText)}`;
 
@@ -162,9 +162,9 @@ export default function SearchPage() {
     };
   }, [loading, hasMore, loadMore]);
 
-  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, post_id: string) => {
+  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, post_id: string): Promise<boolean> => {
     event.stopPropagation();  // イベントの伝播を停止
-    if (!window.confirm('本当に削除しますか？')) return;
+    if (!window.confirm('本当に削除しますか？')) return false;
 
     try {
       const response = await axios.delete('/api/post/post_delete', {
@@ -177,12 +177,15 @@ export default function SearchPage() {
       if (response.status === 200) {
         setResults((prevResults) => prevResults.filter(post => post.post_id !== post_id));
         alert('投稿が削除されました。');
+        return true;
       } else {
         alert('削除に失敗しました。');
+        return false;
       }
     } catch (error) {
       console.error('削除エラー:', error);
       alert('エラーが発生しました。');
+      return false;
     }
   };
 
@@ -276,8 +279,8 @@ export default function SearchPage() {
               onChange={(e) => setSearchType(e.target.value)}
               className="w-full border border-gray-300 dark:bg-gray-800 px-4 py-2 rounded-md"
             >
-              <option value="全文検索">全文検索</option>
-              <option value="タグ検索">タグ検索</option>
+              <option value="full_text">全文検索</option>
+              <option value="hashtag">タグ検索</option>
             </select>
             <button
               onClick={handleSearch}

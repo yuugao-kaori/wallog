@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { FileItem } from '@/types/index';
 
 interface PostFormPopupProps {
@@ -8,15 +8,19 @@ interface PostFormPopupProps {
   onClose: () => void;
   postText: string;
   setPostText: (text: string) => void;
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
   handleDelete: (fileId: number) => void;
   isLoggedIn: boolean;
   status: string;
-  onSelectExistingFiles: () => void;  // 追加
+  onSelectExistingFiles: () => void;
   fixedHashtags: string;
   setFixedHashtags: (tags: string) => void;
+  autoAppendTags: boolean;  // 追加
+  setAutoAppendTags: (value: boolean) => void;  // 追加
+  repostMode?: boolean;  // 追加
+  initialText?: string;  // 追加
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -30,9 +34,12 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   handleDelete,
   isLoggedIn,
   status,
-  onSelectExistingFiles,  // 追加
+  onSelectExistingFiles,
   fixedHashtags,
   setFixedHashtags,
+  autoAppendTags,  // 追加
+  setAutoAppendTags,  // 追加
+  repostMode = false,  // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -65,10 +72,81 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
       if (postText.trim() !== '' || files.length > 0) {
-        handleSubmit(e as any);
+        handleFormSubmit(e as any);
       }
     }
   };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    let finalPostText = postText;
+    
+    if (autoAppendTags && fixedHashtags.trim()) {  // autoAppendTags を追加
+      const processedTags = fixedHashtags
+        .trim()
+        .split(/\s+/)
+        .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
+        .join(' ');
+      
+      finalPostText = `${postText}\n${processedTags}`;
+    }
+    
+    handleSubmit(e, finalPostText);
+  };
+
+  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const updateAutoHashtags = useCallback(async (tags: string) => {
+    try {
+      const tagsArray = tags.trim().split(/\s+/).filter(tag => tag);
+      await fetch('/api/user/user_update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_auto_hashtag: tagsArray
+        })
+      });
+    } catch (error) {
+      console.error('Error updating hashtags:', error);
+    }
+  }, []);
+
+  const handleHashtagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setFixedHashtags(newValue);
+
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    updateTimeoutRef.current = setTimeout(() => {
+      updateAutoHashtags(newValue);
+    }, 15000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && repostMode) {
+      // フォーカスを設定
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        // カーソルを末尾に移動
+        const length = textarea.value.length;
+        textarea.setSelectionRange(length, length);
+      }
+    }
+  }, [isOpen, repostMode]);
 
   if (!isOpen) return null;
 
@@ -81,9 +159,11 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
         >
           ×
         </button>
-        <h2 className="text-xl font-bold mb-4">新規投稿</h2>
+        <h2 className="text-xl font-bold mb-4">
+          {repostMode ? "投稿を再作成" : "新規投稿"}  {/* 変更 */}
+        </h2>
         {isLoggedIn ? (
-          <form onSubmit={handleSubmit} className="mt-2">
+          <form onSubmit={handleFormSubmit} className="mt-2">
             <textarea
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
               value={postText}
@@ -152,8 +232,30 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 ))}
               </div>
             )}
-            {/* ファイル選択ボタンを追加 */}
-            <div className="mt-4 mb-6">  {/* mb-6 を追加 */}
+            <div className="mt-4 space-y-2">  {/* space-y-2 を追加 */}
+              <input
+                type="text"
+                value={fixedHashtags}
+                onChange={handleHashtagChange}
+                className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+                placeholder="ハッシュタグの固定"
+              />
+              <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={autoAppendTags}
+                    onChange={(e) => setAutoAppendTags(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    ハッシュタグを自動付与
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div className="mt-4 mb-6">
               <button
                 type="button"
                 onClick={onSelectExistingFiles}
@@ -176,7 +278,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
             {status && <p className="mt-4 text-red-500">{status}</p>}
           </form>
         ) : (
-          <p className="text-gray-500">投稿を作成するにはログインしてください。</p>
+          <p className="text-gray-500">投稿を作成するにはログインしてください���</p>
         )}
       </div>
     </div>

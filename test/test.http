@@ -94,3 +94,5 @@ curl -X POST 'http://wallog.seitendan.com/api/post/search' \
   "post_id": [1, 2, 3],
   "limit": 10
 }'
+###
+curl -X GET 'http://wallog.seitendan.com/api/settings/settings_read' \

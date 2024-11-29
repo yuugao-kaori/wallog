@@ -25,7 +25,8 @@ const router = express.Router();
 
 const getNewPosts = async () => {
     const query = `
-      SELECT post_id, user_id, post_text, post_createat, post_updateat, post_tag, post_file, post_attitude
+      SELECT post_id, user_id, post_text, post_createat, post_updateat, post_tag, 
+             post_file, post_attitude, repost_id, reply_id
       FROM post 
       ORDER BY post_createat DESC 
       LIMIT 1
@@ -37,8 +38,8 @@ const getNewPosts = async () => {
         }
         return {
             ...post,
-            created_at: post.post_createat,
-            post_createat: undefined, // 不要なキーを削除
+            // created_at: post.post_createat を削除
+            // post_createat はそのまま残す
         };
     });
 };

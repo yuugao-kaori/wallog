@@ -12,9 +12,6 @@ RUN npm install
 
 # アプリケーションコードをコピー
 COPY . .
-# .envファイルをコピー
-COPY .env ./
-COPY ./RDD.md ./
 
 
 # Expose the internal port

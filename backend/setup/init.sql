@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS "post" (
     post_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     post_tag TEXT, -- リスト形式でそのまま収容
     post_file TEXT, -- 半角コンマで区切るfile_id
-    post_attitude NUMERIC DEFAULT 1
+    post_attitude NUMERIC DEFAULT 1,
+    repost_id text[],
+    reply_id text[]
+    post_hashtag TEXT[]
 );
 
 -- blogテーブルの作成
@@ -67,7 +70,21 @@ CREATE TABLE IF NOT EXISTS "user" (
     user_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     user_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     user_failcount SMALLSERIAL,
-    user_token TEXT
+    user_token TEXT,
+    user_hashtag text[],
+    user_auto_hashtag text[]
+);
+
+-- sticky-noteテーブルの作成
+CREATE TABLE IF NOT EXISTS "sticky-note" (
+    sticky-note_id TEXT PRIMARY KEY,
+    sticky-note_title TEXT NOT NULL,
+    sticky-note_text TEXT,
+    sticky-note_remind TEXT,
+    sticky-note_attitude NUMERIC DEFAULT 1,
+    sticky-note_hashtag TEXT[],
+    sticky-note_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sticky-note_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- post_tagテーブルの作成

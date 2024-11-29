@@ -42,16 +42,26 @@ import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
 import login_checkRoute from './api/user/login_check.js';
+import user_readRoute from './api/user/user_read.js';
+import user_updateRoute from './api/user/user_update.js';
 import test1Route from './api/test/test1.js';
 import test2Route from './api/test/test2.js';
 import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
+import settings_readRoute from './api/settings/settings_read.js';
+import settings_updateRoute from './api/settings/settings_update.js';
+import sticky_note_createRoute from './api/sticky-note/sticky-note_create.js';
+import sticky_note_readRoute from './api/sticky-note/sticky-note_read.js';
+import sticky_note_updateRoute from './api/sticky-note/sticky-note_update.js';
+import sticky_note_deleteRoute from './api/sticky-note/sticky-note_delete.js';
 
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
 app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
-app.use('/api/user', loginRoute, logoutRoute, login_checkRoute);
+app.use('/api/user', loginRoute, logoutRoute, login_checkRoute, user_readRoute, user_updateRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
+app.use('/api/settings', settings_readRoute, settings_updateRoute);
+app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, sticky_note_updateRoute, sticky_note_deleteRoute);
 
 // 404エラーハンドリング
 app.use((req, res, next) => {
@@ -67,7 +77,7 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 
-// WebSocketサーバーを設定
+// WebSocket��ーバーを設定
 post_wsRoute(server);
 
 server.listen(port, () => {
