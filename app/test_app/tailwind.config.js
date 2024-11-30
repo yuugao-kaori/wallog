@@ -17,7 +17,8 @@ module.exports = {
     },
   },
   plugins: [
-    require('tailwind-scrollbar-hide')
+    require('@tailwindcss/typography'),
+    require('tailwind-scrollbar-hide'),
     // もしトランジション関連のプラグインがあれば削除
   ],
 }

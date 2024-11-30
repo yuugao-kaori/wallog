@@ -1,5 +1,7 @@
 */wallog_next/*
 **/db_data/**
+**/minio/**
+
 *.gz
 # Logs
 logs

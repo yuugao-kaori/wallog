@@ -144,7 +144,7 @@ const NavBarClient = () => {
         </div>
 
         <div className="flex flex-col space-y-4">
-          <div className="flex justify-center space-x-2">
+          <div className="flex justify-center space-x-1">
             <Link 
               href="https://github.com/yuugao-kaori/wallog" 
               target="_blank" 

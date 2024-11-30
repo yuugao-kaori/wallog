@@ -43,16 +43,29 @@ export default function StickyNote() {
   };
 
   useEffect(() => {
+    let isSubscribed = true;
+    
     const fetchNotes = async () => {
       try {
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
-        setNotes(data.sticky_notes);
+        if (isSubscribed) {
+          setNotes(data.sticky_notes);
+        }
       } catch (error) {
         console.error('Error fetching notes:', error);
+        if (isSubscribed) {
+          addNotification('メモの読み込みに失敗しました');
+        }
       }
     };
+
     fetchNotes();
+
+    // クリーンアップ関数
+    return () => {
+      isSubscribed = false;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,9 +84,7 @@ export default function StickyNote() {
       });
 
       if (response.ok) {
-        setIsModalOpen(false);
-        setFormData({ title: '', text: '', hashtags: '' });
-        // 新しいノートを取得して表示を更新
+        await closeModal();
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
         setNotes(data.sticky_notes);
@@ -155,6 +166,14 @@ export default function StickyNote() {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.shiftKey && e.key === 'Enter' && selectedNote) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleEditSubmit(e as any);
+    }
+  };
+
   const handleDelete = async () => {
     setIsDeleteConfirmationOpen(true);
   };
@@ -210,8 +229,15 @@ export default function StickyNote() {
 
           // 1回空行の場合、オートコレクトを中止
           if (newCount >= 1) {
+            e.preventDefault();
+            const newText = value.slice(0, selectionStart) + '\n' + value.slice(selectionStart);
+            setFormData({...formData, text: newText});
             setEmptyLineCount(0);
-            return; // 通常の改行を許可
+            
+            setTimeout(() => {
+              textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+            }, 0);
+            return;
           }
         } else {
           // 内容がある行の場合、カウントをリセット
@@ -244,6 +270,17 @@ export default function StickyNote() {
     setIsViewModalOpen(false);
     setSelectedNote(null);
     resetFormData();
+  };
+
+  // モーダルを閉じる前の処理を追加
+  const closeModal = () => {
+    return new Promise<void>((resolve) => {
+      setIsModalOpen(false);
+      setIsViewModalOpen(false);
+      setSelectedNote(null);
+      resetFormData();
+      resolve();
+    });
   };
 
   return (
@@ -319,7 +356,7 @@ export default function StickyNote() {
              onClick={handleModalClick}>
           <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg w-[90%] max-w-[600px] max-h-[90vh] overflow-y-auto shadow-xl dark:text-white"
                onClick={e => e.stopPropagation()}>
-            <form onSubmit={handleEditSubmit}>
+            <form onSubmit={handleEditSubmit} onKeyDown={handleKeyDown}>
               <div className="mb-4">
                 <input
                   type="text"

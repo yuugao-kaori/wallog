@@ -139,6 +139,20 @@ services:
         soft: -1
         hard: -1
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio_unique
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    entrypoint: sh
+    command: -c "/opt/bin/minio server /export --address :9000 --console-address :9001"
+    volumes:
+      - ./minio/data:/export
+
   nginx:
     container_name: nginx_unique
     image: nginx:latest
