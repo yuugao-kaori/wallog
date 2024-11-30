@@ -433,7 +433,7 @@ function Diary() {
   return (
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
-      <main className="flex-1 relative md:ml-64 bg-white dark:bg-gray-900 duration-300">  {/* md:ml-64 を追加 */}
+      <main className="flex-1 relative md:ml-48 bg-white dark:bg-gray-900 duration-300">  {/* md:ml-64 から md:ml-48 に変更 */}
       <div className="absolute inset-0 md:pr-[300px]">
         <div className="h-full overflow-auto px-4 bg-white dark:bg-gray-900 duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <PostFeed

@@ -142,7 +142,7 @@ export default function SettingsPage() {
 
     return (
         <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
-            <main className="flex-1 relative md:ml-64 bg-white dark:bg-gray-900 duration-300">
+            <main className="flex-1 relative md:ml-48 bg-white dark:bg-gray-900 duration-300">
                 <div className="absolute inset-0 overflow-auto">
                     <div className="p-8 max-w-4xl mx-auto">
                         <h1 className="text-3xl font-bold mb-6">Private</h1>

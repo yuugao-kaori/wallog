@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Notification from './Notification';
 
 interface Note {
   'sticky-note_id': string;
@@ -6,6 +7,7 @@ interface Note {
   'sticky-note_text': string;
   'sticky-note_hashtag': string;
   'sticky-note_createat': string;  // created_at から sticky-note_createat に変更
+  'sticky-note_updateat': string;  // Add sticky-note_updateat property
 }
 
 interface FormData {
@@ -26,6 +28,19 @@ export default function StickyNote() {
   });
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [emptyLineCount, setEmptyLineCount] = useState(0);
+  const [notifications, setNotifications] = useState<{ id: string; message: string; }[]>([]);
+
+  const addNotification = (message: string) => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(notification => notification.id !== id));
+    }, 5000);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -62,9 +77,11 @@ export default function StickyNote() {
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
         setNotes(data.sticky_notes);
+        addNotification('メモを作成しました');
       }
     } catch (error) {
       console.error('Error creating note:', error);
+      addNotification('メモの作成に失敗しました');
     }
   };
 
@@ -130,9 +147,11 @@ export default function StickyNote() {
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
         setNotes(data.sticky_notes);
+        addNotification('メモを更新しました');
       }
     } catch (error) {
       console.error('Error updating note:', error);
+      addNotification('メモの更新に失敗しました');
     }
   };
 
@@ -163,9 +182,11 @@ export default function StickyNote() {
         const response = await fetch('/api/sticky_note/sticky_note_read');
         const data = await response.json();
         setNotes(data.sticky_notes);
+        addNotification('メモを削除しました');
       }
     } catch (error) {
       console.error('Error deleting note:', error);
+      addNotification('メモの削除に失敗しました');
     }
   };
 
@@ -227,6 +248,10 @@ export default function StickyNote() {
 
   return (
     <div className="p-4">
+      <Notification 
+        notifications={notifications}
+        onClose={removeNotification}
+      />
       <div className="mb-4">
         <button
           onClick={() => setIsModalOpen(true)}
@@ -237,7 +262,7 @@ export default function StickyNote() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 md:ml-48 bg-black bg-opacity-50 flex items-center justify-center">
           <div className=" bg-gray-100 dark:bg-gray-800 p-3 rounded-lg w-[576px]">
             <h2 className="text-xl font-bold mb-4 dark:text-white">新規メモ作成</h2>
             <form onSubmit={handleSubmit}>
@@ -290,7 +315,7 @@ export default function StickyNote() {
       )}
 
       {isViewModalOpen && selectedNote && (
-        <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-40 flex items-center justify-center"
+        <div className="fixed inset-0 md:ml-48 bg-black bg-opacity-40 flex items-center justify-center"
              onClick={handleModalClick}>
           <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg w-[90%] max-w-[600px] max-h-[90vh] overflow-y-auto shadow-xl dark:text-white"
                onClick={e => e.stopPropagation()}>
@@ -353,7 +378,7 @@ export default function StickyNote() {
       )}
 
       {isDeleteConfirmationOpen && (
-        <div className="fixed inset-0 md:ml-64 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 md:ml-48 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className=" bg-gray-100 dark:bg-gray-800 p-6 rounded-lg w-80">
             <h3 className="text-lg font-bold mb-4 dark:text-white">削除の確認</h3>
             <p className="mb-6 dark:text-white">このメモを削除してもよろしいですか？</p>
@@ -383,7 +408,7 @@ export default function StickyNote() {
             onClick={() => handleNoteClick(note)}
           >
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              {new Date(note['sticky-note_createat']).toLocaleString('ja-JP')}
+              {new Date(note['sticky-note_updateat']).toLocaleString('ja-JP')}
             </div>
             <h3 className="font-bold text-lg mb-2 line-clamp-2 dark:text-white">
               {note['sticky-note_title']}

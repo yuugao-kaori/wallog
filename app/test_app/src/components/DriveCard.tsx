@@ -18,6 +18,7 @@ interface DriveCardProps {
 export default function DriveCard({ file, handleDeleteClick, handleEditClick, handleCopyUrl }: DriveCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; message: string; }[]>([]);
+  const [imageError, setImageError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const addNotification = (message: string) => {
@@ -47,6 +48,27 @@ export default function DriveCard({ file, handleDeleteClick, handleEditClick, ha
     } catch (err) {
       console.error('URLのコピーに失敗しました:', err);
       addNotification('URLのコピーに失敗しました');
+    }
+  };
+
+  const handleDownload = async (file_id: string) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_DOMAIN?.replace(/\/+$/, '');
+      const fileUrl = `${baseUrl}/api/drive/file_download/${file_id}`;
+      
+      // download属性を追加し、target属性を削除
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = '';  // ブラウザにダウンロードを指示
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      addNotification('ダウンロードを開始しました');
+    } catch (err) {
+      console.error('ダウンロードに失敗しました:', err);
+      addNotification('ダウンロードに失敗しました');
     }
   };
 
@@ -82,14 +104,18 @@ export default function DriveCard({ file, handleDeleteClick, handleEditClick, ha
         <p className="text-gray-600"><strong>Created At:</strong> {new Date(file.file_createat).toLocaleString()}</p>
       </div>
       <div className="w-24 h-24 ml-4 bg-gray-200 flex items-center justify-center rounded relative">
-        <Image
-          src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}`}
-          alt={`File ${file.file_id}`}
-          width={96}  // 24 * 4
-          height={96} // 24 * 4
-          className="rounded object-cover"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+        {!imageError ? (
+          <Image
+            src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}`}
+            alt={`File ${file.file_id}`}
+            width={96}  // 24 * 4
+            height={96} // 24 * 4
+            className="rounded object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <span className="text-gray-500 text-sm">No Image</span>
+        )}
       </div>
 
       <div className="absolute top-2 right-2">
@@ -118,6 +144,12 @@ export default function DriveCard({ file, handleDeleteClick, handleEditClick, ha
                 onClick={(event) => { toggleMenu(event); handleCopyUrlWithNotification(file.file_id); }}
               >
                 URLコピー
+              </li>
+              <li
+                className="text-sm py-2 px-4 whitespace-nowrap hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                onClick={(event) => { toggleMenu(event); handleDownload(file.file_id); }}
+              >
+                ダウンロード
               </li>
             </ul>
           </div>

@@ -30,7 +30,7 @@ router.use(cors({
 router.get('/file/:file_id', async (req, res) => {
     const fileId = req.params.file_id;
 
-    // セキュリティ対策: fileIdにパス操作が含まれていないことを確認
+    // セ��ュリティ対策: fileIdにパス操作が含まれていないことを確認
     if (fileId.includes('..') || path.isAbsolute(fileId)) {
         return res.status(400).send('Invalid file ID');
     }
@@ -74,6 +74,61 @@ router.get('/file/:file_id', async (req, res) => {
         res.setHeader('Cache-Control', 'public, max-age=31536000');
         res.setHeader('Content-Type', contentType);
         res.setHeader('X-File-Format', file_format || 'unknown');
+        
+        // ファイルを読み込んでバッファとして送信
+        const fileBuffer = await fs.readFile(filePath);
+        res.send(fileBuffer);
+        
+    } catch (error) {
+        console.error(error);
+        res.status(404).send('File not found');
+    } finally {
+        await client.end();
+    }
+});
+
+// ファイルをダウンロードするエンドポイント
+router.get('/file_download/:file_id', async (req, res) => {
+    const fileId = req.params.file_id;
+
+    // セキュ���ティ対策: fileIdにパス操作が含まれていないことを確認
+    if (fileId.includes('..') || path.isAbsolute(fileId)) {
+        return res.status(400).send('Invalid file ID');
+    }
+
+    const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_NAME } = process.env;
+
+    const client = new Client({
+        user: POSTGRES_USER,
+        host: POSTGRES_NAME,
+        database: POSTGRES_DB,
+        password: POSTGRES_PASSWORD,
+        port: 5432,
+    });
+
+    try {
+        await client.connect();
+        
+        // ファイル情報をDBから取得
+        const query = 'SELECT file_format FROM drive WHERE file_id = $1';
+        const result = await client.query(query, [fileId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).send('File not found in database');
+        }
+
+        const { file_format } = result.rows[0];
+        const filePath = path.join(__dirname, '../../../app_data', fileId);
+        
+        // ファイルの存在確認
+        await fs.access(filePath);
+        
+        // Content-Typeをfile_formatから判定
+        const contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        
+        // ダウンロード用のヘッダーを設定
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileId}.${file_format}"`);
         
         // ファイルを読み込んでバッファとして送信
         const fileBuffer = await fs.readFile(filePath);
