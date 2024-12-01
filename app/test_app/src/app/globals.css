@@ -21,7 +21,7 @@
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Hiragino Maru Gothic Pro", "BIZ UDGothic", "Roboto", "HelveticaNeue", "Arial", sans-serif;
 }
 
 /* 文字色の即時切り替えのために追加 */

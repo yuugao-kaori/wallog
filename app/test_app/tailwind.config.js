@@ -14,6 +14,16 @@ module.exports = {
         card: 'var(--card)',
         'card-foreground': 'var(--card-foreground)',
       },
+      fontFamily: {
+        sans: [
+          "Hiragino Maru Gothic Pro",
+          "BIZ UDGothic", 
+          "Roboto",
+          "HelveticaNeue",
+          "Arial",
+          "sans-serif"
+        ],
+      },
     },
   },
   plugins: [

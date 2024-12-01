@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/blogformpopup';
 import axios from 'axios';
+import remarkBreaks from 'remark-breaks';
 
 interface BlogPost {
   blog_id: number;
@@ -74,7 +75,7 @@ export default function BlogDetail() {
 
       if (!response.ok) throw new Error('更新に失敗しました');
       
-      // 更新成功後にブログデータを再取���
+      // 更新成功後にブログデータを再取得
       const updatedBlogResponse = await fetch(`https://wallog.seitendan.com/api/blog/blog_read/${params.blog_id}`);
       const updatedBlogData = await updatedBlogResponse.json();
       if (updatedBlogResponse.ok) {
@@ -153,6 +154,7 @@ export default function BlogDetail() {
         </div>
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
+            remarkPlugins={[remarkBreaks]}
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
               h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
