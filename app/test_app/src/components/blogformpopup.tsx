@@ -64,11 +64,11 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
     }, 0);
 };
 const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-  // Shift+Enterで form submit
+  // Shift+Enterでform submit
   if (e.key === 'Enter' && e.shiftKey) {
     e.preventDefault();
     if (formRef.current) {
-      formRef.current.dispatchEvent(new Event('submit', { cancelable: true }));
+      formRef.current.requestSubmit();
     }
     return;
   }

@@ -135,13 +135,13 @@ export default function BlogDetail() {
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
 
   return (
-    <div className="ml-48 p-4 relative min-h-screen">
-      <article className="max-w-4xl mx-auto">
+    <div className="p-4 md:ml-48 relative min-h-screen">
+      <article className="max-w-4xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
         {blog.blog_thumbnail && (
           <img
             src={blog.blog_thumbnail}
             alt={blog.blog_title}
-            className="w-full h-96 object-cover mb-8"
+            className="w-full h-96 object-cover mb-8 rounded-lg"
           />
         )}
         <h1 className="text-4xl font-bold mb-6 dark:text-white">{blog.blog_title}</h1>
