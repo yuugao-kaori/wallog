@@ -25,34 +25,9 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
 }: BlogFormPopupProps) => {
   if (!isOpen) return null;
 
-  const MAX_HISTORY_LENGTH = 100; // 履歴の最大保存数
   const [emptyLineCount, setEmptyLineCount] = useState(0);
-  const [textHistory, setTextHistory] = useState<Array<{text: string, cursorPos: number}>>([{
-    text: blogData.blog_text,
-    cursorPos: 0
-  }]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [markdownHistory, setMarkdownHistory] = useState<Array<{start: number, end: number, original: string}>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-
-  const addToHistory = (newText: string, cursorPos: number, isMarkdown = false) => {
-    if (!isMarkdown) {
-      setTextHistory(prev => {
-        const newHistory = [...prev.slice(0, historyIndex + 1)];
-        if (newHistory[newHistory.length - 1]?.text !== newText) {
-          newHistory.push({ text: newText, cursorPos });
-          // 履歴が最大数を超えた場合、古いものから削除
-          if (newHistory.length > MAX_HISTORY_LENGTH) {
-            newHistory.shift();
-          }
-          return newHistory;
-        }
-        return prev;
-      });
-      setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY_LENGTH - 1));
-    }
-  };
 
   const insertMarkdown = (markdownSyntax: { prefix: string, suffix?: string }) => {
     if (!textareaRef.current) return;
@@ -63,44 +38,15 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
     const text = textarea.value;
     const selectedText = text.substring(start, end);
     
-    // マークダウン挿入前のテキストを履歴に保存
-    setMarkdownHistory(prev => [...prev, {
-      start,
-      end,
-      original: selectedText
-    }]);
-
-    const scrollTop = textarea.scrollTop;
-    
+    // 見出しタグか箇条書きかを判定
     const isHeading = ['#', '>', '---'].some(symbol => markdownSyntax.prefix.includes(symbol));
     const isList = markdownSyntax.prefix === '- ' || /^\d+\. $/.test(markdownSyntax.prefix);
     
-    let newText;
-    if (isList && selectedText) {
-      const lines = selectedText.split('\n');
-      let listNumber = 1;
-      
-      const processedLines = lines.map((line, index) => {
-        if (line.trim().startsWith('- ') || /^\d+\. /.test(line.trim())) {
-          return line;
-        }
-        if (/^\d+\. $/.test(markdownSyntax.prefix)) {
-          return `${listNumber++}. ${line}`;
-        }
-        return markdownSyntax.prefix === '- ' 
-          ? `- ${line}`
-          : `${index + 1}. ${line}`;
-      });
-
-      
-      newText = text.substring(0, start) + processedLines.join('\n') + text.substring(end);
-    } else {
-      newText = text.substring(0, start) + 
-        markdownSyntax.prefix + 
-        (selectedText || (isHeading || isList ? '' : '')) + 
-        (isHeading || isList ? '' : (markdownSyntax.suffix || markdownSyntax.prefix)) + 
-        text.substring(end);
-    }
+    const newText = text.substring(0, start) + 
+      markdownSyntax.prefix + 
+      (selectedText || (isHeading || isList ? '' : '')) + 
+      (isHeading || isList ? '' : (markdownSyntax.suffix || markdownSyntax.prefix)) + 
+      text.substring(end);
 
     const event = {
       target: {
@@ -109,194 +55,94 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
       }
     } as React.ChangeEvent<HTMLTextAreaElement>;
     
-    addToHistory(newText, start + markdownSyntax.prefix.length, true);
     onInputChange(event);
     
     setTimeout(() => {
       textarea.focus();
-      textarea.scrollTop = scrollTop;
-      if (isList && selectedText) {
-        textarea.setSelectionRange(start, start + newText.length - text.length + end - start);
-      } else {
-        const newCursorPos = start + markdownSyntax.prefix.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-      }
+      const newCursorPos = start + markdownSyntax.prefix.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
-  };
+};
+const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  // Shift+Enterでform submit
+  if (e.key === 'Enter' && e.shiftKey) {
+    e.preventDefault();
+    if (formRef.current) {
+      formRef.current.requestSubmit();
+    }
+    return;
+  }
 
-  const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+  // 通常のEnterキーの動作（リスト作成など）
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const textarea = e.currentTarget;
+    const { value, selectionStart } = textarea;
+    
+    const lastNewLine = value.lastIndexOf('\n', selectionStart - 1);
+    const currentLineStart = lastNewLine + 1;
+    const currentLine = value.slice(currentLineStart, selectionStart);
+    
+    // 数字による列挙のパターンを検出
+    const numberMatch = currentLine.trimStart().match(/^(\d+)\. (.*)/);
+    const isList = currentLine.trimStart().startsWith('- ');
+    
+    if (numberMatch || isList) {
       e.preventDefault();
+      let prefix: string;
+      let content: string;
       
-      if (e.shiftKey) {
-        // Ctrl+Shift+Z (Redo)
-        if (historyIndex < textHistory.length - 1) {
-          const newIndex = historyIndex + 1;
-          const historyItem = textHistory[newIndex];
-          setHistoryIndex(newIndex);
-          
+      if (numberMatch) {
+        const [_, num, text] = numberMatch;
+        content = text;
+        prefix = `${parseInt(num) + 1}. `;
+      } else {
+        content = currentLine.trim().slice(2);
+        prefix = '- ';
+      }
+
+      if (content === '') {
+        const newCount = emptyLineCount + 1;
+        setEmptyLineCount(newCount);
+
+        if (newCount >= 1) {
+          // 空行が連続した場合、リストを終了
+          const newText = value.slice(0, selectionStart) + '\n' + value.slice(selectionStart);
           const event = {
             target: {
               name: 'blog_text',
-              value: historyItem.text
+              value: newText
             }
           } as React.ChangeEvent<HTMLTextAreaElement>;
           onInputChange(event);
+          setEmptyLineCount(0);
           
-          if (textareaRef.current) {
-            setTimeout(() => {
-              textareaRef.current!.selectionStart = historyItem.cursorPos;
-              textareaRef.current!.selectionEnd = historyItem.cursorPos;
-            }, 0);
-          }
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+          }, 0);
+          return;
         }
       } else {
-        // Ctrl+Z (Undo)
-        if (historyIndex > 0) {
-          const newIndex = historyIndex - 1;
-          const historyItem = textHistory[newIndex];
-          setHistoryIndex(newIndex);
-          
-          const event = {
-            target: {
-              name: 'blog_text',
-              value: historyItem.text
-            }
-          } as React.ChangeEvent<HTMLTextAreaElement>;
-          onInputChange(event);
-          
-          if (textareaRef.current) {
-            setTimeout(() => {
-              textareaRef.current!.selectionStart = historyItem.cursorPos;
-              textareaRef.current!.selectionEnd = historyItem.cursorPos;
-            }, 0);
-          }
-        }
+        setEmptyLineCount(0);
       }
-      return;
-    }
 
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = e.currentTarget;
-      const { value, selectionStart, selectionEnd } = textarea;
-      
-      const newText = value.substring(0, selectionStart) + '\t' + value.substring(selectionEnd);
+      // 新しい行を挿入
+      const newText = value.slice(0, selectionStart) + '\n' + prefix + value.slice(selectionStart);
       const event = {
         target: {
           name: 'blog_text',
           value: newText
         }
       } as React.ChangeEvent<HTMLTextAreaElement>;
-      
       onInputChange(event);
-      addToHistory(newText, selectionStart + 1);
       
       setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+        textarea.selectionStart = textarea.selectionEnd = selectionStart + prefix.length + 1;
       }, 0);
-      return;
-    }
-  
-    if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        e.preventDefault();
-        const mockEvent = { preventDefault: () => {} } as React.FormEvent;
-        onSubmit(mockEvent);
-        return;
-      }
-
-      const textarea = e.currentTarget;
-      const { value, selectionStart } = textarea;
-      
-      const lastNewLine = value.lastIndexOf('\n', selectionStart - 1);
-      const currentLineStart = lastNewLine + 1;
-      const currentLine = value.slice(currentLineStart, selectionStart);
-      
-      const numberMatch = currentLine.trimStart().match(/^(\d+)\. (.*)/);
-      const isList = currentLine.trimStart().startsWith('- ');
-      
-      if (numberMatch || isList) {
-        e.preventDefault();
-        let prefix: string;
-        let content: string;
-        
-        if (numberMatch) {
-          const [_, num, text] = numberMatch;
-          content = text;
-          prefix = `${parseInt(num) + 1}. `;
-        } else {
-          content = currentLine.trim().slice(2);
-          prefix = '- ';
-        }
-
-        if (content === '') {
-          const newCount = emptyLineCount + 1;
-          setEmptyLineCount(newCount);
-
-          if (newCount >= 1) {
-            const currentPos = textarea.selectionStart;
-            const scrollTop = textarea.scrollTop;
-            const newText = value.slice(0, currentLineStart) + value.slice(selectionStart);
-            const event = {
-              target: {
-                name: 'blog_text',
-                value: newText
-              }
-            } as React.ChangeEvent<HTMLTextAreaElement>;
-            onInputChange(event);
-            setEmptyLineCount(0);
-            
-            // カーソル位置とスクロール位置を維持
-            setTimeout(() => {
-              textarea.selectionStart = textarea.selectionEnd = currentPos - (selectionStart - currentLineStart);
-              textarea.scrollTop = scrollTop;
-            }, 0);
-            return;
-          }
-        } else {
-          setEmptyLineCount(0);
-        }
-
-        const newText = value.slice(0, selectionStart) + '\n' + prefix + value.slice(selectionStart);
-        const event = {
-          target: {
-            name: 'blog_text',
-            value: newText
-          }
-        } as React.ChangeEvent<HTMLTextAreaElement>;
-        onInputChange(event);
-        addToHistory(newText, selectionStart + prefix.length + 1);
-        
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = selectionStart + prefix.length + 1;
-        }, 0);
-      } else {
-        setEmptyLineCount(0);
-      }
-    }
-
-  };
-
-  const handleTextAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target;
-    const currentPos = textarea.selectionStart;
-    const scrollTop = textarea.scrollTop;
-    
-    if (e.target.name === 'blog_text') {
-      const newText = e.target.value;
-      addToHistory(newText, currentPos);
-      onInputChange(e);
-      
-      // カーソル位置とスクロール位置を維持
-      requestAnimationFrame(() => {
-        textarea.selectionStart = textarea.selectionEnd = currentPos;
-        textarea.scrollTop = scrollTop;
-      });
     } else {
-      onInputChange(e);
+      setEmptyLineCount(0);
     }
-  };
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -348,8 +194,9 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
               onClick={() => insertMarkdown({ prefix: '*', suffix: '*' })}
               className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
             >
-                          斜体
+                   斜体
             </button>
+            {/* 新しいマークダウンボタンを追加 */}
             <button
               type="button"
               onClick={() => insertMarkdown({ prefix: '~~', suffix: '~~' })}
@@ -370,7 +217,7 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
               className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
             >
               箇条書き
-              </button>
+            </button>
             <button
               type="button"
                       onClick={() => insertMarkdown({ prefix: '```', suffix: '```' })}

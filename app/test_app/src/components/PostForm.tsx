@@ -32,8 +32,8 @@ const PostForm: React.FC<PostFormProps> = ({
   onSelectExistingFiles,
   fixedHashtags,
   setFixedHashtags,
-  autoAppendTags = false,  // デフォルト値を false に変更
-  setAutoAppendTags
+  autoAppendTags,  // 追加
+  setAutoAppendTags  // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -141,7 +141,7 @@ const PostForm: React.FC<PostFormProps> = ({
     const newValue = e.target.value;
     setFixedHashtags(newValue);
 
-    // 既存の���イマーをクリア
+    // 既存のタイマーをクリア
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
     }

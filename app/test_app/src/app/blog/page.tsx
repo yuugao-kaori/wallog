@@ -3,10 +3,8 @@ import React, { useEffect } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import BlogFormPopup from '@/components/blogformpopup';
-import axios from 'axios';
 
 const BlogPage: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [blogs, setBlogs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,20 +97,6 @@ const BlogPage: React.FC = () => {
     fetchBlogs(currentPage);
   }, [currentPage]);
 
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const response = await axios.get('https://wallog.seitendan.com/api/user/login_check', {
-          withCredentials: true
-        });
-        setIsLoggedIn(response.status === 200);
-      } catch (err) {
-        setIsLoggedIn(false);
-      }
-    };
-    checkSession();
-  }, []);
-
   // ページ変更ハンドラー
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -120,13 +104,13 @@ const BlogPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:ml-48 dark:bg-gray-900"> {/* ml-48 を md:ml-48 に変更 */}
+    <div className="ml-48 p-4 dark:bg-gray-900"> {/* ダークモード背景追加 */}
       {/* ブログカード一覧 */}
       {loading ? (
         <div className="dark:text-white">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {blogs.map((blog: any) => (
               <Link href={`/blog/${blog.blog_id}`} key={blog.blog_id}>
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow">
@@ -168,26 +152,20 @@ const BlogPage: React.FC = () => {
         </>
       )}
 
-      {/* ログイン時のみボタンを表示 */}
-      {isLoggedIn && (
-        <button
-          className="fixed bottom-5 right-5 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
-          onClick={() => setIsPopupOpen(true)}
-        >
-          ブログを作成
-        </button>
-      )}
+      <button
+        className="fixed bottom-5 right-5 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
+        onClick={() => setIsPopupOpen(true)}
+      >
+        ブログを作成
+      </button>
 
-      {/* ポップアップ同様にログイン時のみ表示 */}
-      {isLoggedIn && (
-        <BlogFormPopup
-          isOpen={isPopupOpen}
-          onClose={() => setIsPopupOpen(false)}
-          blogData={blogData}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-        />
-      )}
+      <BlogFormPopup
+        isOpen={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        blogData={blogData}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

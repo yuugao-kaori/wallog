@@ -476,7 +476,7 @@ function Diary() {
           {status && <p className="mt-4 text-red-500">{status}</p>}
         </>
         ) : (
-        <p className="text-gray-500 mt-4">ここの表示は現在、実装中です</p>
+        <p className="text-gray-500 mt-4">投稿するにはログインが必要です。</p>
         )}
       </div>
       </aside>

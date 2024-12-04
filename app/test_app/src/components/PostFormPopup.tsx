@@ -37,9 +37,9 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   onSelectExistingFiles,
   fixedHashtags,
   setFixedHashtags,
-  autoAppendTags = false,  // デフォルト値を false に変更
-  setAutoAppendTags,
-  repostMode = false,
+  autoAppendTags,  // 追加
+  setAutoAppendTags,  // 追加
+  repostMode = false,  // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);

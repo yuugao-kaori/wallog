@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/blogformpopup';
@@ -124,7 +124,7 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
-  // ポップアップを開く時に編集���データを初期化
+  // ポップアップを開く時に編集用データを初期化
   const handleEditClick = () => {
     setEditData(blog ? { ...blog } : null);
     setIsEditPopupOpen(true);
@@ -161,23 +161,7 @@ export default function BlogDetail() {
               h3: ({node, ...props}) => <h3 className="text-xl font-bold mt-4 mb-2" {...props} />,
               h4: ({node, ...props}) => <h4 className="text-lg font-bold mt-3 mb-2" {...props} />,
               h5: ({node, ...props}) => <h5 className="text-base font-bold mt-2 mb-1" {...props} />,
-              h6: ({node, ...props}) => <h6 className="text-sm font-bold mt-2 mb-1" {...props} />,
-              p: ({node, ...props}) => {
-                const children = React.Children.toArray(props.children);
-                const elements = children.map((child, index) => {
-                  if (typeof child === 'string') {
-                    const parts = child.split(/\b(https?:\/\/\S+)\b/);
-                    return parts.map((part, i) => {
-                      if (part.match(/^https?:\/\//)) {
-                        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600">{part}</a>;
-                      }
-                      return part;
-                    });
-                  }
-                  return child;
-                });
-                return <p {...props}>{elements}</p>;
-              }
+              h6: ({node, ...props}) => <h6 className="text-sm font-bold mt-2 mb-1" {...props} />
             }}
           >
             {blog.blog_text}
@@ -185,7 +169,6 @@ export default function BlogDetail() {
         </div>
       </article>
 
-      {/* 編集ボタンをログイン時のみ表示 */}
       {isLoggedIn && (
         <button
           onClick={handleEditClick}
@@ -195,17 +178,14 @@ export default function BlogDetail() {
         </button>
       )}
 
-      {/* ポップアップもログイン時のみ表示 */}
-      {isLoggedIn && (
-        <BlogFormPopup
-          isOpen={isEditPopupOpen}
-          onClose={() => setIsEditPopupOpen(false)}
-          blogData={editData || { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '' }}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-          mode="edit"
-        />
-      )}
+      <BlogFormPopup
+        isOpen={isEditPopupOpen}
+        onClose={() => setIsEditPopupOpen(false)}
+        blogData={editData || { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '' }}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+        mode="edit"
+      />
     </div>
   );
 }
