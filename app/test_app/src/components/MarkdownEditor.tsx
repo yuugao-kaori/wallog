@@ -8,7 +8,7 @@ interface MarkdownEditorProps {
   name: string;
 }
 
-const MarkdownEditor = ({ value, onChange, name }: MarkdownEditorProps) => {
+const MarkdownEditor = ({ value, onChange, name, blogData, onInputChange, onClose, mode }: MarkdownEditorProps & { blogData: { blog_text: string }, onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, onClose: () => void, mode: string }) => {
   const [emptyLineCount, setEmptyLineCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -114,64 +114,114 @@ const MarkdownEditor = ({ value, onChange, name }: MarkdownEditorProps) => {
   };
 
   return (
-    <>
+    <form>
       <div className="flex flex-wrap gap-2 mb-2">
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '# ' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          H1
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '## ' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '### ' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          H3
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '**', suffix: '**' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          太字
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '*', suffix: '*' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          斜体
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '~~', suffix: '~~' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          打消線
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '1. ' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          番号リスト
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '- ' })}
-          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-        >
-          箇条書き
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMarkdown({ prefix: '
+        
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '# ' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              H1
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '## ' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '### ' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              H3
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '**', suffix: '**' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              太字
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '*', suffix: '*' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              斜体
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '~~', suffix: '~~' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              打消線
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '1. ' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              番号リスト
+            </button>
+            <button
+              type="button"
+              onClick={() => insertMarkdown({ prefix: '- ' })}
+              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+            >
+              箇条書き
+              </button>
+                <button
+                  type="button"
+                          onClick={() => insertMarkdown({ prefix: '```', suffix: '```' })}
+                          className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                        >
+                          コードブロック
+                        </button>
+                        <button
+                  type="button"
+                  onClick={() => insertMarkdown({ prefix: '> ' })}
+                  className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                >
+                  引用
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertMarkdown({ prefix: '---' })}
+                  className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                >
+                  区切り線
+                </button>
+                      </div>
+                      <textarea
+                ref={textareaRef}
+                name="blog_text"
+                value={blogData.blog_text}
+                onChange={onInputChange}
+                onKeyDown={handleTextAreaKeyDown}
+                placeholder="本文 (Shift+Enterで送信)"
+                required
+                className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                        >
+                          キャンセル
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600"
+                        >
+                          {mode === 'create' ? '作成' : '更新'}
+                        </button>
+        
+        </div>
+      </form>
+  );
+};
+
