@@ -10,7 +10,8 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "13000:3000"
-    command: sh -c "npm install --force && npm run dev"
+    command: sh -c "npm install --force && npm run build && npm run start"
+    # 開発時は"npm install --force && npm run dev"にする。
     environment:
       - NODE_ENV=development
     networks:
