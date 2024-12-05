@@ -113,7 +113,7 @@ export default function BlogDetail() {
         
         setBlog(data);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'ブログの取得に失敗しました';
+        const errorMessage = err instanceof Error ? err.message : 'ブログの取得に失敗���ました';
         setError(errorMessage);
         console.error('Blog fetch error:', errorMessage);
       } finally {
@@ -124,7 +124,7 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
-  // ポップアップを開く時に編集用データを初期化
+  // ポップアップを開く時に編集用デ��タを初期化
   const handleEditClick = () => {
     setEditData(blog ? { ...blog } : null);
     setIsEditPopupOpen(true);
@@ -152,6 +152,7 @@ export default function BlogDetail() {
           </div>
           <p>閲覧数: {blog.blog_count}</p>
         </div>
+        <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
             remarkPlugins={[remarkBreaks]}

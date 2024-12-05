@@ -10,9 +10,9 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "13000:3000"
-    command: sh -c "npm install --force && npm run dev"
+    command: sh -c "npm install --force && npm run build && npm run start"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
     networks:
       - wallog_default2
 

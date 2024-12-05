@@ -1,8 +1,9 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import BlogFormPopup from '@/components/blogformpopup';
+import axios from 'axios';
 
 const BlogPage: React.FC = () => {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
@@ -18,6 +19,28 @@ const BlogPage: React.FC = () => {
     blog_thumbnail: '',
     blog_fixedurl: ''
   });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  const api = useMemo(() => axios.create({
+    baseURL: 'https://wallog.seitendan.com',
+    headers: { 
+      'Content-Type': 'application/json;charset=utf-8',
+      'Access-Control-Allow-Credentials': 'true'
+    },
+    withCredentials: true
+  }), []);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await api.get('/api/user/login_check');
+        setIsLoggedIn(response.status === 200);
+      } catch (err) {
+        setIsLoggedIn(false);
+      }
+    };
+    checkSession();
+  }, [api]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -104,16 +127,16 @@ const BlogPage: React.FC = () => {
   };
 
   return (
-    <div className="ml-48 p-4 dark:bg-gray-900"> {/* ダークモード背景追加 */}
+    <div className="p-4 md:ml-48 dark:bg-gray-900">
       {/* ブログカード一覧 */}
       {loading ? (
         <div className="dark:text-white">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto"> {/* コンテナを中央寄せし、最大幅を設定 */}
             {blogs.map((blog: any) => (
               <Link href={`/blog/${blog.blog_id}`} key={blog.blog_id}>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full">
                   {blog.blog_thumbnail && (
                     <img
                       src={blog.blog_thumbnail}
@@ -133,7 +156,7 @@ const BlogPage: React.FC = () => {
             ))}
           </div>
 
-          {/* ページネーション */}
+          {/* ���ージネーション */}
           <div className="flex justify-center mt-8 space-x-2">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
@@ -152,12 +175,14 @@ const BlogPage: React.FC = () => {
         </>
       )}
 
-      <button
-        className="fixed bottom-5 right-5 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
-        onClick={() => setIsPopupOpen(true)}
-      >
-        ブログを作成
-      </button>
+      {isLoggedIn && (
+        <button
+          className="fixed bottom-5 right-5 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
+          onClick={() => setIsPopupOpen(true)}
+        >
+          ブログを作成
+        </button>
+      )}
 
       <BlogFormPopup
         isOpen={isPopupOpen}
