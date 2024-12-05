@@ -67,7 +67,7 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
-  const [autoAppendTags, setAutoAppendTags] = useState<boolean>(true);  // 追加
+  const [autoAppendTags, setAutoAppendTags] = useState<boolean>(false);  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
   const [repostText, setRepostText] = useState<string>('');  // 追加
@@ -300,7 +300,7 @@ function Diary() {
 
   const handleDelete = async (event: React.MouseEvent | number, postId?: string): Promise<boolean> => {
     if (typeof event === 'number') {
-      // ファイル削除のケース
+      // ファイル削除のケ���ス
       const fileId = event;
       const fileToDelete = files.find(file => file.id === fileId);
       

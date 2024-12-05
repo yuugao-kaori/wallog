@@ -278,7 +278,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
             {status && <p className="mt-4 text-red-500">{status}</p>}
           </form>
         ) : (
-          <p className="text-gray-500">投稿を作成するにはログインしてください���</p>
+          <p className="text-gray-500">投稿を作成するにはログインしてください</p>
         )}
       </div>
     </div>
