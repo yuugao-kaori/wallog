@@ -505,21 +505,6 @@ function Diary() {
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
         />
-        {hasMore && (
-          <div className="w-full py-4 text-center">
-            <button
-              onClick={() => loadMorePosts()}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
-              ) : (
-                'もっと読み込む'
-              )}
-            </button>
-          </div>
-        )}
         </div>
       </div>
       </main>
