@@ -7,6 +7,8 @@ import PostForm from '@/components/PostForm';
 import { FaTimes } from 'react-icons/fa';
 import PostFormPopup from '@/components/PostFormPopup';
 import NotificationComponent from '@/components/Notification';
+import Tagcloud from '@/components/Tagcloud';
+import { getTags, type TagData } from '@/lib/api';  // 追加
 
 // 型定義
 interface Post {
@@ -32,7 +34,7 @@ interface DriveFile {
   content_type?: string;  // 追加
 }
 
-// 型定義に NotificationItem を追加
+// ����定義に NotificationItem を追加
 interface NotificationItem {
   id: string;
   message: string;
@@ -71,6 +73,8 @@ function Diary() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
   const [repostText, setRepostText] = useState<string>('');  // 追加
+  const [activeTab, setActiveTab] = useState<'post' | 'tags'>('post');
+  const [tagData, setTagData] = useState<TagData[]>([]);  // 追加
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
@@ -92,6 +96,20 @@ function Diary() {
     };
 
     checkSession();
+  }, []);
+
+  // タグデータを取得するための useEffect を追加
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const tags = await getTags();
+        setTagData(tags);
+      } catch (error) {
+        console.error('Failed to fetch tags:', error);
+      }
+    };
+    
+    fetchTags();
   }, []);
 
   // SSE接続の修正
@@ -143,17 +161,19 @@ function Diary() {
 
   const loadMorePosts = useCallback(async (retryCount = 0) => {
     const now = Date.now();
-    const TIME_BETWEEN_REQUESTS = 500;
+    const TIME_BETWEEN_REQUESTS = 2000; // 2秒のインターバルを設定
 
     if (loadingRef.current || !hasMore) return;
     
+    // 前回のリクエストからの経過時間をチェック
     if (now - lastRequestTimeRef.current < TIME_BETWEEN_REQUESTS) {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
+      // 次のリクエストを遅延実行
       retryTimeoutRef.current = setTimeout(() => {
         loadMorePosts(retryCount);
-      }, TIME_BETWEEN_REQUESTS);
+      }, TIME_BETWEEN_REQUESTS - (now - lastRequestTimeRef.current));
       return;
     }
 
@@ -169,15 +189,26 @@ function Diary() {
         }
       });
       
-      const newPosts = Array.isArray(response.data) ? response.data : [];
+      // データの処理完了を確実にす��ため、setTimeout を使用
+      setTimeout(() => {
+        const newPosts = Array.isArray(response.data) ? response.data : [];
 
-      if (newPosts.length > 0) {
-        setPosts((prevPosts: Post[]) => [...prevPosts, ...newPosts]);
-        setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
-        setHasMore(newPosts.length >= 20);
-      } else {
-        setHasMore(false);
-      }
+        if (newPosts.length > 0) {
+          setPosts((prevPosts: Post[]) => {
+            const existingIds = new Set(prevPosts.map(post => post.post_id));
+            const uniqueNewPosts = newPosts.filter(post => !existingIds.has(post.post_id));
+            return [...prevPosts, ...uniqueNewPosts];
+          });
+          setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
+          setHasMore(newPosts.length >= 20);
+        } else {
+          setHasMore(false);
+        }
+        
+        loadingRef.current = false;
+        setLoading(false);
+      }, 1000); // 1秒の処理時間を確保
+
     } catch (error) {
       console.error('Failed to load posts', error);
       setStatus('投稿の読み込みに失敗しました。');
@@ -186,43 +217,72 @@ function Diary() {
           loadMorePosts(retryCount + 1);
         }, 1000 * (retryCount + 1));
       }
-    } finally {
       loadingRef.current = false;
       setLoading(false);
     }
   }, [hasMore, start_id]);
 
+  // SSE接続とinitial loadの設定
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let reconnectAttempt = 0;
+    const maxReconnectAttempts = 5;
+    const baseDelay = 1000;
+
+    const createEventSource = () => {
+      const eventSource = new EventSource(
+        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
+        { withCredentials: true }
+      );
+      
+      eventSource.onmessage = (event) => {
+        const newPosts = JSON.parse(event.data);
+        setPosts((prevPosts: Post[]) => {
+          // 重複を排除して新しい投稿を追加
+          const existingIds = new Set(prevPosts.map(post => post.post_id));
+          // Add this interface at the top level of the file with other interfaces
+          interface PostIdSet extends Set<string> {
+            has(key: Post['post_id']): boolean;
+          }
+
+                    const uniqueNewPosts: Post[] = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
+          return [...uniqueNewPosts, ...prevPosts];
+        });
+        reconnectAttempt = 0;
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE接続エラー:', error);
+        eventSource.close();
+        
+        if (reconnectAttempt < maxReconnectAttempts) {
+          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt), 30000);
+          setTimeout(() => {
+            reconnectAttempt++;
+            createEventSource();
+          }, delay);
+        } else {
+          console.error('最大再接続試行回数に達しました');
+        }
+      };
+
+      return eventSource;
+    };
+
+    // 初期ロード
     loadMorePosts();
 
-    const options: IntersectionObserverInit = {
-      root: null,
-      rootMargin: '500px',
-      threshold: 0.1
-    };
-
-    const handleObserver: IntersectionObserverCallback = (entries) => {
-      const target = entries[0];
-      if (target.isIntersecting && !loadingRef.current && hasMore) {
-        loadMorePosts();
-      }
-    };
-
-    observerRef.current = new IntersectionObserver(handleObserver, options);
-
-    if (bottomBoundaryRef.current) {
-      observerRef.current.observe(bottomBoundaryRef.current);
-    }
-
+    // SSE接続の確立
+    const eventSource = createEventSource();
+    
     return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      eventSource.close();
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, [loadMorePosts, hasMore]);
+  }, []); // 依存配列を空に
 
   const handleFiles = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -300,7 +360,7 @@ function Diary() {
 
   const handleDelete = async (event: React.MouseEvent | number, postId?: string): Promise<boolean> => {
     if (typeof event === 'number') {
-      // ファイル削除のケ���ス
+      // ファイル削除のケース
       const fileId = event;
       const fileToDelete = files.find(file => file.id === fileId);
       
@@ -445,40 +505,76 @@ function Diary() {
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
         />
-        {loading && (
+        {hasMore && (
           <div className="w-full py-4 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
+            <button
+              onClick={() => loadMorePosts()}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+              ) : (
+                'もっと読み込む'
+              )}
+            </button>
           </div>
         )}
-        <div ref={bottomBoundaryRef} className="h-10 w-full" />
         </div>
       </div>
       </main>
 
-      {/* デスクトップ用投稿フォーム */}
+      {/* デスクトップ用サイドバーを修正 */}
       <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
-      <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         {isLoggedIn ? (
-        <>
-          <PostForm
-          postText={postText}
-          setPostText={setPostText}
-          handleSubmit={handleSubmit}
-          files={files}
-          handleFiles={handleFiles}
-          handleDelete={handleDelete}
-          onSelectExistingFiles={handleSelectExistingFiles}
-          fixedHashtags={fixedHashtags}
-          setFixedHashtags={setFixedHashtags}
-          autoAppendTags={autoAppendTags}  // 追加
-          setAutoAppendTags={setAutoAppendTags}  // 追加
-          />
-          {status && <p className="mt-4 text-red-500">{status}</p>}
-        </>
+          <>
+            <div className="flex border-b dark:border-gray-800">
+              <button
+                className={`flex-1 p-3 text-center ${
+                  activeTab === 'post'
+                    ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => setActiveTab('post')}
+              >
+                投稿
+              </button>
+              <button
+                className={`flex-1 p-3 text-center ${
+                  activeTab === 'tags'
+                    ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => setActiveTab('tags')}
+              >
+                タグ
+              </button>
+            </div>
+            <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+              {activeTab === 'post' ? (
+                <PostForm
+                  postText={postText}
+                  setPostText={setPostText}
+                  handleSubmit={handleSubmit}
+                  files={files}
+                  handleFiles={handleFiles}
+                  handleDelete={handleDelete}
+                  onSelectExistingFiles={handleSelectExistingFiles}
+                  fixedHashtags={fixedHashtags}
+                  setFixedHashtags={setFixedHashtags}
+                  autoAppendTags={autoAppendTags}
+                  setAutoAppendTags={setAutoAppendTags}
+                />
+              ) : (
+                <Tagcloud tags={tagData} />  
+              )}
+            </div>
+          </>
         ) : (
-        <p className="text-gray-500 mt-4">投稿するにはログインが必要です。</p>
+          <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <Tagcloud tags={tagData} />  {/* タグデータを渡す */}
+          </div>
         )}
-      </div>
       </aside>
 
       {/* モバイル用フローティングボタン */}
@@ -491,7 +587,7 @@ function Diary() {
       </button>
       )}
 
-      {/* モバイル用モーダルをPostFormPopupに置き換え */}
+      {/* ��バイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
       onClose={() => {
@@ -533,7 +629,7 @@ function Diary() {
       repostMode={!!repostData}  // 追加
       />
 
-      {/* ファイル選択モーダル */}
+      {/* ファ���ル選択モーダル */}
       {showFileSelector && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">

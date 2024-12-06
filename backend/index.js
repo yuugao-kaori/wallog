@@ -59,7 +59,7 @@ import blog_readRoute from './api/blog/blog_read.js';
 import blog_updateRoute from './api/blog/blog_update.js';
 import blog_deleteRoute from './api/blog/blog_delete.js';
 import blog_listRoute from './api/blog/blog_list.js';
-
+import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
@@ -69,6 +69,7 @@ app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 app.use('/api/settings', settings_readRoute, settings_updateRoute);
 app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, sticky_note_updateRoute, sticky_note_deleteRoute);
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
+app.use('/api/hashtag', hashtagRankRoute);
 
 // 404エラーハンドリング
 app.use((req, res, next) => {

@@ -10,7 +10,8 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "13000:3000"
-    command: sh -c "npm install --force && npm run build && npm run start"
+    # command: sh -c "npm install --force && npm run build && npm run start"
+    command: sh -c "npm install && npm run dev"
     environment:
       - NODE_ENV=production
     networks:
@@ -143,15 +144,24 @@ services:
     image: minio/minio:latest
     container_name: minio_unique
     ports:
-      - "19000:9000"
-      - "19001:9001"
+      - '19001:9001'
+      - '18900:8900'
     environment:
-      - MINIO_ROOT_USER=minio
-      - MINIO_ROOT_PASSWORD=minio123
-    entrypoint: sh
-    command: -c "/opt/bin/minio server /export --address :9000 --console-address :9001"
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: password
     volumes:
-      - ./minio/data:/export
+      - ./minio/data:/data
+    entrypoint: >
+      /bin/sh -c "
+      mkdir -p /data/minio/public_data;
+      mkdir -p /data/minio/private_data;
+      mkdir -p /data/minio/bucket3;
+      /usr/bin/minio server /data/minio --console-address ':8900';
+      exit 0;
+      "
+    deploy:
+      restart_policy:
+        condition: on-failure
 
   nginx:
     container_name: nginx_unique

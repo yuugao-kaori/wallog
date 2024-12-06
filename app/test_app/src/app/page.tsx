@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Tagcloud from '@/components/Tagcloud';
+import { TagcloudServer } from '@/components/TagcloudServer';
 
 // プリロードの設定を追加
 export const metadata = {
@@ -7,7 +9,8 @@ export const metadata = {
   }
 };
 
-export default function Home() {
+export default async function Home() {
+  const { tags } = await TagcloudServer();
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
@@ -61,6 +64,7 @@ export default function Home() {
           </a>
         </div>
       </main>
+      <Tagcloud tags={tags} />
       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
         <a
           className="flex items-center gap-2 hover:underline hover:underline-offset-4"

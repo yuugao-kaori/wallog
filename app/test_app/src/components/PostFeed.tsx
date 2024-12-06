@@ -31,7 +31,15 @@ interface PostFeedProps {
   onRepost?: (post: Post) => Promise<void>;  // 追加
 }
 
-const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loading, hasMore, loadMorePosts, onRepost }) => {
+const PostFeed: React.FC<PostFeedProps> = ({ 
+  posts, 
+  setPosts, 
+  isLoggedIn, 
+  loading, 
+  hasMore, 
+  loadMorePosts, 
+  onRepost 
+}) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [newPostsAvailable, setNewPostsAvailable] = useState<boolean>(false);
@@ -160,7 +168,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   const MemoizedCard = useMemo(() => Card, []);
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+    <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2">
       <Notification
         notifications={notifications}
         onClose={removeNotification}
@@ -174,7 +182,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
           handleDeleteClick={handleDeleteClick}
           formatDate={formatDate}
           renderHashtagsContainer={renderHashtagsContainer}
-          onRepost={onRepost}  // 追加
+          onRepost={onRepost}
         />
       ))}
     </div>

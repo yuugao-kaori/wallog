@@ -154,7 +154,7 @@ const NavBarClient = () => {
               <FaGithub className="text-2xl" />
             </Link>
             <Link 
-              href="https://x.com/none_none_days" 
+              href="https://twitter.com/takumin3211" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -187,7 +187,8 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Version 2024.12.01.0141
+            Dev 2024.12.07.0000
+            
           </div>
         </div>
       </nav>
