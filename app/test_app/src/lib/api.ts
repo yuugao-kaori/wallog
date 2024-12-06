@@ -1,4 +1,3 @@
-
 export interface TagData {
   post_tag_id: number;
   post_tag_text: string;
@@ -12,3 +11,20 @@ export async function getTags(): Promise<TagData[]> {
   if (!response.ok) throw new Error('Failed to fetch tags');
   return response.json();
 }
+
+export interface HashtagRank {
+  post_tag_id: string;
+  post_tag_text: string;
+  use_count: number;
+}
+
+export const getHashtagRanking = async (limit: number = 10): Promise<HashtagRank[]> => {
+  try {
+    const response = await fetch(`/api/hashtag/hashtag_rank?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch hashtag ranking');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching hashtag ranking:', error);
+    return [];
+  }
+};
