@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/blogformpopup';
 import axios from 'axios';
 import remarkBreaks from 'remark-breaks';
+import { parse } from 'papaparse';
+import { visit } from 'unist-util-visit';
 
 interface BlogPost {
   blog_id: number;
@@ -113,7 +115,7 @@ export default function BlogDetail() {
         
         setBlog(data);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'ブログの取得に失敗���ました';
+        const errorMessage = err instanceof Error ? err.message : 'ブログの取得に失敗しました';
         setError(errorMessage);
         console.error('Blog fetch error:', errorMessage);
       } finally {
@@ -124,12 +126,73 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
-  // ポップアップを開く時に編集用デ��タを初期化
+  // ポップアップを開く時に編集用データを初期化
   const handleEditClick = () => {
     setEditData(blog ? { ...blog } : null);
     setIsEditPopupOpen(true);
   };
 
+  function remarkCsv() {
+    return (tree: any) => {
+      visit(tree, 'paragraph', (node: any) => {
+        if (!node.children?.length) return;
+
+        // 全ての子ノードのテキストを結合
+        const fullText = node.children
+          .map((child: any) => child.value || '')
+          .join('');
+
+        console.log('Full text content:', fullText);
+
+        // より柔軟な正規表現パターンに変更
+        const regex = /<csv=([^>]+)>/s;
+        const match = fullText.match(regex);
+
+        if (match) {
+          console.log('CSV match found:', match[1]);
+          const csvContent = match[1].trim();
+          
+          try {
+            const parsed = parse(csvContent, { 
+              header: true, 
+              skipEmptyLines: true,
+              transformHeader: (header) => header.trim()
+            });
+
+            console.log('Parse result:', {
+              fields: parsed.meta.fields,
+              rowCount: parsed.data.length,
+              errors: parsed.errors
+            });
+
+            if (parsed.errors.length === 0 && parsed.meta.fields) {
+            }
+          } else {
+            console.log('No CSV pattern match found in node');
+          }
+        }
+      });
+    };
+  }
+  
+  function generateTableHtml(headers: string[], rows: any[]) {
+    const headerHtml = headers.map((header) => `<th>${header}</th>`).join('');
+    const rowsHtml = rows
+      .map((row) =>
+        `<tr>${headers.map((header) => `<td>${row[header] || ''}</td>`).join('')}</tr>`
+      )
+      .join('');
+    return `
+      <table class="min-w-full border-collapse border border-gray-300">
+        <thead>
+          <tr>${headerHtml}</tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    `;
+  }
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
@@ -155,14 +218,60 @@ export default function BlogDetail() {
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
-            remarkPlugins={[remarkBreaks]}
+            remarkPlugins={[remarkBreaks, remarkCsv]}
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
               h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
               h3: ({node, ...props}) => <h3 className="text-xl font-bold mt-4 mb-2" {...props} />,
               h4: ({node, ...props}) => <h4 className="text-lg font-bold mt-3 mb-2" {...props} />,
               h5: ({node, ...props}) => <h5 className="text-base font-bold mt-2 mb-1" {...props} />,
-              h6: ({node, ...props}) => <h6 className="text-sm font-bold mt-2 mb-1" {...props} />
+              h6: ({node, ...props}) => <h6 className="text-sm font-bold mt-2 mb-1" {...props} />,
+              code({node, className, children, ...props}) {
+                const match = /language-(\w+)/i.exec(className || '');
+                if (match && match[1].toLowerCase() === 'csv') {
+                  try {
+                    const csvContent = String(children).trim();
+                    const parsed = parse(csvContent, { 
+                      header: true, 
+                      skipEmptyLines: true,
+                      transformHeader: header => header.trim()
+                    });
+                    
+                    if (parsed.data.length === 0) return <pre>{children}</pre>;
+
+                    return (
+                      <div className="overflow-x-auto my-4">
+                        <table className="min-w-full border-collapse border border-gray-300">
+                          <thead>
+                            <tr>
+                              {parsed.meta.fields?.map((header, i) => (
+                                <th key={i} className="border border-gray-300 px-4 py-2 bg-gray-100 dark:bg-gray-700">
+                                  {header}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {parsed.data.map((row, rowIdx) => (
+                              <tr key={rowIdx}>
+                                {parsed.meta.fields?.map((field, colIdx) => (
+                                  <td key={`${rowIdx}-${colIdx}`} className="border border-gray-300 px-4 py-2">
+                                    {String((row as Record<string, unknown>)[field] || '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  } catch (error) {
+                    console.error('CSV parsing error:', error);
+                    return <pre>{children}</pre>;
+                  }
+                }
+                return <code className={className} {...props}>{children}</code>;
+              }
             }}
           >
             {blog.blog_text}
@@ -183,10 +292,4 @@ export default function BlogDetail() {
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
         blogData={editData || { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '' }}
-        onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        mode="edit"
-      />
-    </div>
-  );
-}
+        onInputChange={handleInputChange}        onSubmit={handleSubmit}        mode="edit"      />    </div>  );}

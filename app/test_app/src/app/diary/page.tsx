@@ -34,10 +34,11 @@ interface DriveFile {
   content_type?: string;  // 追加
 }
 
-// ������定義に NotificationItem を追加
+// ������������定義に NotificationItem を追加
 interface NotificationItem {
   id: string;
   message: string;
+  action?: { label: string; onClick: () => void }; // 追加
 }
 
 const api = axios.create({
@@ -112,53 +113,6 @@ function Diary() {
     fetchTags();
   }, []);
 
-  // SSE接続の修正
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let reconnectAttempt = 0;
-    const maxReconnectAttempts = 5;
-    const baseDelay = 1000; // 1秒
-
-    const createEventSource = () => {
-      const eventSource = new EventSource(
-        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
-        { withCredentials: true }
-      );
-      
-      eventSource.onmessage = (event) => {
-        const newPosts = JSON.parse(event.data);
-        setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
-        reconnectAttempt = 0; // 成功したらリセット
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('SSE接続エラー:', error);
-        eventSource.close();
-        
-        if (reconnectAttempt < maxReconnectAttempts) {
-          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt), 30000); // 最大30秒
-          console.log(`${delay}ms後に再接続を試みます(試行${reconnectAttempt + 1}/${maxReconnectAttempts})`);
-          
-          setTimeout(() => {
-            reconnectAttempt++;
-            createEventSource();
-          }, delay);
-        } else {
-          console.error('最大再接続試行回数に達しました');
-        }
-      };
-
-      return eventSource;
-    };
-
-    const eventSource = createEventSource();
-    
-    return () => {
-      eventSource.close();
-    };
-  }, []);
-
   const loadMorePosts = useCallback(async (retryCount = 0) => {
     const now = Date.now();
     const TIME_BETWEEN_REQUESTS = 2000; // 2秒のインターバルを設定
@@ -170,7 +124,7 @@ function Diary() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
-      // 次のリクエストを遅延実行
+      // 次��リクエストを遅延実行
       retryTimeoutRef.current = setTimeout(() => {
         loadMorePosts(retryCount);
       }, TIME_BETWEEN_REQUESTS - (now - lastRequestTimeRef.current));
@@ -189,7 +143,7 @@ function Diary() {
         }
       });
       
-      // データの処理完了を確実にす��ため、setTimeout を使用
+      // データの処理完了���確実にす��ため、setTimeout を使用
       setTimeout(() => {
         const newPosts = Array.isArray(response.data) ? response.data : [];
 
@@ -222,16 +176,22 @@ function Diary() {
     }
   }, [hasMore, start_id]);
 
-  // SSE接続とinitial loadの設定
+  // SSE接続とinitial loadの設定を修正
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let eventSource: EventSource | null = null;
     let reconnectAttempt = 0;
-    const maxReconnectAttempts = 5;
-    const baseDelay = 1000;
+    const maxReconnectAttempts = 2;
+    const baseDelay = 5000;
 
     const createEventSource = () => {
-      const eventSource = new EventSource(
+      // 既存のSSE接続があれば閉じる
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(
         `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
         { withCredentials: true }
       );
@@ -241,43 +201,50 @@ function Diary() {
         setPosts((prevPosts: Post[]) => {
           // 重複を排除して新しい投稿を追加
           const existingIds = new Set(prevPosts.map(post => post.post_id));
-          // Add this interface at the top level of the file with other interfaces
-          interface PostIdSet extends Set<string> {
-            has(key: Post['post_id']): boolean;
-          }
-
-                    const uniqueNewPosts: Post[] = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
+          const uniqueNewPosts = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
           return [...uniqueNewPosts, ...prevPosts];
         });
         reconnectAttempt = 0;
       };
 
       eventSource.onerror = (error) => {
-        console.error('SSE接続エラー:', error);
-        eventSource.close();
+        eventSource?.close();
         
+        reconnectAttempt++;
+
+        if (reconnectAttempt >= maxReconnectAttempts) {
+          addNotification('接続が切断されました。', {
+            label: 'リロード',
+            onClick: () => {
+              addNotification('再接続中...', { label: 'キャンセル', onClick: () => {} });
+              createEventSource();
+            }
+          });
+        }
         if (reconnectAttempt < maxReconnectAttempts) {
-          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt), 30000);
+          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt - 1), 30000);
           setTimeout(() => {
-            reconnectAttempt++;
             createEventSource();
           }, delay);
         } else {
           console.error('最大再接続試行回数に達しました');
         }
       };
-
-      return eventSource;
     };
 
     // 初期ロード
     loadMorePosts();
 
     // SSE接続の確立
-    const eventSource = createEventSource();
+    createEventSource();
     
+    // クリーン��ップ関数
     return () => {
-      eventSource.close();
+      if (eventSource) {
+        console.log('Closing SSE connection');
+        eventSource.close();
+        eventSource = null;
+      }
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
@@ -319,12 +286,12 @@ function Diary() {
     }
   };
 
-  const addNotification = useCallback((message: string) => {
+  const addNotification = useCallback((message: string, action?: { label: string; onClick: () => void }) => {
     const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, message }]);
+    setNotifications(prev => [...prev, { id, message, action }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(notification => notification.id !== id));
-    }, 3000);
+    }, 5000);
   }, []);
 
   const removeNotification = (id: string) => {
@@ -380,7 +347,7 @@ const handleDeleteFile = async (fileId: number): Promise<boolean> => {
   }
 }
 
-// 投稿削除用の関数を修正
+// 投稿削除用の関���を修正
 const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
   try {
     const response = await api.delete('/api/post/post_delete', {

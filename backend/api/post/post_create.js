@@ -12,7 +12,6 @@ const router = express.Router();
 const app = express();
 import { Client as ESClient } from '@elastic/elasticsearch';
 
-
 // bodyParserが必要な場合
 app.use(express.json());
 

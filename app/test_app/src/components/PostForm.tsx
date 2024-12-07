@@ -1,4 +1,10 @@
-import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback } from 'react';
+import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback, useState } from 'react';
+
+interface HashtagRank {
+  post_tag_id: number;
+  post_tag_text: string;
+  use_count: number;
+}
 
 interface FileItem {
   id: number;
@@ -39,6 +45,10 @@ const PostForm: React.FC<PostFormProps> = ({
   const dropRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
 
+  const [hashtagRanking, setHashtagRanking] = useState<HashtagRank[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
+
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     dropRef.current?.classList.add('drag-over');
@@ -58,28 +68,10 @@ const PostForm: React.FC<PostFormProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        e.preventDefault();
-        if (postText.trim() !== '' || files.length > 0) {
-          // ハッシュタグ処理を追加
-          let finalPostText = postText;
-          if (autoAppendTags && fixedHashtags.trim()) {
-            const processedTags = fixedHashtags
-              .trim()
-              .split(/\s+/)
-              .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
-              .join(' ');
-            
-            finalPostText = `${postText}\n${processedTags}`;
-          }
-          handleSubmit(e as any, finalPostText);
-        }
-      } else {
-        // 通常のEnterは改行を許可（textareaの場合）
-        if (e.currentTarget.tagName.toLowerCase() !== 'textarea') {
-          e.preventDefault();
-        }
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      if (postText.trim() !== '' || files.length > 0) {
+        handleFormSubmit(e as any);
       }
     }
   };
@@ -87,19 +79,67 @@ const PostForm: React.FC<PostFormProps> = ({
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let finalPostText = postText;
-    
-    if (autoAppendTags && fixedHashtags.trim()) {  // autoAppendTags を追加
+    let finalText = postText.trim();
+    let additionalTags = [];
+
+    // 選択されたタグを配列に追加
+    if (selectedHashtags.size > 0) {
+      additionalTags.push(Array.from(selectedHashtags).join(' '));
+    }
+
+    // 固定タグを配列に追加
+    if (autoAppendTags && fixedHashtags.trim()) {
       const processedTags = fixedHashtags
         .trim()
         .split(/\s+/)
         .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
         .join(' ');
-      
-      finalPostText = `${postText}\n${processedTags}`;
+      additionalTags.push(processedTags);
     }
-    
-    handleSubmit(e, finalPostText);  // finalPostTextを第2引数として渡す
+
+    // タグがある場合は本文に追加
+    if (additionalTags.length > 0) {
+      if (finalText) {
+        finalText += '\n'; // 本文がある場合は改行を追加
+      }
+      finalText += additionalTags.join('\n');
+    }
+
+    if (finalText.trim() || files.length > 0) {
+      handleSubmit(e, finalText);
+      // 投稿後に選択されたタグをクリア
+      setSelectedHashtags(new Set());
+      setIsDropdownOpen(false);
+    }
+  };
+
+  // ハッシュタグランキングの取得
+  useEffect(() => {
+    const fetchHashtags = async () => {
+      try {
+        const response = await fetch('/api/hashtag/hashtag_rank');
+        if (!response.ok) throw new Error('Failed to fetch hashtags');
+        const data = await response.json();
+        setHashtagRanking(data);
+      } catch (error) {
+        console.error('Error fetching hashtag ranking:', error);
+      }
+    };
+    fetchHashtags();
+  }, []);
+
+  // ハッシュタグの選択処理
+  const handleHashtagSelect = (tagText: string) => {
+    setSelectedHashtags(prev => {
+      const next = new Set(prev);
+      const tag = tagText.startsWith('#') ? tagText : `#${tagText}`;
+      if (next.has(tag)) {
+        next.delete(tag);
+      } else {
+        next.add(tag);
+      }
+      return next;
+    });
   };
 
   // ハッシュタグの初期読み込み
@@ -163,20 +203,79 @@ const PostForm: React.FC<PostFormProps> = ({
 
 
   return (
-
     <div>
       <h2 className="text-xl font-bold mb-4  mt-2 dark:text-white">新規投稿</h2>
 
-      {/* 既存の投稿フォーム */}
       <form onSubmit={handleFormSubmit} className="mt-2">
-        <textarea
-          value={postText}
-          onChange={(e) => setPostText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-          placeholder="ここに投稿内容を入力してください"
-          rows={4}
-        />
+        <div className="relative">
+          <textarea
+            value={postText}
+            onChange={(e) => setPostText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+            placeholder="ここに投稿内容を入力してください"
+            rows={4}
+          />
+          
+          {/* ハッシュタグドロッ��ダウン */}
+          <div className="relative mt-2">
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center gap-2"
+            >
+              <span>人気のハッシュタグ</span>
+              {selectedHashtags.size > 0 && (
+                <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {selectedHashtags.size}
+                </span>
+              )}
+            </button>
+            
+            {isDropdownOpen && (
+              <div className="absolute z-10 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
+                <div className="py-1 max-h-48 overflow-y-auto">
+                  {hashtagRanking.map((tag) => (
+                    <button
+                      key={tag.post_tag_id}
+                      type="button"
+                      onClick={() => handleHashtagSelect(tag.post_tag_text)}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
+                        selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                      }`}
+                    >
+                      <span>{tag.post_tag_text}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">({tag.use_count})</span>
+                        {selectedHashtags.has(tag.post_tag_text) && (
+                          <span className="text-blue-500 text-sm">✓</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 選択されたタグの表示 */}
+          {selectedHashtags.size > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {Array.from(selectedHashtags).map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => handleHashtagSelect(tag)}
+                    className="text-blue-500 hover:text-blue-700"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <div
           ref={dropRef}
           onDragOver={handleDragOver}
@@ -273,10 +372,7 @@ const PostForm: React.FC<PostFormProps> = ({
             </div>
           </div>
         </div>
-      </form>
-
-      <div className="mt-4 border-t pt-4">
-        <form onSubmit={handleFormSubmit} className="space-y-2">
+        <div className="mt-4 border-t pt-4">
           <button
             type="submit"
             className={`w-full p-2 text-white rounded transition-colors ${
@@ -288,8 +384,8 @@ const PostForm: React.FC<PostFormProps> = ({
           >
             投稿
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 };
