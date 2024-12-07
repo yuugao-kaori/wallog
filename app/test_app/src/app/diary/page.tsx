@@ -34,7 +34,7 @@ interface DriveFile {
   content_type?: string;  // 追加
 }
 
-// ����定義に NotificationItem を追加
+// ������定義に NotificationItem を追加
 interface NotificationItem {
   id: string;
   message: string;
@@ -44,7 +44,7 @@ const api = axios.create({
   baseURL: 'https://wallog.seitendan.com',
   headers: { 
     'Content-Type': 'application/json;charset=utf-8',
-    // CORSリクエストのためのヘッダーを追加
+    // CORSリ���エストのためのヘッダーを追加
     'Access-Control-Allow-Credentials': 'true'
   },
   withCredentials: true
@@ -358,54 +358,47 @@ function Diary() {
     [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
   );
 
-  const handleDelete = async (event: React.MouseEvent | number, postId?: string): Promise<boolean> => {
-    if (typeof event === 'number') {
-      // ファイル削除のケース
-      const fileId = event;
-      const fileToDelete = files.find(file => file.id === fileId);
-      
-      if (!fileToDelete) return false;
+// ファイル削除用の関数に分割
+const handleDeleteFile = async (fileId: number): Promise<boolean> => {
+  const fileToDelete = files.find(f => f.id === fileId);
+  
+  if (!fileToDelete) return false;
 
-      if (fileToDelete.isExisting) {
-        setFiles((prev) => prev.filter((file) => file.id !== fileId));
-        return true;
-      } else {
-        try {
-          await api.post('/api/drive/file_delete', { file_id: fileId });
-          setFiles((prev) => prev.filter((file) => file.id !== fileId));
-          return true;
-        } catch (error) {
-          setStatus('ファイルの削除に失敗しました。');
-          return false;
-        }
-      }
-    } else {
-      // 投稿削除のケース
-      if (!postId) return false;
-      
-      try {
-        const response = await fetch('/api/post/post_delete', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ post_id: postId }),
-        });
+  if (fileToDelete.isExisting) {
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+    return true;
+  }
 
-        if (!response.ok) {
-          throw new Error('削除に失敗しました');
-        }
+  try {
+    await api.delete(`/api/drive/file/${fileId}`);
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+    return true;
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    setStatus('ファイルの削除に失敗しました。');
+    return false;
+  }
+}
 
-        setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
-        addNotification('投稿を削除しました');
-        return true;
-      } catch (error) {
-        console.error('Error deleting post:', error);
-        addNotification('投稿の削除に失敗しました');
-        return false;
-      }
+// 投稿削除用の関数を修正
+const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
+  try {
+    const response = await api.delete('/api/post/post_delete', {
+      data: { post_id: postId }
+    });
+
+    if (response.status === 200) {
+      setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+      addNotification('投稿を削除しました');
+      return true;
     }
-  };
+    throw new Error('削除に失敗しました');
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    addNotification('投稿の削除に失敗しました');
+    return false;
+  }
+}
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -543,7 +536,7 @@ function Diary() {
                   handleSubmit={handleSubmit}
                   files={files}
                   handleFiles={handleFiles}
-                  handleDelete={handleDelete}
+                  handleDelete={handleDeleteFile}
                   onSelectExistingFiles={handleSelectExistingFiles}
                   fixedHashtags={fixedHashtags}
                   setFixedHashtags={setFixedHashtags}
@@ -587,7 +580,7 @@ function Diary() {
           try {
             // React.MouseEventとして新しいイベントを作成
             const mouseEvent = { type: 'click' } as React.MouseEvent<Element, MouseEvent>;
-            const deleteSuccess = await handleDelete(mouseEvent, repostData.post_id);
+            const deleteSuccess = await handleDeletePost(mouseEvent, repostData.post_id);
             
             if (deleteSuccess) {
               // 削除成功後に再投稿
@@ -603,7 +596,7 @@ function Diary() {
       }}
       files={files}
       handleFiles={handleFiles}
-      handleDelete={handleDelete}
+      handleDelete={handleDeleteFile}
       isLoggedIn={isLoggedIn}
       status={status}
       onSelectExistingFiles={handleSelectExistingFiles}

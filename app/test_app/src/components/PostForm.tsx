@@ -52,7 +52,7 @@ const PostForm: React.FC<PostFormProps> = ({
     e.preventDefault();
     dropRef.current?.classList.remove('drag-over');
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
+      handleFiles(e.dataTransfer.files); // ファイルの追加処理
       e.dataTransfer.clearData();
     }
   };
@@ -161,10 +161,11 @@ const PostForm: React.FC<PostFormProps> = ({
     };
   }, []);
 
+
   return (
 
     <div>
-      <h2 className="text-xl font-bold mb-4  mt-6 dark:text-white">新規投稿</h2>
+      <h2 className="text-xl font-bold mb-4  mt-2 dark:text-white">新規投稿</h2>
 
       {/* 既存の投稿フォーム */}
       <form onSubmit={handleFormSubmit} className="mt-2">
@@ -222,7 +223,11 @@ const PostForm: React.FC<PostFormProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleDelete(file.id)}
+                  onClick={(e) => {
+                    e.preventDefault(); // フォームの送信を防ぐ
+                    e.stopPropagation(); // イベントの伝播を停止
+                    handleDelete(file.id);
+                  }}
                   className={`absolute top-2 right-2 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
                     file.isExisting 
                       ? 'bg-gray-500 hover:bg-gray-600' 

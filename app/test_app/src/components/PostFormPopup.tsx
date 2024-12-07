@@ -1,7 +1,13 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect } from 'react';
-import { FileItem } from '@/types/index';
+
+interface FileItem {
+  id: number;
+  isImage: boolean;
+  contentType?: string;
+  isExisting?: boolean;
+}
 
 interface PostFormPopupProps {
   isOpen: boolean;
