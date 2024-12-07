@@ -1,5 +1,4 @@
-import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback, useState } from 'react';
-import { getHashtagRanking, type HashtagRank } from '@/lib/api';
+import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback } from 'react';
 
 interface FileItem {
   id: number;
@@ -39,9 +38,6 @@ const PostForm: React.FC<PostFormProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
-  const [hashtagRanking, setHashtagRanking] = useState<HashtagRank[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -62,11 +58,28 @@ const PostForm: React.FC<PostFormProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault();
-      if (postText.trim() !== '' || files.length > 0) {
-        // 投稿処理を共通化するためhandleFormSubmitを呼び出す
-        handleFormSubmit(e as any);
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        e.preventDefault();
+        if (postText.trim() !== '' || files.length > 0) {
+          // ハッシュタグ処理を追加
+          let finalPostText = postText;
+          if (autoAppendTags && fixedHashtags.trim()) {
+            const processedTags = fixedHashtags
+              .trim()
+              .split(/\s+/)
+              .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
+              .join(' ');
+            
+            finalPostText = `${postText}\n${processedTags}`;
+          }
+          handleSubmit(e as any, finalPostText);
+        }
+      } else {
+        // 通常のEnterは改行を許可（textareaの場合）
+        if (e.currentTarget.tagName.toLowerCase() !== 'textarea') {
+          e.preventDefault();
+        }
       }
     }
   };
@@ -74,33 +87,19 @@ const PostForm: React.FC<PostFormProps> = ({
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const parts: string[] = [postText.trim()];
+    let finalPostText = postText;
     
-    // 選択されたタグを追加
-    if (selectedHashtags.size > 0) {
-      const selectedTagsStr = Array.from(selectedHashtags).join(' ');
-      parts.push(selectedTagsStr);
-    }
-    
-    // 固定タグの追加
-    if (autoAppendTags && fixedHashtags.trim()) {
+    if (autoAppendTags && fixedHashtags.trim()) {  // autoAppendTags を追加
       const processedTags = fixedHashtags
         .trim()
         .split(/\s+/)
         .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
         .join(' ');
-      parts.push(processedTags);
+      
+      finalPostText = `${postText}\n${processedTags}`;
     }
     
-    // 空の要素を除去してから結合
-    const finalPostText = parts.filter(part => part).join('\n');
-    
-    if (finalPostText.trim() || files.length > 0) {
-      handleSubmit(e, finalPostText);
-      // 投稿後に選択されたタグをクリア
-      setSelectedHashtags(new Set());
-      setIsDropdownOpen(false);
-    }
+    handleSubmit(e, finalPostText);  // finalPostTextを第2引数として渡す
   };
 
   // ハッシュタグの初期読み込み
@@ -162,29 +161,6 @@ const PostForm: React.FC<PostFormProps> = ({
     };
   }, []);
 
-  // ハッシュタグランキングの取得
-  useEffect(() => {
-    const fetchHashtags = async () => {
-      const tags = await getHashtagRanking(20);
-      setHashtagRanking(tags);
-    };
-    fetchHashtags();
-  }, []);
-
-  // ハッシュタグの追加
-  const handleHashtagSelect = (tagText: string) => {
-    setSelectedHashtags(prev => {
-      const next = new Set(prev);
-      const tag = tagText.startsWith('#') ? tagText : `#${tagText}`;
-      if (next.has(tag)) {
-        next.delete(tag);
-      } else {
-        next.add(tag);
-      }
-      return next;
-    });
-  };
-
   return (
 
     <div>
@@ -192,73 +168,14 @@ const PostForm: React.FC<PostFormProps> = ({
 
       {/* 既存の投稿フォーム */}
       <form onSubmit={handleFormSubmit} className="mt-2">
-        <div className="relative">
-          <textarea
-            value={postText}
-            onChange={(e) => setPostText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-            placeholder="ここに投稿内容を入力してください"
-            rows={4}
-          />
-          
-          {/* ハッシュタグドロップダウン */}
-          <div className="relative mt-2">
-            <button
-              type="button"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center gap-2"
-            >
-              <span>人気のハッシュタグ</span>
-              {selectedHashtags.size > 0 && (
-                <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  {selectedHashtags.size}
-                </span>
-              )}
-            </button>
-            
-            {isDropdownOpen && (
-              <div className="absolute z-10 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
-                <div className="py-1 max-h-48 overflow-y-auto">
-                  {hashtagRanking.map((tag) => (
-                    <button
-                      key={tag.post_tag_id}
-                      type="button"
-                      onClick={() => handleHashtagSelect(tag.post_tag_text)}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                        selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
-                      }`}
-                    >
-                      <span>{tag.post_tag_text}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">({tag.use_count})</span>
-                        {selectedHashtags.has(tag.post_tag_text) && (
-                          <span className="text-blue-500 text-sm">✓</span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {selectedHashtags.size > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {Array.from(selectedHashtags).map(tag => (
-                  <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleHashtagSelect(tag)}
-                      className="text-blue-500 hover:text-blue-700"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <textarea
+          value={postText}
+          onChange={(e) => setPostText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+          placeholder="ここに投稿内容を入力してください"
+          rows={4}
+        />
         <div
           ref={dropRef}
           onDragOver={handleDragOver}
@@ -325,7 +242,7 @@ const PostForm: React.FC<PostFormProps> = ({
             onClick={onSelectExistingFiles}
             className="w-full p-2 text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors dark:bg-blue-600 dark:hover:bg-blue-700"
           >
-            アップロード済みファイル���ら選択
+            アップロード済みファイルから選択
           </button>
           <div className="mt-2 space-y-2">  {/* space-y-2 を追加 */}
             <input
@@ -335,7 +252,7 @@ const PostForm: React.FC<PostFormProps> = ({
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
               placeholder="ハッシュタグの固定"
             />
-            <div className="flex items-center">  {/* ml-2 を削��し、flex を追加 */}
+            <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
