@@ -7,6 +7,7 @@ import axios from 'axios';
 import remarkBreaks from 'remark-breaks';
 import { parse } from 'papaparse';
 import { visit } from 'unist-util-visit';
+import rehypeRaw from 'rehype-raw'; // 追加
 
 interface BlogPost {
   blog_id: number;
@@ -75,7 +76,15 @@ export default function BlogDetail() {
         credentials: 'include'
       });
 
-      if (!response.ok) throw new Error('更新に失敗しました');
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Invalid content-type: ${contentType}. Response: ${text}`);
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message || '更新に失敗しました');
       
       // 更新成功後にブログデータを再取得
       const updatedBlogResponse = await fetch(`https://wallog.seitendan.com/api/blog/blog_read/${params.blog_id}`);
@@ -107,6 +116,13 @@ export default function BlogDetail() {
 
       try {
         const response = await fetch(`https://wallog.seitendan.com/api/blog/blog_read/${params.blog_id}`);
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Invalid content-type: ${contentType}. Response: ${text}`);
+        }
+        
         const data = await response.json();
 
         if (!response.ok) {
@@ -137,62 +153,105 @@ export default function BlogDetail() {
       visit(tree, 'paragraph', (node: any) => {
         if (!node.children?.length) return;
 
-        // 全ての子ノードのテキストを結合
         const fullText = node.children
           .map((child: any) => child.value || '')
-          .join('');
+          .join('\n'); // 改行を追加
 
-        console.log('Full text content:', fullText);
-
-        // より柔軟な正規表現パターンに変更
-        const regex = /<csv=([^>]+)>/s;
+        const regex = /<csv=([\s\S]*?)>/;
         const match = fullText.match(regex);
 
         if (match) {
-          console.log('CSV match found:', match[1]);
           const csvContent = match[1].trim();
           
           try {
-            const parsed = parse(csvContent, { 
-              header: true, 
+            // 改行を統一し、末尾の改行を確実に追加
+            const normalizedContent = csvContent
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .trim();
+
+            console.log('Normalized CSV:', normalizedContent);
+
+            const results = parse(normalizedContent, { 
+              header: true,
               skipEmptyLines: true,
+              delimiter: ',',
               transformHeader: (header) => header.trim()
             });
 
-            console.log('Parse result:', {
+            if (!results.meta || !results.data) {
+              throw new Error('パースに失敗しました');
+            }
+
+            const parsed = results;
+
+            // より詳細なデバッグ情報
+            console.log('Parse Details:', {
               fields: parsed.meta.fields,
-              rowCount: parsed.data.length,
-              errors: parsed.errors
+              dataLength: parsed.data.length,
+              firstRow: parsed.data[0],
             });
 
-            if (parsed.errors.length === 0 && parsed.meta.fields) {
+            // デバッグ用ログを追加
+            console.log('Parsed Fields:', parsed.meta.fields);
+            console.log('Parsed Data:', parsed.data);
+
+            if (!parsed.meta.fields || parsed.meta.fields.length === 0) {
+              throw new Error('ヘッダーが見つかりません');
             }
-          } else {
-            console.log('No CSV pattern match found in node');
+
+            // フィルタリングを緩和
+            const validData = parsed.data; // フィルタを削除
+
+            if (validData.length === 0) {
+              throw new Error('有効なデータが見つかりません');
+            }
+
+            const tableHtml = generateTableHtml(parsed.meta.fields, validData as Record<string, string>[]);
+            node.type = 'html';
+            node.value = tableHtml;
+
+          } catch (error) {
+            console.error('CSV parsing details:', {
+              originalContent: csvContent,
+              error: error
+            });
+            
+            node.type = 'paragraph';
+            node.children = [{
+              type: 'text',
+              value: `CSV Parse Error: ${error instanceof Error ? error.message : 'パース失敗'}`
+            }];
           }
         }
       });
     };
   }
-  
-  function generateTableHtml(headers: string[], rows: any[]) {
-    const headerHtml = headers.map((header) => `<th>${header}</th>`).join('');
+
+  function generateTableHtml(headers: string[], rows: Record<string, string>[]) {
+    const headerHtml = headers.map(header => `<th class="border border-gray-300 px-4 py-2 bg-gray-100 dark:bg-gray-700">${header}</th>`).join('');
     const rowsHtml = rows
-      .map((row) =>
-        `<tr>${headers.map((header) => `<td>${row[header] || ''}</td>`).join('')}</tr>`
+      .map(row => 
+        `<tr>${headers.map(header => 
+          `<td class="border border-gray-300 px-4 py-2">${row[header] || ''}</td>`
+        ).join('')}</tr>`
       )
       .join('');
+
     return `
-      <table class="min-w-full border-collapse border border-gray-300">
-        <thead>
-          <tr>${headerHtml}</tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-      </table>
+      <div class="overflow-x-auto my-4">
+        <table class="min-w-full border-collapse border border-gray-300">
+          <thead>
+            <tr>${headerHtml}</tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
     `;
   }
+
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
@@ -219,6 +278,7 @@ export default function BlogDetail() {
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
             remarkPlugins={[remarkBreaks, remarkCsv]}
+            rehypePlugins={[rehypeRaw]} // 追加
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
               h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
