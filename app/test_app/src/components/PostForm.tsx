@@ -20,7 +20,7 @@ interface PostFormProps {
   handleSubmit: (e: React.FormEvent, finalText?: string) => void;  // 引数を追加
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
-  handleDelete: (fileId: number) => void;
+  handleDelete: (fileId: number) => Promise<boolean>; // handleDelete の型を更新
   onSelectExistingFiles: () => void;
   fixedHashtags: string;
   setFixedHashtags: (tags: string) => void;
@@ -34,7 +34,7 @@ const PostForm: React.FC<PostFormProps> = ({
   handleSubmit,
   files,
   handleFiles,
-  handleDelete,
+  handleDelete, // handleDelete を受け取る
   onSelectExistingFiles,
   fixedHashtags,
   setFixedHashtags,
@@ -73,6 +73,23 @@ const PostForm: React.FC<PostFormProps> = ({
       if (postText.trim() !== '' || files.length > 0) {
         handleFormSubmit(e as any);
       }
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      handleFiles(files as any);
     }
   };
 
@@ -212,12 +229,13 @@ const PostForm: React.FC<PostFormProps> = ({
             value={postText}
             onChange={(e) => setPostText(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
             placeholder="ここに投稿内容を入力してください"
             rows={4}
           />
           
-          {/* ハッシュタグドロッ��ダウン */}
+          {/* ハッシュタグドロップダウン */}
           <div className="relative mt-2">
             <button
               type="button"
@@ -325,7 +343,7 @@ const PostForm: React.FC<PostFormProps> = ({
                   onClick={(e) => {
                     e.preventDefault(); // フォームの送信を防ぐ
                     e.stopPropagation(); // イベントの伝播を停止
-                    handleDelete(file.id);
+                    handleDelete(file.id); // 正しい file_id を渡す
                   }}
                   className={`absolute top-2 right-2 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
                     file.isExisting 

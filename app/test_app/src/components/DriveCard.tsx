@@ -65,7 +65,7 @@ export default function DriveCard({ file, handleDeleteClick, handleEditClick, ha
       link.click();
       document.body.removeChild(link);
       
-      addNotification('ダウンロードを開始しました');
+      addNotification('ダウンロ��ドを開始しました');
     } catch (err) {
       console.error('ダウンロードに失敗しました:', err);
       addNotification('ダウンロードに失敗しました');

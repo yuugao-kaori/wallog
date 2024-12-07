@@ -80,7 +80,7 @@ async function deleteBlog(blogId, userId) {
 }
 
 // 削除APIエンドポイント
-router.delete('/blog_delete/:id', async (req, res) => {
+router.post('/blog_delete', async (req, res) => {
   if (!req.session) {
     return res.status(401).json({ error: 'Session object not found' });
   }
@@ -96,7 +96,10 @@ router.delete('/blog_delete/:id', async (req, res) => {
       return res.status(401).json({ error: 'User not logged in' });
     }
 
-    const blogId = req.params.id;
+    const blogId = req.body.file_id;
+    if (!blogId) {
+      return res.status(400).json({ error: 'file_id is required' });
+    }
     
     try {
       const deletedBlog = await deleteBlog(blogId, parsedSession.username);

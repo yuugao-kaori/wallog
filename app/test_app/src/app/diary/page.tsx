@@ -325,7 +325,7 @@ function Diary() {
     [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
   );
 
-// ファイル削除用の関数に分割
+// ファイル削除用の関数を修正
 const handleDeleteFile = async (fileId: number): Promise<boolean> => {
   const fileToDelete = files.find(f => f.id === fileId);
   
@@ -337,7 +337,9 @@ const handleDeleteFile = async (fileId: number): Promise<boolean> => {
   }
 
   try {
-    await api.delete(`/api/drive/file/${fileId}`);
+    await api.post('/api/drive/file_delete', {
+      file_id: fileId
+    });
     setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
     return true;
   } catch (error) {
@@ -569,7 +571,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
-      autoAppendTags={autoAppendTags}  // 追加
+      autoAppendTags={autoAppendTags}  // ���加
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       />

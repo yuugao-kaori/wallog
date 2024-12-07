@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { NotificationItem } from '@/components/Notification';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { FaUpload } from 'react-icons/fa';
@@ -26,6 +27,12 @@ interface ApiResponse {
 axios.defaults.baseURL = process.env.NEXT_PUBLIC_SITE_DOMAIN;
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common['Content-Type'] = 'application/json;charset=utf-8';
+const notifications: NotificationItem[] = [];
+
+const addNotification = (message: string, action?: NotificationItem['action']) => {
+  const id = new Date().toISOString(); // or any unique id generation logic
+  notifications.push({ id, message, action });
+};
 
 export default function DrivePage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -83,11 +90,27 @@ export default function DrivePage() {
   
       // 末尾のスラッシュを除去してクリーンなURLを作成
       const baseUrl = process.env.NEXT_PUBLIC_SITE_DOMAIN.replace(/\/+$/, '');
-      const fileUrl = `${baseUrl}/api/drive/files/${file_id}`;
+      const fileUrl = `${baseUrl}/drive/${file_id}`;
   
       await navigator.clipboard.writeText(fileUrl);
     } catch (err) {
       console.error('URLのコピーに失敗しました:', err);
+    }
+  };
+
+  const handleConfirmDelete = async (file_id: string) => {
+    try {
+      const response = await axios.post('/api/drive/file_delete', { file_id });
+      addNotification('ファイルが正常に削除されました。');
+      // ファイルリストを再取得
+      setFiles(prevFiles => prevFiles.filter(file => file.file_id !== selectedFileId));
+      setIsModalOpen(false);
+      setSelectedFileId(null);
+    } catch (error) {
+      console.error('ファイル削除エラー:', error);
+      addNotification('ファイルの削除に失敗しました。');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -158,6 +181,30 @@ export default function DrivePage() {
               }}
               className="w-full"
             />
+          </div>
+        </div>
+      )}
+
+      {/* 削除確認モーダル */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded">
+            <h2 className="text-lg font-bold mb-4">本当に削除しますか？</h2>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="mr-4 px-4 py-2 bg-gray-300 rounded"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleConfirmDelete(selectedFileId!)}
+                className="px-4 py-2 bg-red-500 text-white rounded"
+                disabled={deleting}
+              >
+                {deleting ? '削除中...' : '削除'}
+              </button>
+            </div>
           </div>
         </div>
       )}

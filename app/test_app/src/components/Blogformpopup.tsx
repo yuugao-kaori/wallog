@@ -9,10 +9,13 @@ interface BlogFormPopupProps {
     blog_text: string;
     blog_file: string;
     blog_thumbnail: string;
+    blog_id: string;  // 追加
   };
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onSubmit: (e: React.FormEvent) => void;
   mode?: 'create' | 'edit';
+  onDelete?: (blogId: string) => void;  // 追加
+  onUpdate?: () => void;  // 追加
 }
 
 const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
@@ -21,14 +24,45 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
   blogData,
   onInputChange,
   onSubmit,
-  mode = 'create'
+  onDelete: handleDelete,  // 追加
+  onUpdate,  // 追加
+  mode = 'create',  // 追加
+
 }: BlogFormPopupProps) => {
   if (!isOpen) return null;
 
   const [emptyLineCount, setEmptyLineCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const handleDeleteClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!blogData.blog_id) return;
 
+    try {
+      const response = await fetch('/api/blog/blog_delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // セッションCookieを送信するために必要
+        body: JSON.stringify({ file_id: blogData.blog_id })
+      });
+
+      if (!response.ok) {
+        throw new Error('削除に失敗しました');
+      }
+
+      onClose(); // ポップアップを閉じる
+      if (onUpdate) onUpdate(); // 親コンポーネントの一覧を更新
+
+      // ページ遷移
+      window.location.href = '/blog';
+
+    } catch (error) {
+      console.error('削除エラー:', error);
+      // エラー表示の処理を追加
+      alert('削除に失敗しました');
+    }
+  };
   const insertMarkdown = (markdownSyntax: { prefix: string, suffix?: string }) => {
     if (!textareaRef.current) return;
 
@@ -194,7 +228,7 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               onClick={() => insertMarkdown({ prefix: '*', suffix: '*' })}
               className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
             >
-                   斜体
+                    斜体
             </button>
             {/* 新しいマークダウンボタンを追加 */}
             <button
@@ -217,7 +251,7 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
             >
               箇条書き
-            </button>
+              </button>
             <button
               type="button"
                       onClick={() => insertMarkdown({ prefix: '```', suffix: '```' })}
@@ -251,6 +285,13 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
                   <div className="flex justify-end space-x-2">
+                  <button
+                      type="button"
+                      onClick={handleDeleteClick}
+                      className="px-4 py-2 text-gray-600 bg-red-500 rounded-md dark:text-white"
+                    >
+                      削除
+                    </button>
                     <button
                       type="button"
                       onClick={onClose}
@@ -258,6 +299,7 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     >
                       キャンセル
                     </button>
+
                     <button
                       type="submit"
                       className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600"

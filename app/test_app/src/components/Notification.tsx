@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 
-interface NotificationItem {
+export interface NotificationItem {
   id: string;
   message: string;
   action?: {
@@ -50,3 +50,5 @@ const Notification: React.FC<NotificationProps> = ({ notifications, onClose }) =
 };
 
 export default Notification;
+
+// 変更は不要の場合、このファイルはそのままで構いません。

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
-import BlogFormPopup from '@/components/blogformpopup';
+import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
 
 const BlogPage: React.FC = () => {
@@ -17,7 +17,8 @@ const BlogPage: React.FC = () => {
     blog_text: '',
     blog_file: '',
     blog_thumbnail: '',
-    blog_fixedurl: ''
+    blog_fixedurl: '',
+    blog_id: ''
   });
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
@@ -74,8 +75,12 @@ const BlogPage: React.FC = () => {
         blog_text: '',
         blog_file: '',
         blog_thumbnail: '',
-        blog_fixedurl: ''
+        blog_fixedurl: '',
+        blog_id: ''
       });
+      
+      // ブログ作成後に一覧を更新
+      await fetchBlogs(currentPage);
     } catch (error) {
       console.error('Error creating blog:', error);
     }

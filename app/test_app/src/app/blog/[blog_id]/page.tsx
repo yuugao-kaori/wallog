@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import BlogFormPopup from '@/components/blogformpopup';
+import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
 import remarkBreaks from 'remark-breaks';
 import { parse } from 'papaparse';
