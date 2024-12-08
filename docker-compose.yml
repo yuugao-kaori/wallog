@@ -31,18 +31,17 @@ services:
       - "15000:5000"
     environment:
       - NODE_ENV=development
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
       - KAFKA_BROKER=kafka:9092
     depends_on:
-      - db
+      - ${POSTGRES_NAME}
       - redis
-      - elasticsearch
+      - ${ELASTICSEARCH_HOST}
+      - ${MINIO_NAME}  # MinIOへの依存関係を追加
     networks:
       - wallog_default2
 
-  db:
-    container_name: db_unique
+  db-wallog:
+    container_name: ${POSTGRES_NAME}
     image: postgres:16
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -67,7 +66,7 @@ services:
     ports:
       - "15050:80"
     depends_on:
-      - db
+      - ${POSTGRES_NAME}
     networks:
       - wallog_default2
 
@@ -98,8 +97,8 @@ services:
     networks:
       - wallog_default2
 
-  elasticsearch:
-    container_name: elasticsearch_unique
+  elasticsearch-wallog:
+    container_name: ${ELASTICSEARCH_HOST}
     build:
       context: .
       dockerfile: dockerfile.elasticsearch
@@ -113,7 +112,9 @@ services:
     volumes:
       - es_data:/usr/share/elasticsearch/data
     networks:
-      - wallog_default2
+      wallog_default2:
+        aliases:
+          - elasticsearch
     ulimits:
       memlock:
         soft: -1
@@ -130,7 +131,7 @@ services:
     ports:
       - "15601:5601"
     depends_on:
-      - elasticsearch
+      - ${ELASTICSEARCH_HOST}
     networks:
       - wallog_default2
     volumes:
@@ -140,28 +141,32 @@ services:
         soft: -1
         hard: -1
 
-  minio:
+  minio-wallog:
     image: minio/minio:latest
-    container_name: minio_unique
+    container_name: ${MINIO_NAME}
     ports:
-      - '19001:9001'
+      - '19000:9000'   # APIポートを公開
       - '18900:8900'
     environment:
-      MINIO_ROOT_USER: root
-      MINIO_ROOT_PASSWORD: password
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     volumes:
       - ./minio/data:/data
     entrypoint: >
       /bin/sh -c "
-      mkdir -p /data/minio/public_data;
-      mkdir -p /data/minio/private_data;
-      mkdir -p /data/minio/bucket3;
-      /usr/bin/minio server /data/minio --console-address ':8900';
-      exit 0;
+      /usr/bin/minio server /data/minio --address '0.0.0.0:9000' --console-address ':8900' &
+      sleep 10;
+      mc alias set myminio http://localhost:9000 ${MINIO_USER} ${MINIO_PASSWORD};
+      mc mb myminio/publicdata;
+      mc mb myminio/privatedata;
+      mc mb myminio/bucket3;
+      wait
       "
     deploy:
       restart_policy:
         condition: on-failure
+    networks:
+      - wallog_default2
 
   nginx:
     container_name: nginx_unique

@@ -9,6 +9,8 @@ import dotenv from 'dotenv';
 import pkg from 'pg'; 
 const { Client } = pkg; 
 import cors from 'cors'; 
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+
 const router = express.Router(); 
 console.log('file_delete:wakeup!'); 
 
@@ -18,7 +20,7 @@ const __dirname = path.dirname(__filename);
 
 // CORS の設定を詳細に指定し、セッションミドルウェアの前に配置
 router.use(cors({
-  origin: 'http://192.168.1.148:23000', // フロントエンドのオリジンに置き換え
+  origin: 'http://192.168.1.148:23000', // フ��ントエンドのオリジンに置き換え
   methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -50,6 +52,20 @@ router.use(
 // 環境変数の読み取り実装 
 const envFilePath = './.env'; 
 dotenv.config({ path: envFilePath }); // dotenvを使用して環境変数を読み込み 
+
+// MinIOクライアントの初期化
+const s3Client = new S3Client({
+    endpoint: `http://${process.env.MINIO_NAME}:9000`,
+    region: 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.MINIO_USER || 'myuser',
+        secretAccessKey: process.env.MINIO_PASSWORD || 'mypassword',
+    },
+    forcePathStyle: true,
+    signatureVersion: 'v4',
+    tls: false,
+    apiVersion: 'latest'
+});
 
 /** 
  * データベースから指定された file_id のレコードを削除します。 
@@ -153,6 +169,16 @@ router.post('/file_delete', async (req, res) => {
 
     // ファイルを削除 
     await deleteFileFromDisk(file_id); 
+
+    // MinIOからファイルを削除
+    try {
+        await s3Client.send(new DeleteObjectCommand({
+            Bucket: 'publicdata',
+            Key: file_id
+        }));
+    } catch (error) {
+        console.error('MinIOからのファイル削除中にエラーが発生:', error);
+    }
 
     // データベースからレコードを削除 
     await deleteFileRecord(file_id); 

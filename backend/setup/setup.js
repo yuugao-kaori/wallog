@@ -10,12 +10,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 console.log('\n############################\nセットアップ処理を開始します\n############################\n');
+// setup.jsの先頭付近に追加
+
+
+
 
 const envFilePath = './.env';
 
 if (fs.existsSync(envFilePath)) {
   dotenv.config();
   console.log('.envファイルを認識しました。\n');
+
+  // 環境変数チェックを.env読み込み後に移動
+  console.log('Direct env check:');
+  console.log('ELASTICSEARCH_HOST:', process.env.ELASTICSEARCH_HOST);
+  console.log('ELASTICSEARCH_HOST2:', process.env.ELASTICSEARCH_HOST2);
 
   // 環境変数の読み込み
   const { 
@@ -24,6 +33,7 @@ if (fs.existsSync(envFilePath)) {
     POSTGRES_DB, 
     POSTGRES_NAME,
     ELASTICSEARCH_HOST,
+    ELASTICSEARCH_HOST2,
     ELASTICSEARCH_PORT,
     ELASTICSEARCH_USER,
     ELASTICSEARCH_PASSWORD,
@@ -33,7 +43,9 @@ if (fs.existsSync(envFilePath)) {
     APP_ADMIN_USER,
     APP_ADMIN_PASSWORD
   } = process.env;
-
+  console.log(`es host:${ELASTICSEARCH_HOST}`);
+  console.log(`es host2:${ELASTICSEARCH_HOST2}`);
+  console.log(`pg host:${POSTGRES_NAME}`);
   // PostgreSQLクライアントの設定
   const pgClient = new Client({
     user: POSTGRES_USER,
@@ -45,8 +57,10 @@ if (fs.existsSync(envFilePath)) {
 
   // ElasticSearchクライアントの設定を修正
   const esClient = new ESClient({
-    node: {
-      url: new URL(`http://${ELASTICSEARCH_HOST}:9200`),
+    node: `http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}`,
+    auth: {
+      username: ELASTICSEARCH_USER,
+      password: ELASTICSEARCH_PASSWORD
     },
     maxRetries: 5,
     requestTimeout: 60000,
@@ -55,6 +69,8 @@ if (fs.existsSync(envFilePath)) {
       rejectUnauthorized: false
     }
   });
+
+  console.log(`Elasticsearch host: ${ELASTICSEARCH_HOST}`); // デバッグ用にログを追加
 
   /**
    * 一定時間待機する関数（ミリ秒単位）
@@ -147,7 +163,7 @@ if (fs.existsSync(envFilePath)) {
                     throw queryErr; // エラーが発生した場合はロールバック
                 }
             } else {
-                console.log(`設定 ${key} は既に存在します。��書きしません。`);
+                console.log(`設定 ${key} は既に存在します。上書きしません。`);
             }
         }
 
@@ -248,7 +264,7 @@ if (fs.existsSync(envFilePath)) {
         }
       }
     } catch (error) {
-      console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
+      console.error('ElasticSearchのセット��ップ中にエラーが発生しました:', error);
       if (retries > 0) {
         console.log(`30秒後に再試行します。残り試行回数: ${retries}`);
         await delay(30000);
@@ -327,7 +343,7 @@ if (fs.existsSync(envFilePath)) {
       const result = await pgClient.query(checkAdminUserQuery, [APP_ADMIN_USER]);
 
       if (result.rows.length === 0) {
-        console.log(`.envで定義された管理者ユーザーがテーブルに存在しません。\n初期ユーザの作成処理を行います。`);
+        console.log(`.envで定義された管理者ユーザーがテーブルに存在しま��ん。\n初期ユーザの作成処理を行います。`);
         const insert_sql = `
           INSERT INTO "user" (
             user_id, 

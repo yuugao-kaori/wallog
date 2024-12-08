@@ -96,3 +96,6 @@ curl -X POST 'http://wallog.seitendan.com/api/post/search' \
 }'
 ###
 curl -X GET 'http://wallog.seitendan.com/api/settings/settings_read' \
+
+###
+curl http://192.168.1.148:19000/minio/health/ready

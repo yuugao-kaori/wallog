@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS "drive" (
     file_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     file_size NUMERIC,
+    file_originalname TEXT,
     file_format CHARACTER VARYING,
     file_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

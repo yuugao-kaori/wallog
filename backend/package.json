@@ -4,7 +4,7 @@
     "description": "backend",
     "main": "index.js",
     "scripts": {
-      "start": "node ./setup/setup.js && node ./setup/maintenance.js && nodemon index.js"
+      "start": "node ./setup/setup.js && node ./setup/maintenance.js && node ./setup/minio_maintenance.js && nodemon index.js"
     },
     "dependencies": {
       "express": "^4.18.2",
@@ -21,9 +21,11 @@
       "date-utils": "^1.2.21",
       "file-viewer": "^1.2.0",
       "@elastic/elasticsearch": "^8.15.1",
-      "mime-types" : "^2.1.35",
-      "sharp":"0.33.5"
-
+      "mime-types": "^2.1.35",
+      "sharp": "^0.33.5",
+      "minio": "^7.0.0",
+      "aws-sdk": "^2.1692.0",
+      "@aws-sdk/client-s3":"^3.705.0"
     },
     "devDependencies": {
       "nodemon": "^3.1.7"

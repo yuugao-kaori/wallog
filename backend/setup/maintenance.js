@@ -34,6 +34,8 @@ const {
 const ELASTICSEARCH_INDEX = 'post'
 const ELASTICSEARCH_INDEX2 = 'blog'  // blogインデックスを追加
 
+console.log(`host:${ELASTICSEARCH_HOST}`);
+
 // PostgreSQLクライアントの設定
 const pgClient = new Client({
   user: POSTGRES_USER,
@@ -57,12 +59,15 @@ const esClient = new ESClient({
     rejectUnauthorized: false
   }
 });
+
+console.log(`Elasticsearch host: ${ELASTICSEARCH_HOST}`); // デバッグ用にログを追加
+
 async function rerouteElasticSearchShards() {
   try {
     await esClient.cluster.reroute();
     console.log('ElasticSearchクラスタの再ルーティングを実行しました。');
   } catch (error) {
-    console.error('ElasticSearchクラスタの再ルーティング中にエラーが発生���ました:', error);
+    console.error('ElasticSearchクラスタの再ルーティング中にエラーが発生しました:', error);
     throw error;
   }
 }
@@ -110,7 +115,7 @@ async function setupElasticSearchWithRetry(retries) {
       throw new Error('ElasticSearchに接続できません');
     }
 
-    // インデ��クスが存在するか確認
+    // インデックスが存在するか確認
     const indexExists = await esClient.indices.exists({ index: ELASTICSEARCH_INDEX });
 
     if (!indexExists) {
@@ -157,7 +162,7 @@ async function setupElasticSearchWithRetry(retries) {
           }
         }
       });
-      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました。`);
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました��`);
     }
   } catch (error) {
     console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
@@ -186,7 +191,7 @@ async function setReplicaCountToZero(index) {
         }
       }
     });
-    console.log(`ElasticSearchインデッ���ス '${index}' のレプリカ数を0に設定しました。`);
+    console.log(`ElasticSearchインデックス '${index}' のレプリカ数を0に設定しました。`);
   } catch (error) {
     console.error(`ElasticSearchインデックス '${index}' のレプリカ数設定中にエラーが発生しました:`, error);
   }
@@ -298,7 +303,7 @@ async function deleteBlogElasticSearchData() {
 // blogデータをElasticSearchに書き込む関数
 async function bulkInsertBlogToElasticSearch(data) {
   if (!Array.isArray(data) || data.length === 0) {
-    console.log('書き込むblogデータがあり��せん。');
+    console.log('書き込むblogデータがありません。');
     return;
   }
 
@@ -346,7 +351,7 @@ async function bulkInsertToElasticSearch(data) {
       post_text: doc.post_text,
       post_createat: doc.post_createat,
       post_tag: doc.post_tag
-      // 必要に応じて他のフィールドも追加
+      // ��要に応じて他のフ���ールドも追加
     });
   });
 
