@@ -67,6 +67,7 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
     if (!textareaRef.current) return;
 
     const textarea = textareaRef.current;
+    const scrollPosition = textarea.scrollTop; // スクロール位置を保存
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
@@ -95,6 +96,7 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
       textarea.focus();
       const newCursorPos = start + markdownSyntax.prefix.length;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.scrollTop = scrollPosition; // スクロール位置を復元
     }, 0);
 };
 const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -190,7 +192,7 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             name="blog_title"
             value={blogData.blog_title}
             onChange={onInputChange}
-            placeholder="タイトル"
+            placeholder="タ��トル"
             required
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -252,27 +254,6 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             >
               箇条書き
               </button>
-            <button
-              type="button"
-                      onClick={() => insertMarkdown({ prefix: '```', suffix: '```' })}
-                      className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-                    >
-                      コードブロック
-                    </button>
-                    <button
-              type="button"
-              onClick={() => insertMarkdown({ prefix: '> ' })}
-              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-            >
-              引用
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown({ prefix: '---' })}
-              className="px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
-            >
-              区切り線
-            </button>
                   </div>
                   <textarea
             ref={textareaRef}

@@ -8,6 +8,8 @@ import remarkBreaks from 'remark-breaks';
 import { parse } from 'papaparse';
 import { visit } from 'unist-util-visit';
 import rehypeRaw from 'rehype-raw'; // 追加
+import rehypeStringify from 'rehype-stringify'; // 追加
+import remarkGfm from 'remark-gfm'; // 追加
 
 interface BlogPost {
   blog_id: number;
@@ -324,8 +326,8 @@ export default function BlogDetail() {
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
-            remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg]} // remarkCustomImg を修正
-            rehypePlugins={[rehypeRaw]} // 追加
+            remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg, remarkGfm]} // remarkGfm を追加
+            rehypePlugins={[rehypeRaw, rehypeStringify]} // rehypeStringify を追加
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
               h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
@@ -426,6 +428,9 @@ export default function BlogDetail() {
                 }
                 return <p {...props} />;
               },
+              del: ({node, ...props}) => (
+                <del className="line-through" {...props} />
+              ),
             }}
           >
             {blog.blog_text}
