@@ -7,6 +7,8 @@ import PostForm from '@/components/PostForm';
 import { FaTimes } from 'react-icons/fa';
 import PostFormPopup from '@/components/PostFormPopup';
 import NotificationComponent from '@/components/Notification';
+import Tagcloud from '@/components/Tagcloud';
+import { getTags, type TagData } from '@/lib/api';  // 追加
 
 // 型定義
 interface Post {
@@ -32,17 +34,18 @@ interface DriveFile {
   content_type?: string;  // 追加
 }
 
-// 型定義に NotificationItem を追加
+// ������������定義に NotificationItem を追加
 interface NotificationItem {
   id: string;
   message: string;
+  action?: { label: string; onClick: () => void }; // 追加
 }
 
 const api = axios.create({
   baseURL: 'https://wallog.seitendan.com',
   headers: { 
     'Content-Type': 'application/json;charset=utf-8',
-    // CORSリクエストのためのヘッダーを追加
+    // CORSリ���エストのためのヘッダーを追加
     'Access-Control-Allow-Credentials': 'true'
   },
   withCredentials: true
@@ -67,10 +70,12 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
-  const [autoAppendTags, setAutoAppendTags] = useState<boolean>(true);  // 追加
+  const [autoAppendTags, setAutoAppendTags] = useState<boolean>(false);  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
   const [repostText, setRepostText] = useState<string>('');  // 追加
+  const [activeTab, setActiveTab] = useState<'post' | 'tags'>('post');
+  const [tagData, setTagData] = useState<TagData[]>([]);  // 追加
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<boolean>(false);
@@ -94,66 +99,35 @@ function Diary() {
     checkSession();
   }, []);
 
-  // SSE接続の修正
+  // タグデータを取得するための useEffect を追加
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let reconnectAttempt = 0;
-    const maxReconnectAttempts = 5;
-    const baseDelay = 1000; // 1秒
-
-    const createEventSource = () => {
-      const eventSource = new EventSource(
-        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
-        { withCredentials: true }
-      );
-      
-      eventSource.onmessage = (event) => {
-        const newPosts = JSON.parse(event.data);
-        setPosts((prevPosts: Post[]) => [...newPosts, ...prevPosts]);
-        reconnectAttempt = 0; // 成功したらリセット
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('SSE接続エラー:', error);
-        eventSource.close();
-        
-        if (reconnectAttempt < maxReconnectAttempts) {
-          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt), 30000); // 最大30秒
-          console.log(`${delay}ms後に再接続を試みます(試行${reconnectAttempt + 1}/${maxReconnectAttempts})`);
-          
-          setTimeout(() => {
-            reconnectAttempt++;
-            createEventSource();
-          }, delay);
-        } else {
-          console.error('最大再接続試行回数に達しました');
-        }
-      };
-
-      return eventSource;
+    const fetchTags = async () => {
+      try {
+        const tags = await getTags();
+        setTagData(tags);
+      } catch (error) {
+        console.error('Failed to fetch tags:', error);
+      }
     };
-
-    const eventSource = createEventSource();
     
-    return () => {
-      eventSource.close();
-    };
+    fetchTags();
   }, []);
 
   const loadMorePosts = useCallback(async (retryCount = 0) => {
     const now = Date.now();
-    const TIME_BETWEEN_REQUESTS = 500;
+    const TIME_BETWEEN_REQUESTS = 2000; // 2秒のインターバルを設定
 
     if (loadingRef.current || !hasMore) return;
     
+    // 前回のリクエストからの経過時間をチェック
     if (now - lastRequestTimeRef.current < TIME_BETWEEN_REQUESTS) {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
+      // 次��リクエストを遅延実行
       retryTimeoutRef.current = setTimeout(() => {
         loadMorePosts(retryCount);
-      }, TIME_BETWEEN_REQUESTS);
+      }, TIME_BETWEEN_REQUESTS - (now - lastRequestTimeRef.current));
       return;
     }
 
@@ -169,15 +143,26 @@ function Diary() {
         }
       });
       
-      const newPosts = Array.isArray(response.data) ? response.data : [];
+      // データの処理完了���確実にす��ため、setTimeout を使用
+      setTimeout(() => {
+        const newPosts = Array.isArray(response.data) ? response.data : [];
 
-      if (newPosts.length > 0) {
-        setPosts((prevPosts: Post[]) => [...prevPosts, ...newPosts]);
-        setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
-        setHasMore(newPosts.length >= 20);
-      } else {
-        setHasMore(false);
-      }
+        if (newPosts.length > 0) {
+          setPosts((prevPosts: Post[]) => {
+            const existingIds = new Set(prevPosts.map(post => post.post_id));
+            const uniqueNewPosts = newPosts.filter(post => !existingIds.has(post.post_id));
+            return [...prevPosts, ...uniqueNewPosts];
+          });
+          setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
+          setHasMore(newPosts.length >= 20);
+        } else {
+          setHasMore(false);
+        }
+        
+        loadingRef.current = false;
+        setLoading(false);
+      }, 1000); // 1秒の処理時間を確保
+
     } catch (error) {
       console.error('Failed to load posts', error);
       setStatus('投稿の読み込みに失敗しました。');
@@ -186,43 +171,85 @@ function Diary() {
           loadMorePosts(retryCount + 1);
         }, 1000 * (retryCount + 1));
       }
-    } finally {
       loadingRef.current = false;
       setLoading(false);
     }
   }, [hasMore, start_id]);
 
+  // SSE接続とinitial loadの設定を修正
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let eventSource: EventSource | null = null;
+    let reconnectAttempt = 0;
+    const maxReconnectAttempts = 2;
+    const baseDelay = 5000;
+
+    const createEventSource = () => {
+      // 既存のSSE接続があれば閉じる
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(
+        `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_sse`,
+        { withCredentials: true }
+      );
+      
+      eventSource.onmessage = (event) => {
+        const newPosts = JSON.parse(event.data);
+        setPosts((prevPosts: Post[]) => {
+          // 重複を排除して新しい投稿を追加
+          const existingIds = new Set(prevPosts.map(post => post.post_id));
+          const uniqueNewPosts = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
+          return [...uniqueNewPosts, ...prevPosts];
+        });
+        reconnectAttempt = 0;
+      };
+
+      eventSource.onerror = (error) => {
+        eventSource?.close();
+        
+        reconnectAttempt++;
+
+        if (reconnectAttempt >= maxReconnectAttempts) {
+          addNotification('接続が切断されました。', {
+            label: 'リロード',
+            onClick: () => {
+              addNotification('再接続中...', { label: 'キャンセル', onClick: () => {} });
+              createEventSource();
+            }
+          });
+        }
+        if (reconnectAttempt < maxReconnectAttempts) {
+          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt - 1), 30000);
+          setTimeout(() => {
+            createEventSource();
+          }, delay);
+        } else {
+          console.error('最大再接続試行回数に達しました');
+        }
+      };
+    };
+
+    // 初期ロード
     loadMorePosts();
 
-    const options: IntersectionObserverInit = {
-      root: null,
-      rootMargin: '500px',
-      threshold: 0.1
-    };
-
-    const handleObserver: IntersectionObserverCallback = (entries) => {
-      const target = entries[0];
-      if (target.isIntersecting && !loadingRef.current && hasMore) {
-        loadMorePosts();
-      }
-    };
-
-    observerRef.current = new IntersectionObserver(handleObserver, options);
-
-    if (bottomBoundaryRef.current) {
-      observerRef.current.observe(bottomBoundaryRef.current);
-    }
-
+    // SSE接続の確立
+    createEventSource();
+    
+    // クリーン��ップ関数
     return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
+      if (eventSource) {
+        console.log('Closing SSE connection');
+        eventSource.close();
+        eventSource = null;
       }
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, [loadMorePosts, hasMore]);
+  }, []); // 依存配列を空に
 
   const handleFiles = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -259,12 +286,12 @@ function Diary() {
     }
   };
 
-  const addNotification = useCallback((message: string) => {
+  const addNotification = useCallback((message: string, action?: { label: string; onClick: () => void }) => {
     const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, message }]);
+    setNotifications(prev => [...prev, { id, message, action }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(notification => notification.id !== id));
-    }, 3000);
+    }, 5000);
   }, []);
 
   const removeNotification = (id: string) => {
@@ -298,54 +325,49 @@ function Diary() {
     [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
   );
 
-  const handleDelete = async (event: React.MouseEvent | number, postId?: string): Promise<boolean> => {
-    if (typeof event === 'number') {
-      // ファイル削除のケース
-      const fileId = event;
-      const fileToDelete = files.find(file => file.id === fileId);
-      
-      if (!fileToDelete) return false;
+// ファイル削除用の関数を修正
+const handleDeleteFile = async (fileId: number): Promise<boolean> => {
+  const fileToDelete = files.find(f => f.id === fileId);
+  
+  if (!fileToDelete) return false;
 
-      if (fileToDelete.isExisting) {
-        setFiles((prev) => prev.filter((file) => file.id !== fileId));
-        return true;
-      } else {
-        try {
-          await api.post('/api/drive/file_delete', { file_id: fileId });
-          setFiles((prev) => prev.filter((file) => file.id !== fileId));
-          return true;
-        } catch (error) {
-          setStatus('ファイルの削除に失敗しました。');
-          return false;
-        }
-      }
-    } else {
-      // 投稿削除のケース
-      if (!postId) return false;
-      
-      try {
-        const response = await fetch('/api/post/post_delete', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ post_id: postId }),
-        });
+  if (fileToDelete.isExisting) {
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+    return true;
+  }
 
-        if (!response.ok) {
-          throw new Error('削除に失敗しました');
-        }
+  try {
+    await api.post('/api/drive/file_delete', {
+      file_id: fileId
+    });
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+    return true;
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    setStatus('ファイルの削除に失敗しました。');
+    return false;
+  }
+}
 
-        setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
-        addNotification('投稿を削除しました');
-        return true;
-      } catch (error) {
-        console.error('Error deleting post:', error);
-        addNotification('投稿の削除に失敗しました');
-        return false;
-      }
+// 投稿削除用の関���を修正
+const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
+  try {
+    const response = await api.delete('/api/post/post_delete', {
+      data: { post_id: postId }
+    });
+
+    if (response.status === 200) {
+      setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+      addNotification('投稿を削除しました');
+      return true;
     }
-  };
+    throw new Error('削除に失敗しました');
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    addNotification('投稿の削除に失敗しました');
+    return false;
+  }
+}
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -433,7 +455,7 @@ function Diary() {
   return (
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
-      <main className="flex-1 relative md:ml-64 bg-white dark:bg-gray-900 duration-300">  {/* md:ml-64 を追加 */}
+      <main className="flex-1 relative md:ml-48 bg-white dark:bg-gray-900 duration-300">  {/* md:ml-64 から md:ml-48 に変更 */}
       <div className="absolute inset-0 md:pr-[300px]">
         <div className="h-full overflow-auto px-4 bg-white dark:bg-gray-900 duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <PostFeed
@@ -445,40 +467,61 @@ function Diary() {
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
         />
-        {loading && (
-          <div className="w-full py-4 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
-          </div>
-        )}
-        <div ref={bottomBoundaryRef} className="h-10 w-full" />
         </div>
       </div>
       </main>
 
-      {/* デスクトップ用投稿フォーム */}
+      {/* デスクトップ用サイドバーを修正 */}
       <aside className="hidden md:block fixed right-0 top-0 w-[300px] h-full bg-white dark:bg-gray-900 border-l dark:border-gray-800">
-      <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         {isLoggedIn ? (
-        <>
-          <PostForm
-          postText={postText}
-          setPostText={setPostText}
-          handleSubmit={handleSubmit}
-          files={files}
-          handleFiles={handleFiles}
-          handleDelete={handleDelete}
-          onSelectExistingFiles={handleSelectExistingFiles}
-          fixedHashtags={fixedHashtags}
-          setFixedHashtags={setFixedHashtags}
-          autoAppendTags={autoAppendTags}  // 追加
-          setAutoAppendTags={setAutoAppendTags}  // 追加
-          />
-          {status && <p className="mt-4 text-red-500">{status}</p>}
-        </>
+          <>
+            <div className="flex border-b dark:border-gray-800">
+              <button
+                className={`flex-1 p-3 text-center ${
+                  activeTab === 'post'
+                    ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => setActiveTab('post')}
+              >
+                投稿
+              </button>
+              <button
+                className={`flex-1 p-3 text-center ${
+                  activeTab === 'tags'
+                    ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => setActiveTab('tags')}
+              >
+                タグ
+              </button>
+            </div>
+            <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+              {activeTab === 'post' ? (
+                <PostForm
+                  postText={postText}
+                  setPostText={setPostText}
+                  handleSubmit={handleSubmit}
+                  files={files}
+                  handleFiles={handleFiles}
+                  handleDelete={handleDeleteFile}
+                  onSelectExistingFiles={handleSelectExistingFiles}
+                  fixedHashtags={fixedHashtags}
+                  setFixedHashtags={setFixedHashtags}
+                  autoAppendTags={autoAppendTags}
+                  setAutoAppendTags={setAutoAppendTags}
+                />
+              ) : (
+                <Tagcloud tags={tagData} />  
+              )}
+            </div>
+          </>
         ) : (
-        <p className="text-gray-500 mt-4">投稿するにはログインが必要です。</p>
+          <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <Tagcloud tags={tagData} />  {/* タグデータを渡す */}
+          </div>
         )}
-      </div>
       </aside>
 
       {/* モバイル用フローティングボタン */}
@@ -491,7 +534,7 @@ function Diary() {
       </button>
       )}
 
-      {/* モバイル用モーダルをPostFormPopupに置き換え */}
+      {/* ��バイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
       onClose={() => {
@@ -506,7 +549,7 @@ function Diary() {
           try {
             // React.MouseEventとして新しいイベントを作成
             const mouseEvent = { type: 'click' } as React.MouseEvent<Element, MouseEvent>;
-            const deleteSuccess = await handleDelete(mouseEvent, repostData.post_id);
+            const deleteSuccess = await handleDeletePost(mouseEvent, repostData.post_id);
             
             if (deleteSuccess) {
               // 削除成功後に再投稿
@@ -522,18 +565,18 @@ function Diary() {
       }}
       files={files}
       handleFiles={handleFiles}
-      handleDelete={handleDelete}
+      handleDelete={handleDeleteFile}
       isLoggedIn={isLoggedIn}
       status={status}
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
-      autoAppendTags={autoAppendTags}  // 追加
+      autoAppendTags={autoAppendTags}  // ���加
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       />
 
-      {/* ファイル選択モーダル */}
+      {/* ファ���ル選択モーダル */}
       {showFileSelector && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">

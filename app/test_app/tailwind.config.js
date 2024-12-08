@@ -14,10 +14,21 @@ module.exports = {
         card: 'var(--card)',
         'card-foreground': 'var(--card-foreground)',
       },
+      fontFamily: {
+        sans: [
+          "Hiragino Maru Gothic Pro",
+          "BIZ UDGothic", 
+          "Roboto",
+          "HelveticaNeue",
+          "Arial",
+          "sans-serif"
+        ],
+      },
     },
   },
   plugins: [
-    require('tailwind-scrollbar-hide')
+    require('@tailwindcss/typography'),
+    require('tailwind-scrollbar-hide'),
     // もしトランジション関連のプラグインがあれば削除
   ],
 }

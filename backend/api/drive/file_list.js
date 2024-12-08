@@ -9,6 +9,7 @@ import pkg from 'pg';
 const { Client } = pkg;
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 // Initialize environment variables
 dotenv.config();
@@ -44,6 +45,21 @@ router.use(
       rolling: true,
     })
   );
+
+// MinIOクライアントの初期化
+const s3Client = new S3Client({
+  endpoint: `http://${process.env.MINIO_NAME}:9000`,
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.MINIO_USER || 'myuser',
+    secretAccessKey: process.env.MINIO_PASSWORD || 'mypassword',
+  },
+  forcePathStyle: true,
+  signatureVersion: 'v4',
+  tls: false,
+  apiVersion: 'latest'
+});
+
 /**
  * GET /file_list
  * 認証されたユーザーのdriveテーブルの内容をページネーション対応で返却する
@@ -120,14 +136,30 @@ router.get('/file_list', async (req, res) => {
 
     try {
       const result = await client.query(query, values);
-      console.log(`Retrieved ${result.rows.length} files`);
+      
+      // MinIOからファイル一覧を取得
+      const listObjectsResponse = await s3Client.send(new ListObjectsV2Command({
+        Bucket: 'publicdata',
+        MaxKeys: limit,
+        StartAfter: offset > 0 ? result.rows[0].file_id : undefined
+      }));
+
+      // PostgreSQLの結果にMinIOの情報を追加
+      const files = result.rows.map(file => {
+        const minioFile = listObjectsResponse.Contents?.find(obj => obj.Key === file.file_id);
+        return {
+          ...file,
+          minio_last_modified: minioFile?.LastModified,
+          minio_size: minioFile?.Size
+        };
+      });
 
       return res.status(200).json({
-        files: result.rows,
+        files,
         pagination: {
           limit,
           offset,
-          count: result.rows.length,
+          count: files.length,
         },
       });
     } catch (dbError) {

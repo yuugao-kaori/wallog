@@ -11,6 +11,7 @@ interface Post {
   post_text: string;
   post_tag: string;
   post_file?: string;
+  created_at: string;
   user_id: string;
 }
 

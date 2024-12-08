@@ -32,6 +32,10 @@ const {
   ELASTICSEARCH_PASSWORD,
 } = process.env;
 const ELASTICSEARCH_INDEX = 'post'
+const ELASTICSEARCH_INDEX2 = 'blog'  // blogインデックスを追加
+
+console.log(`host:${ELASTICSEARCH_HOST}`);
+
 // PostgreSQLクライアントの設定
 const pgClient = new Client({
   user: POSTGRES_USER,
@@ -55,6 +59,9 @@ const esClient = new ESClient({
     rejectUnauthorized: false
   }
 });
+
+console.log(`Elasticsearch host: ${ELASTICSEARCH_HOST}`); // デバッグ用にログを追加
+
 async function rerouteElasticSearchShards() {
   try {
     await esClient.cluster.reroute();
@@ -155,7 +162,7 @@ async function setupElasticSearchWithRetry(retries) {
           }
         }
       });
-      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました。`);
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました��`);
     }
   } catch (error) {
     console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
@@ -261,6 +268,68 @@ async function fetchPostgresData() {
   }
 }
 
+// blogテーブルからデータを取得する関数を追加
+async function fetchBlogPostgresData() {
+  try {
+    const res = await pgClient.query('SELECT * FROM blog;');
+    console.log(`PostgreSQLのblogテーブルから取得したデータの件数: ${res.rows.length}`);
+    return res.rows;
+  } catch (error) {
+    console.error('PostgreSQLのblogテーブルからのデータ取得中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+// blogインデックスのデータを削除する関数
+async function deleteBlogElasticSearchData() {
+  try {
+    const deleteResponse = await esClient.deleteByQuery({
+      index: ELASTICSEARCH_INDEX2,
+      body: {
+        query: {
+          match_all: {}
+        }
+      },
+      allow_partial_search_results: true
+    });
+
+    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX2}' のデータを削除しました。`);
+  } catch (error) {
+    console.error('ElasticSearchのblogデータ削除中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+// blogデータをElasticSearchに書き込む関数
+async function bulkInsertBlogToElasticSearch(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    console.log('書き込むblogデータがありません。');
+    return;
+  }
+
+  const body = [];
+  data.forEach(doc => {
+    body.push({
+      index: { _index: ELASTICSEARCH_INDEX2, _id: doc.id }
+    });
+    body.push({
+      blog_id: doc.blog_id,
+      blog_title: doc.blog_title,
+      blog_text: doc.blog_text,
+      blog_createat: doc.blog_createat,
+      blog_tag: doc.blog_tag
+    });
+  });
+
+  try {
+    const bulkResponse = await esClient.bulk({ refresh: true, body });
+    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX2}' にデータをバルク書き込みしました。`);
+  } catch (error) {
+    console.error('ElasticSearchへのblogデータのバルク書き込み中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
 /**
  * データをElasticSearchにバルク書き込みする関数
  * @param {Array} data - 書き込むデータの配列
@@ -282,7 +351,7 @@ async function bulkInsertToElasticSearch(data) {
       post_text: doc.post_text,
       post_createat: doc.post_createat,
       post_tag: doc.post_tag
-      // 必要に応じて他のフィールドも追加
+      // ��要に応じて他のフ���ールドも追加
     });
   });
 
@@ -380,6 +449,13 @@ async function main() {
 
     // データ検証
     await verifyElasticSearchData();
+
+    // blogデータの同期
+    console.log('\nblogデータの同期を開始します...');
+    const blogData = await fetchBlogPostgresData();
+    await deleteBlogElasticSearchData();
+    await bulkInsertBlogToElasticSearch(blogData);
+    console.log('blogデータの同期が完了しました。\n');
 
     console.log('\n############################\nメンテナンス処理が完了しました\n############################\n');
   } catch (error) {

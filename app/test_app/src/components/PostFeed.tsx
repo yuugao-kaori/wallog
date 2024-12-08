@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/PostCard';
 import axios from 'axios';
@@ -31,7 +31,15 @@ interface PostFeedProps {
   onRepost?: (post: Post) => Promise<void>;  // 追加
 }
 
-const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loading, hasMore, loadMorePosts, onRepost }) => {
+const PostFeed: React.FC<PostFeedProps> = ({ 
+  posts, 
+  setPosts, 
+  isLoggedIn, 
+  loading, 
+  hasMore, 
+  loadMorePosts, 
+  onRepost 
+}) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [newPostsAvailable, setNewPostsAvailable] = useState<boolean>(false);
@@ -39,6 +47,7 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
   const [selectedPostId, setSelectedPostId] = useState<string>('');
   const [accumulatedNewPosts, setAccumulatedNewPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<{ id: string; message: string; }[]>([]);
+  const lastPostRef = useRef<HTMLDivElement>(null);
 
   const addNotification = useCallback((message: string) => {
     const id = Date.now().toString();
@@ -159,24 +168,62 @@ const PostFeed: React.FC<PostFeedProps> = ({ posts, setPosts, isLoggedIn, loadin
 
   const MemoizedCard = useMemo(() => Card, []);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (lastPostRef.current) {
+      observer.observe(lastPostRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadMorePosts]);
+
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+    <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2">
       <Notification
         notifications={notifications}
         onClose={removeNotification}
       />
-      {posts.map(post => (
-        <MemoizedCard
+      {posts.map((post, index) => (
+        <div 
           key={post.post_id}
-          post={post}
-          onDelete={handleDeleteClick}
-          isLoggedIn={isLoggedIn}
-          handleDeleteClick={handleDeleteClick}
-          formatDate={formatDate}
-          renderHashtagsContainer={renderHashtagsContainer}
-          onRepost={onRepost}  // 追加
-        />
+          ref={index === posts.length - 1 ? lastPostRef : null}
+        >
+          <MemoizedCard
+            post={post}
+            onDelete={handleDeleteClick}
+            isLoggedIn={isLoggedIn}
+            handleDeleteClick={handleDeleteClick}
+            formatDate={formatDate}
+            renderHashtagsContainer={renderHashtagsContainer}
+            onRepost={onRepost}
+          />
+        </div>
       ))}
+      {loading && (
+        <div className="w-full py-4 text-center">
+          <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-500 border-r-transparent"></div>
+        </div>
+      )}
+      {hasMore && !loading && (
+        <div className="w-full py-4 text-center">
+          <button
+            onClick={() => loadMorePosts()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            もっと読み込む
+          </button>
+        </div>
+      )}
     </div>
   );
 };

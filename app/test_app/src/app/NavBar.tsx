@@ -40,6 +40,10 @@ const MenuLink = React.memo(({ href, children }: { href: string, children: React
 });
 
 // ハンバーガーメニューボタン
+// 既存のz-indexが問題ない場合は変更不要
+// もし他に高いz-indexがある場合は調整してください
+// 例:
+// メニュートグルボタンのz-indexを保持または必要に応じて調整
 const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onClick: () => void }) => (
   <button
     onClick={onClick}
@@ -92,7 +96,7 @@ const NavBarClient = () => {
     document.title = `${formattedPageName} | Wallog`;
   }, [pathname]);
 
-  // スクロール制御のためのuseEffect追加
+  // スクロール制御の���めのuseEffect追加
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -107,7 +111,7 @@ const NavBarClient = () => {
   // サーバーサイドレンダリング時やマウント前は何も表示しない
   if (!isMounted) {
     return (
-      <nav className="w-64 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4 
+      <nav className="w-48 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4 
         transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-30">
       </nav>
     );
@@ -126,7 +130,7 @@ const NavBarClient = () => {
         />
       )}
       <nav className={`
-        w-64 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4
+        w-48 h-screen bg-gray-100 dark:bg-gray-800 fixed left-0 top-0 p-4
         transform transition-transform duration-300 ease-in-out z-30
         md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         flex flex-col justify-between
@@ -144,7 +148,7 @@ const NavBarClient = () => {
         </div>
 
         <div className="flex flex-col space-y-4">
-          <div className="flex justify-center space-x-2">
+          <div className="flex justify-center space-x-1">
             <Link 
               href="https://github.com/yuugao-kaori/wallog" 
               target="_blank" 
@@ -154,7 +158,7 @@ const NavBarClient = () => {
               <FaGithub className="text-2xl" />
             </Link>
             <Link 
-              href="https://x.com/none_none_days" 
+              href="https://twitter.com/takumin3211" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -187,7 +191,8 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Version 2024.11.28.2021
+            Build 2024.12.09.0000
+            
           </div>
         </div>
       </nav>

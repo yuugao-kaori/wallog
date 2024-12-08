@@ -10,12 +10,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 console.log('\n############################\nセットアップ処理を開始します\n############################\n');
+// setup.jsの先頭付近に追加
+
+
+
 
 const envFilePath = './.env';
 
 if (fs.existsSync(envFilePath)) {
   dotenv.config();
   console.log('.envファイルを認識しました。\n');
+
+  // 環境変数チェックを.env読み込み後に移動
+  console.log('Direct env check:');
+  console.log('ELASTICSEARCH_HOST:', process.env.ELASTICSEARCH_HOST);
+  console.log('ELASTICSEARCH_HOST2:', process.env.ELASTICSEARCH_HOST2);
 
   // 環境変数の読み込み
   const { 
@@ -24,14 +33,19 @@ if (fs.existsSync(envFilePath)) {
     POSTGRES_DB, 
     POSTGRES_NAME,
     ELASTICSEARCH_HOST,
+    ELASTICSEARCH_HOST2,
     ELASTICSEARCH_PORT,
     ELASTICSEARCH_USER,
     ELASTICSEARCH_PASSWORD,
     ELASTICSEARCH_INDEX,
+    ELASTICSEARCH_INDEX2,
+    ELASTICSEARCH_INDEX3,
     APP_ADMIN_USER,
     APP_ADMIN_PASSWORD
   } = process.env;
-
+  console.log(`es host:${ELASTICSEARCH_HOST}`);
+  console.log(`es host2:${ELASTICSEARCH_HOST2}`);
+  console.log(`pg host:${POSTGRES_NAME}`);
   // PostgreSQLクライアントの設定
   const pgClient = new Client({
     user: POSTGRES_USER,
@@ -43,8 +57,10 @@ if (fs.existsSync(envFilePath)) {
 
   // ElasticSearchクライアントの設定を修正
   const esClient = new ESClient({
-    node: {
-      url: new URL(`http://${ELASTICSEARCH_HOST}:9200`),
+    node: `http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}`,
+    auth: {
+      username: ELASTICSEARCH_USER,
+      password: ELASTICSEARCH_PASSWORD
     },
     maxRetries: 5,
     requestTimeout: 60000,
@@ -53,6 +69,8 @@ if (fs.existsSync(envFilePath)) {
       rejectUnauthorized: false
     }
   });
+
+  console.log(`Elasticsearch host: ${ELASTICSEARCH_HOST}`); // デバッグ用にログを追加
 
   /**
    * 一定時間待機する関数（ミリ秒単位）
@@ -178,52 +196,85 @@ if (fs.existsSync(envFilePath)) {
    */
   async function setupElasticSearchWithRetry(retries) {
     try {
-      // まず接続を確認
       const isConnected = await checkElasticsearchConnection();
       if (!isConnected) {
-        throw new Error('Elasticsearchに接続できません');
+        throw new Error('ElasticSearchに接続できません');
       }
 
-      // インデックスが存在するか確認
-      const indexExists = await esClient.indices.exists({
-        index: ELASTICSEARCH_INDEX
-      });
-
-      if (!indexExists) {
-        console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' が存在しません。作成します。`);
-
-        // インデックスのマッピング設定
-        const indexSettings = {
-          mappings: {
-            properties: {
-              post_id: { type: 'keyword'},
-              post_text: { type: 'text', analyzer: 'kuromoji' }, // Apply the analyzer here instead
-              post_createat: { type: 'date' },
-              post_tag: { type: 'keyword' }
+      // 全てのインデックスに共通の設定
+      const indexSettings = {
+        settings: {
+          number_of_replicas: 0,
+          routing: {
+            allocation: {
+              include: {
+                _tier_preference: "data_hot,data_content"
+              }
             }
           }
-        };
+        },
+        mappings: {
+          properties: {
+            post_id: { type: 'keyword'},
+            post_text: { type: 'text', analyzer: 'kuromoji' },
+            post_createat: { type: 'date' },
+            post_tag: { type: 'keyword' }
+          }
+        }
+      };
 
-        await esClient.indices.create({
-          index: ELASTICSEARCH_INDEX,
-          body: indexSettings
-        });
-        console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' が作成されました。`);
-      } else {
-        console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' は既に存在します。`);
+      // 各インデックスを順番に処理
+      const indices = [ELASTICSEARCH_INDEX, ELASTICSEARCH_INDEX2, ELASTICSEARCH_INDEX3];
+      
+      for (const index of indices) {
+        try {
+          // インデックスの存在確認
+          const indexExists = await esClient.indices.exists({ index });
+
+          if (!indexExists) {
+            console.log(`ElasticSearchインデックス '${index}' が存在しません。作成します。`);
+            await esClient.indices.create({
+              index,
+              body: indexSettings
+            });
+            console.log(`ElasticSearchインデックス '${index}' が作成されました。`);
+          } else {
+            console.log(`ElasticSearchインデックス '${index}' は既に存在します。設定を更新します。`);
+            await esClient.indices.putSettings({
+              index,
+              body: {
+                index: {
+                  number_of_replicas: 0,
+                  routing: {
+                    allocation: {
+                      include: {
+                        _tier_preference: "data_hot,data_content"
+                      }
+                    }
+                  }
+                }
+              }
+            });
+            console.log(`ElasticSearchインデックス '${index}' のレプリカ数とティア設定を更新しました。`);
+          }
+        } catch (indexError) {
+          console.error(`インデックス '${index}' の処理中にエラーが発生しました:`, indexError);
+          // 個別のインデックスエラーは全体の処理を停止させない
+          continue;
+        }
       }
     } catch (error) {
-      console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
+      console.error('ElasticSearchのセット��ップ中にエラーが発生しました:', error);
       if (retries > 0) {
         console.log(`30秒後に再試行します。残り試行回数: ${retries}`);
-        await delay(30000); // 30秒待機
+        await delay(30000);
         await setupElasticSearchWithRetry(retries - 1);
       } else {
-        console.error('ElasticSearchのセットアップに失敗しました。プロセスを終了します。');
-        process.exit(1);
+        throw error;
       }
     }
   }
+
   /**
    * PostgreSQLのテーブルとトリガーのセットアップ
    */
@@ -292,7 +343,7 @@ if (fs.existsSync(envFilePath)) {
       const result = await pgClient.query(checkAdminUserQuery, [APP_ADMIN_USER]);
 
       if (result.rows.length === 0) {
-        console.log(`.envで定義された管理者ユーザーがテーブルに存在しません。\n初期ユーザの作成処理を行います。`);
+        console.log(`.envで定義された管理者ユーザーがテーブルに存在しま��ん。\n初期ユーザの作成処理を行います。`);
         const insert_sql = `
           INSERT INTO "user" (
             user_id, 
@@ -333,4 +384,4 @@ if (fs.existsSync(envFilePath)) {
 
 } else {
   console.log('.envファイルが見つかりませんでした。');
-} 
+}

@@ -36,6 +36,12 @@ const styles = {
   container: {
     textAlign: 'center' as const,
     marginTop: '50px',
+    position: 'relative' as 'relative',
+    zIndex: 40,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
   },
   image: {
     maxWidth: '80%',

@@ -52,9 +52,10 @@ router.get('/sticky_note_read', async (req, res) => {
         "sticky-note_title",
         "sticky-note_text",
         "sticky-note_hashtag",
-        "sticky-note_createat"
+        "sticky-note_createat",
+        "sticky-note_updateat"
       FROM "sticky-note"
-      ORDER BY "sticky-note_createat" DESC;
+      ORDER BY "sticky-note_updateat" DESC;
     `;
     const result = await client.query(query);
     return res.status(200).json({ sticky_notes: result.rows });

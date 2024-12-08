@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS "post" (
 
 -- blogテーブルの作成
 CREATE TABLE IF NOT EXISTS "blog" (
-    blog_id NUMERIC PRIMARY KEY,
+    blog_id TEXT NOT NULL PRIMARY KEY,
     user_id TEXT NOT NULL,
     blog_title TEXT,
     blog_text TEXT,
@@ -42,8 +42,19 @@ CREATE TABLE IF NOT EXISTS "blog" (
     blog_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     blog_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     blog_file TEXT, -- 半角コンマで区切るfile_id
+    blog_thumbnail TEXT,
     blog_attitude NUMERIC DEFAULT 1,
     blog_fixedurl TEXT
+    blog_count NUMERIC DEFAULT 0
+);
+
+-- site-cardテーブルの作成
+CREATE TABLE IF NOT EXISTS "site-card" (
+    site_card_id NUMERIC PRIMARY KEY,
+    url_text TEXT NOT NULL,
+    site_card_title TEXT,
+    site_card_text TEXT,
+    site_card_thumbnail TEXT
 );
 
 -- driveテーブルの作成
@@ -51,6 +62,7 @@ CREATE TABLE IF NOT EXISTS "drive" (
     file_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     file_size NUMERIC,
+    file_originalname TEXT,
     file_format CHARACTER VARYING,
     file_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -108,7 +120,7 @@ CREATE TABLE IF NOT EXISTS "blog_tag" (
 
 -- blogs-blog_tags中間テーブルの作成
 CREATE TABLE IF NOT EXISTS "blogs_blog_tags" (
-    blog_id NUMERIC REFERENCES blog(blog_id),
+    blog_id TEXT REFERENCES blog(blog_id),
     blog_tag_id TEXT REFERENCES blog_tag(blog_tag_id),
     PRIMARY KEY (blog_id, blog_tag_id)
 );

@@ -1,7 +1,19 @@
 'use client';
 
-import React, { useRef, useCallback, useEffect } from 'react';
-import { FileItem } from '@/types/index';
+import React, { useRef, useCallback, useEffect, useState } from 'react';  // useState を追加
+
+interface FileItem {
+  id: number;
+  isImage: boolean;
+  contentType?: string;
+  isExisting?: boolean;
+}
+
+interface HashtagRank {  // 追加
+  post_tag_id: number;
+  post_tag_text: string;
+  use_count: number;
+}
 
 interface PostFormPopupProps {
   isOpen: boolean;
@@ -11,7 +23,7 @@ interface PostFormPopupProps {
   handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
-  handleDelete: (fileId: number) => void;
+  handleDelete: (fileId: number) => Promise<boolean>;
   isLoggedIn: boolean;
   status: string;
   onSelectExistingFiles: () => void;
@@ -43,6 +55,41 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // ハッシュタグ関連の状態を追加
+  const [hashtagRanking, setHashtagRanking] = useState<HashtagRank[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
+
+  // ハッシュタグランキングの取得を追加
+  useEffect(() => {
+    const fetchHashtags = async () => {
+      try {
+        const response = await fetch('/api/hashtag/hashtag_rank');
+        if (!response.ok) throw new Error('Failed to fetch hashtags');
+        const data = await response.json();
+        setHashtagRanking(data);
+      } catch (error) {
+        console.error('Error fetching hashtag ranking:', error);
+      }
+    };
+    fetchHashtags();
+  }, []);
+
+  // ハッシュタグの選択処理を追加
+  const handleHashtagSelect = (tagText: string) => {
+    setSelectedHashtags(prev => {
+      const next = new Set(prev);
+      const tag = tagText.startsWith('#') ? tagText : `#${tagText}`;
+      if (next.has(tag)) {
+        next.delete(tag);
+      } else {
+        next.add(tag);
+      }
+      return next;
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -77,25 +124,37 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     }
   };
 
+  // handleFormSubmitを修正
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let finalPostText = postText;
-    
-    if (autoAppendTags && fixedHashtags.trim()) {  // autoAppendTags を追加
+    let finalPostText = postText.trim();
+    let additionalTags = [];
+
+    if (selectedHashtags.size > 0) {
+      additionalTags.push(Array.from(selectedHashtags).join(' '));
+    }
+
+    if (autoAppendTags && fixedHashtags.trim()) {
       const processedTags = fixedHashtags
         .trim()
         .split(/\s+/)
         .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
         .join(' ');
-      
-      finalPostText = `${postText}\n${processedTags}`;
+      additionalTags.push(processedTags);
     }
-    
-    handleSubmit(e, finalPostText);
-  };
 
-  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+    if (additionalTags.length > 0) {
+      if (finalPostText) {
+        finalPostText += '\n';
+      }
+      finalPostText += additionalTags.join('\n');
+    }
+
+    handleSubmit(e, finalPostText);
+    setSelectedHashtags(new Set());
+    setIsDropdownOpen(false);
+  };
 
   const updateAutoHashtags = useCallback(async (tags: string) => {
     try {
@@ -172,6 +231,69 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
               placeholder="ここに投稿内容を入力してください"
               rows={4}
             />
+            {/* 字数カウンターを追加 */}
+            <div className="text-right text-sm text-gray-500 mt-1">
+              {postText.length}/140
+            </div>
+            {/* ハッシュタグドロップダウンを追加 */}
+            <div className="relative mt-2">
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center gap-2"
+              >
+                <span>人気のハッシュタグ</span>
+                {selectedHashtags.size > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {selectedHashtags.size}
+                  </span>
+                )}
+              </button>
+              
+              {isDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
+                  <div className="py-1 max-h-48 overflow-y-auto">
+                    {hashtagRanking.map((tag) => (
+                      <button
+                        key={tag.post_tag_id}
+                        type="button"
+                        onClick={() => handleHashtagSelect(tag.post_tag_text)}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
+                          selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                        }`}
+                      >
+                        <span>{tag.post_tag_text}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">({tag.use_count})</span>
+                          {selectedHashtags.has(tag.post_tag_text) && (
+                            <span className="text-blue-500 text-sm">✓</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 選択されたタグの表示を追加 */}
+            {selectedHashtags.size > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {Array.from(selectedHashtags).map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => handleHashtagSelect(tag)}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div
               ref={dropRef}
               onDragOver={handleDragOver}
@@ -240,7 +362,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
                 placeholder="ハッシュタグの固定"
               />
-              <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
+              <div className="flex items-center">  {/* ml-2 を削除し、flex ���追加 */}
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -278,7 +400,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
             {status && <p className="mt-4 text-red-500">{status}</p>}
           </form>
         ) : (
-          <p className="text-gray-500">投稿を作成するにはログインしてください���</p>
+          <p className="text-gray-500">投稿を作成するにはログインしてください</p>
         )}
       </div>
     </div>

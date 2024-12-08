@@ -1,8 +1,12 @@
 import { createPortal } from 'react-dom';
 
-interface NotificationItem {
+export interface NotificationItem {
   id: string;
   message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface NotificationProps {
@@ -21,12 +25,20 @@ const Notification: React.FC<NotificationProps> = ({ notifications, onClose }) =
           className="bg-blue-500 text-white py-2 px-4 rounded shadow-lg text-sm flex items-center justify-between"
         >
           <span>{notification.message}</span>
+          {notification.action && (
+            <button
+              onClick={notification.action.onClick}
+              className="ml-4 bg-white text-blue-500 px-2 py-1 rounded"
+            >
+              {notification.action.label}
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClose(notification.id);
             }}
-            className="ml-4 hover:text-gray-200 focus:outline-none"
+            className="ml-2 hover:text-gray-200 focus:outline-none"
           >
             ×
           </button>
@@ -38,3 +50,5 @@ const Notification: React.FC<NotificationProps> = ({ notifications, onClose }) =
 };
 
 export default Notification;
+
+// 変更は不要の場合、このファイルはそのままで構いません。
