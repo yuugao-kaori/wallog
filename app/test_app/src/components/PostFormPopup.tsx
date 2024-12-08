@@ -231,7 +231,10 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
               placeholder="ここに投稿内容を入力してください"
               rows={4}
             />
-            
+            {/* 字数カウンターを追加 */}
+            <div className="text-right text-sm text-gray-500 mt-1">
+              {postText.length}/140
+            </div>
             {/* ハッシュタグドロップダウンを追加 */}
             <div className="relative mt-2">
               <button

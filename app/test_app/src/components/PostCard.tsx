@@ -259,7 +259,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         addNotification("クリップボードにURLがコピーされました");
       })
       .catch((err) => {
-        console.error("コピーに失敗しま���た", err);
+        console.error("コピーに失敗しました", err);
         addNotification("コピーに失敗しました");
       });
   };
@@ -441,7 +441,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           isOpen={uiState.imageModalOpen}
           imageUrl={uiState.selectedImage}
           onClose={handleCloseModal}
-          className="z-49"  // z-indexを49に設定
+          className="z-[10000]"  // z-indexを10000に変更
         />
 
         <div>

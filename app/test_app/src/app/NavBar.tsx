@@ -40,6 +40,10 @@ const MenuLink = React.memo(({ href, children }: { href: string, children: React
 });
 
 // ハンバーガーメニューボタン
+// 既存のz-indexが問題ない場合は変更不要
+// もし他に高いz-indexがある場合は調整してください
+// 例:
+// メニュートグルボタンのz-indexを保持または必要に応じて調整
 const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onClick: () => void }) => (
   <button
     onClick={onClick}
@@ -92,7 +96,7 @@ const NavBarClient = () => {
     document.title = `${formattedPageName} | Wallog`;
   }, [pathname]);
 
-  // スクロール制御のためのuseEffect追加
+  // スクロール制御の���めのuseEffect追加
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -187,7 +191,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2024.12.07.0000
+            Build 2024.12.09.0000
             
           </div>
         </div>

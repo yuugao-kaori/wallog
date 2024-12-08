@@ -234,6 +234,10 @@ const PostForm: React.FC<PostFormProps> = ({
             placeholder="ここに投稿内容を入力してください"
             rows={4}
           />
+          {/* 字数カウンターを追加 */}
+          <div className="text-right text-sm text-gray-500 mt-1">
+            {postText.length}/140
+          </div>
           
           {/* ハッシュタグドロップダウン */}
           <div className="relative mt-2">
@@ -350,7 +354,7 @@ const PostForm: React.FC<PostFormProps> = ({
                       ? 'bg-gray-500 hover:bg-gray-600' 
                       : 'bg-red-500 hover:bg-red-600'
                   }`}
-                  title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
+                  title={file.isExisting ? "添付を取り消す" : "ファイル���削除する"}
                 >
                   {file.isExisting ? '−' : '×'}
                 </button>
