@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/Blogformpopup';
@@ -228,6 +228,52 @@ export default function BlogDetail() {
     };
   }
 
+  // カスタム画像タグを検出してHTMLノードとして挿入するremarkプラグインに修正
+  function remarkCustomImg() {
+    return (tree: any) => {
+      visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
+        const regex = /<img=([\w.-]+)>/g;
+        let match;
+        let lastIndex = 0;
+        const newNodes: any[] = [];
+
+        while ((match = regex.exec(node.value)) !== null) {
+          const [fullMatch, filename] = match;
+          const imageUrl = `/api/drive/file/${filename}`;
+
+          // テキストの前半部分を追加
+          if (match.index > lastIndex) {
+            newNodes.push({
+              type: 'text',
+              value: node.value.substring(lastIndex, match.index),
+            });
+          }
+
+          // HTMLノードとして<img>タグを追加
+          newNodes.push({
+            type: 'html',
+            value: `<img src="${imageUrl}" alt="${filename}" />`,
+          });
+
+          lastIndex = regex.lastIndex;
+        }
+
+        // テキストの後半部分を追加
+        if (lastIndex < node.value.length) {
+          newNodes.push({
+            type: 'text',
+            value: node.value.substring(lastIndex),
+          });
+        }
+
+        // 新しいノードを親に挿入
+        if (newNodes.length > 0) {
+          parent.children.splice(index, 1, ...newNodes);
+        }
+      });
+    };
+  }
+
   function generateTableHtml(headers: string[], rows: Record<string, string>[]) {
     const headerHtml = headers.map(header => `<th class="border border-gray-300 px-4 py-2 bg-gray-100 dark:bg-gray-700">${header}</th>`).join('');
     const rowsHtml = rows
@@ -251,6 +297,7 @@ export default function BlogDetail() {
       </div>
     `;
   }
+
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
@@ -277,7 +324,7 @@ export default function BlogDetail() {
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
-            remarkPlugins={[remarkBreaks, remarkCsv]}
+            remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg]} // remarkCustomImg を修正
             rehypePlugins={[rehypeRaw]} // 追加
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
@@ -331,7 +378,54 @@ export default function BlogDetail() {
                   }
                 }
                 return <code className={className} {...props}>{children}</code>;
-              }
+              },
+              a: ({node, ...props}) => {
+                const href = props.href || '';
+                if (href.startsWith('http')) {
+                  return (
+                    <a 
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer" 
+                      className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500"
+                      {...props}
+                    />
+                  );
+                }
+                return <a className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500" {...props} />;
+              },
+              p: ({node, ...props}) => {
+                const children = props.children as React.ReactNode[];
+                const text = Array.isArray(children) ? children.join(' ') : String(children);
+                
+                // URLを検出して<a>タグに変換
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                const parts = text.split(urlRegex);
+                
+                if (parts.length > 1) {
+                  return (
+                    <p>
+                      {parts.map((part, i) => {
+                        if (part.match(urlRegex)) {
+                          return (
+                            <a
+                              key={i}
+                              href={part}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 break-all"
+                            >
+                              {part}
+                            </a>
+                          );
+                        }
+                        return part;
+                      })}
+                    </p>
+                  );
+                }
+                return <p {...props} />;
+              },
             }}
           >
             {blog.blog_text}
@@ -351,5 +445,4 @@ export default function BlogDetail() {
       <BlogFormPopup
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
-        blogData={editData || { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '' }}
-        onInputChange={handleInputChange}        onSubmit={handleSubmit}        mode="edit"      />    </div>  );}
+        blogData={editData ? {...editData, blog_id: String(editData.blog_id)} : { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '', blog_id: '' }}        onInputChange={handleInputChange}        onSubmit={handleSubmit}        mode="edit"      />    </div>  );}
