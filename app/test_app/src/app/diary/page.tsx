@@ -446,10 +446,30 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
     }
   };
 
+  // モーダルの開閉処理を明確に分離
+  const openModal = (isRepost: boolean = false) => {
+    setIsModalOpen(true);
+    if (!isRepost) {
+      // 新規投稿の場合は repost 関連の状態をクリア
+      setRepostData(null);
+      setRepostText('');
+      setPostText('');
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    // モーダルを閉じる時に必ず全ての状態をリセット
+    setRepostData(null);
+    setRepostText('');
+    setPostText('');
+  };
+
+  // 再投稿ハンドラーを修正
   const handleRepost = async (post: Post) => {
     setRepostData(post);
     setRepostText(post.post_text);
-    setIsModalOpen(true);
+    openModal(true);
   };
 
   return (
@@ -528,7 +548,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       {isLoggedIn && (
       <button
         className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => openModal()}
       >
         +
       </button>
@@ -537,11 +557,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       {/* ��バイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
-      onClose={() => {
-        setIsModalOpen(false);
-        setRepostData(null);
-        setRepostText('');  // 追加: クリーンアップ
-      }}
+      onClose={closeModal}
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       handleSubmit={async (e, finalText) => {

@@ -33,6 +33,7 @@ interface PostFormPopupProps {
   setAutoAppendTags: (value: boolean) => void;  // 追加
   repostMode?: boolean;  // 追加
   initialText?: string;  // 追加
+  onRepostComplete?: () => void;  // 追加: repostMode をリセットするための関数
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -52,6 +53,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   autoAppendTags,  // 追加
   setAutoAppendTags,  // 追加
   repostMode = false,  // 追加
+  onRepostComplete,  // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -154,6 +156,11 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     handleSubmit(e, finalPostText);
     setSelectedHashtags(new Set());
     setIsDropdownOpen(false);
+
+    // repostMode の場合、投稿完了後にリセット
+    if (repostMode && onRepostComplete) {
+      onRepostComplete();
+    }
   };
 
   const updateAutoHashtags = useCallback(async (tags: string) => {
@@ -303,7 +310,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
-                ファイルをドラッグ＆ドロップするか、クリックして選択
+                ファイルをドラッグ＆ドロップするか、クリックして��択
                 <input
                   type="file"
                   multiple
