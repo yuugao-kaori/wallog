@@ -5,8 +5,9 @@ import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
-import { FaGithub, FaXTwitter, FaTwitter, FaBluesky } from 'react-icons/fa6'
+import { FaGithub, FaXTwitter, FaTwitter, FaBluesky, FaLink } from 'react-icons/fa6'
 import { PiFediverseLogoFill } from 'react-icons/pi'
+import { useTheme } from './ThemeProvider'
 
 // APIインスタンスをメモ化
 const useApi = () => {
@@ -67,13 +68,30 @@ const MenuToggleButton = React.memo(({ isOpen, onClick }: { isOpen: boolean, onC
   </button>
 ));
 
-// クライアントサイドのみで実行されるコンポーネントとして定義
+// クライアントサイドのみにで実行されるコンポーネントとして定義
 const NavBarClient = () => {
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isDark, setIsDark] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   const api = useApi();
+  const [copyMessage, setCopyMessage] = useState<string>('タイトルとURLをコピー');
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDark(theme === 'dark' || (theme === 'system' && mediaQuery.matches));
+
+    const handleChange = () => {
+      if (theme === 'system') {
+        setIsDark(mediaQuery.matches);
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
 
   useEffect(() => {
     // マウント後にのみ状態を更新
@@ -96,7 +114,7 @@ const NavBarClient = () => {
     document.title = `${formattedPageName} | Wallog`;
   }, [pathname]);
 
-  // スクロール制御の���めのuseEffect追加
+  // スクロール制御のためのuseEffect追加
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -107,6 +125,23 @@ const NavBarClient = () => {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  const copyCurrentPageUrl = () => {
+    const pageTitle = document.title;
+    const url = window.location.href;
+    const textToCopy = `${pageTitle}\n${url}`;
+    
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => {
+        setCopyMessage('コピーしました');
+        setTimeout(() => {
+          setCopyMessage('タイトルとURLをコピー');
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('コピーに失敗しました:', err);
+      });
+  };
 
   // サーバーサイドレンダリング時やマウント前は何も表示しない
   if (!isMounted) {
@@ -148,6 +183,20 @@ const NavBarClient = () => {
         </div>
 
         <div className="flex flex-col space-y-4">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+            <div className="flex items-center space-x-1 p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+                 onClick={copyCurrentPageUrl}>
+              <FaLink />
+              <span className="text-xs">{copyMessage}</span>
+            </div>
+          </div>
+
           <div className="flex justify-center space-x-1">
             <Link 
               href="https://github.com/yuugao-kaori/wallog" 
@@ -191,7 +240,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2024.12.13.0004
+            Dev 2024.12.13.0005
             
           </div>
         </div>
