@@ -115,7 +115,7 @@ function Diary() {
 
   const loadMorePosts = useCallback(async (retryCount = 0) => {
     const now = Date.now();
-    const TIME_BETWEEN_REQUESTS = 2000; // 2秒のインターバルを設定
+    const TIME_BETWEEN_REQUESTS = 2000;
 
     if (loadingRef.current || !hasMore) return;
     
@@ -124,7 +124,7 @@ function Diary() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
-      // 次��リクエストを遅延実行
+      // 次のリクエストを遅延実行
       retryTimeoutRef.current = setTimeout(() => {
         loadMorePosts(retryCount);
       }, TIME_BETWEEN_REQUESTS - (now - lastRequestTimeRef.current));
@@ -139,11 +139,10 @@ function Diary() {
       const response = await api.get('/api/post/post_list', {
         params: {
           limit: 20,
-          ...(start_id !== null && { start_id })
+          ...(start_id != null && { start_id })  // nullの場合は最新の投稿を取得
         }
       });
       
-      // データの処理完了���確実にす��ため、setTimeout を使用
       setTimeout(() => {
         const newPosts = Array.isArray(response.data) ? response.data : [];
 
@@ -151,9 +150,17 @@ function Diary() {
           setPosts((prevPosts: Post[]) => {
             const existingIds = new Set(prevPosts.map(post => post.post_id));
             const uniqueNewPosts = newPosts.filter(post => !existingIds.has(post.post_id));
-            return [...prevPosts, ...uniqueNewPosts];
+            // 新しい投稿を追加し、post_idで降順にソート
+            const updatedPosts = [...prevPosts, ...uniqueNewPosts]
+                .sort((a, b) => Number(BigInt(b.post_id) - BigInt(a.post_id)));
+            return updatedPosts;
           });
-          setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
+          
+          // 次のstart_idを設定
+          if (newPosts.length >= 20) {
+            const lastPost = newPosts[newPosts.length - 1];
+            setstart_id(lastPost.post_id);
+          }
           setHasMore(newPosts.length >= 20);
         } else {
           setHasMore(false);
@@ -161,7 +168,7 @@ function Diary() {
         
         loadingRef.current = false;
         setLoading(false);
-      }, 1000); // 1秒の処理時間を確保
+      }, 1000);
 
     } catch (error) {
       console.error('Failed to load posts', error);
@@ -202,7 +209,9 @@ function Diary() {
           // 重複を排除して新しい投稿を追加
           const existingIds = new Set(prevPosts.map(post => post.post_id));
           const uniqueNewPosts = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
-          return [...uniqueNewPosts, ...prevPosts];
+          // 新しい投稿を追加し、post_idで降順にソート
+          return [...uniqueNewPosts, ...prevPosts]
+              .sort((a, b) => Number(BigInt(b.post_id) - BigInt(a.post_id)));
         });
         reconnectAttempt = 0;
       };
@@ -232,13 +241,14 @@ function Diary() {
       };
     };
 
-    // 初期ロード
+    // 初期ロード時にstart_idをnullに設定してから読み込み
+    setstart_id(null);
     loadMorePosts();
 
     // SSE接続の確立
     createEventSource();
     
-    // クリーン��ップ関数
+    // クリーンアップ関数
     return () => {
       if (eventSource) {
         console.log('Closing SSE connection');
@@ -278,10 +288,10 @@ function Diary() {
           url, 
           isImage,
           contentType: fileFormat,
-          isExisting: false  // 追加: 新規アップロードファイルとしてマーク
+          isExisting: false  // 追加: 新規アップロードファイルとしてマー��
         }]);
       } catch (error) {
-        setStatus('ファイルのアップロードに失敗しました。');
+        setStatus('ファイルのアップロードに失敗��ました。');
       }
     }
   };
@@ -349,7 +359,7 @@ const handleDeleteFile = async (fileId: number): Promise<boolean> => {
   }
 }
 
-// 投稿削除用の関���を修正
+// 投稿削除用の関数を修正
 const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
   try {
     const response = await api.delete('/api/post/post_delete', {

@@ -25,23 +25,46 @@ const router = express.Router();
 
 const getNewPosts = async () => {
     const query = `
-      SELECT post_id, user_id, post_text, post_createat, post_updateat, 
-                       post_tag, post_file, post_attitude, repost_grant_id,
-                       reply_grant_id, repost_receive_id, reply_receive_id
-      FROM post 
-      ORDER BY post_createat DESC 
-      LIMIT 1
+        WITH base_posts AS (
+            SELECT post_id, user_id, post_text, post_createat, post_updateat, 
+                   post_tag, post_file, post_attitude, repost_grant_id,
+                   reply_grant_id, repost_receive_id, reply_receive_id
+            FROM post 
+            ORDER BY post_createat DESC 
+            LIMIT 1
+        )
+        SELECT 
+            bp.*,
+            json_build_object(
+                'post_id', rp.post_id,
+                'user_id', rp.user_id,
+                'post_text', rp.post_text,
+                'post_createat', rp.post_createat,
+                'post_updateat', rp.post_updateat,
+                'post_tag', rp.post_tag,
+                'post_file', rp.post_file,
+                'post_attitude', rp.post_attitude
+            ) as repost_body,
+            json_build_object(
+                'post_id', reply.post_id,
+                'user_id', reply.user_id,
+                'post_text', reply.post_text,
+                'post_createat', reply.post_createat,
+                'post_updateat', reply.post_updateat,
+                'post_tag', reply.post_tag,
+                'post_file', reply.post_file,
+                'post_attitude', reply.post_attitude
+            ) as reply_body
+        FROM base_posts bp
+        LEFT JOIN post rp ON bp.repost_grant_id = rp.post_id
+        LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id;
     `;
     const res = await client.query(query);
     return res.rows.map(post => {
         if (post.post_file === '{""}') {
             delete post.post_file;
         }
-        return {
-            ...post,
-            // created_at: post.post_createat を削除
-            // post_createat はそのまま残す
-        };
+        return post;
     });
 };
 
@@ -68,7 +91,7 @@ router.get('/post_sse', async (req, res) => {
     await client.query('LISTEN post_updates');
 
     req.on('close', () => {
-        console.log('SSE接続が閉じられました');
+        console.log('SSE接��が閉じられました');
         clearInterval(keepAliveInterval);
         client.removeListener('notification', listener);
         res.end();

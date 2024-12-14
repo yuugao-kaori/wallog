@@ -416,6 +416,41 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     }));
   }, []);
 
+  // 返信元投稿のレンダリング��数を修正
+  const renderReplyBody = useCallback(() => {
+    // reply_bodyがnullまたはpost_idがnullの場合は何も表示しない
+    if (!post.reply_body || !post.reply_body.post_id) return null;
+    
+    return (
+      <div className="mb-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-75">
+
+        <div className="text-sm">
+          {renderText(post.reply_body.post_text)}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {formatDate(post.reply_body.post_createat)}
+        </div>
+      </div>
+    );
+  }, [post.reply_body, formatDate]);
+
+  // 引用元投稿のレンダリング関数を修正
+  const renderRepostBody = useCallback(() => {
+    // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
+    if (!post.repost_body || !post.repost_body.post_id) return null;
+
+    return (
+      <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
+        <div className="text-sm">
+          {renderText(post.repost_body.post_text)}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {formatDate(post.repost_body.post_createat)}
+        </div>
+      </div>
+    );
+  }, [post.repost_body, formatDate]);
+
   return (
     <>
       <div ref={ref} className="w-full px-2 sm:px-4">
@@ -503,6 +538,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           />
 
           <div>
+            {renderReplyBody()} {/* 返信元投稿を表示 */}
             <div className="text-gray-500 text-sm break-words">
               Created at: {formatDate(post.post_createat)}
             </div>
@@ -512,7 +548,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
             </div>
 
             {inView && renderImages()}
-
+            {renderRepostBody()} {/* 引用元投稿を表示 */}
           </div>
         </div>
       </div>

@@ -31,7 +31,6 @@ router.get('/post_list', async (req, res) => {
     try {
         // クエリパラメータを取得
         const { start_id, limit } = req.query;
-
         const numericLimit = isNaN(parseInt(limit, 10)) ? 10 : parseInt(limit, 10);
 
         // 入力値のチェック
@@ -56,33 +55,85 @@ router.get('/post_list', async (req, res) => {
         // SQLクエリの準備
         let query, values;
 
-        if (start_id === undefined || start_id === '' || isNaN(start_id)) {
-            // start_idが存在しない場合: テーブルの最上部からデータを取得
+        // start_idが明示的にnullまたは未定義の場合のみ、最新の投稿から取得
+        if (start_id === undefined || start_id === null || start_id === '') {
             query = `
-                SELECT post_id, user_id, post_text, post_createat, post_updateat, 
-                       post_tag, post_file, post_attitude, repost_grant_id,
-                       reply_grant_id, repost_receive_id, reply_receive_id
-                FROM post
-                ORDER BY post_id DESC
-                LIMIT $1;
+                SELECT 
+                    bp.*,
+                    json_build_object(
+                        'post_id', rp.post_id,
+                        'user_id', rp.user_id,
+                        'post_text', rp.post_text,
+                        'post_createat', rp.post_createat,
+                        'post_updateat', rp.post_updateat,
+                        'post_tag', rp.post_tag,
+                        'post_file', rp.post_file,
+                        'post_attitude', rp.post_attitude
+                    ) as repost_body,
+                    json_build_object(
+                        'post_id', reply.post_id,
+                        'user_id', reply.user_id,
+                        'post_text', reply.post_text,
+                        'post_createat', reply.post_createat,
+                        'post_updateat', reply.post_updateat,
+                        'post_tag', reply.post_tag,
+                        'post_file', reply.post_file,
+                        'post_attitude', reply.post_attitude
+                    ) as reply_body
+                FROM (
+                    SELECT *
+                    FROM post
+                    ORDER BY post_id DESC
+                    LIMIT $1
+                ) bp
+                LEFT JOIN post rp ON bp.repost_grant_id = rp.post_id
+                LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id
+                ORDER BY bp.post_id DESC;
             `;
             values = [numericLimit];
         } else {
-            // start_idが存在する場合: start_idからデータを取得
-            const numericStartId = BigInt(start_id); // 数値型の変換にBigIntを使用
+            // start_idが指定されている場合
+            const numericStartId = BigInt(start_id);
 
             if (numericStartId < 0) {
                 return res.status(400).json({ error: 'Invalid start_id' });
             }
 
             query = `
-                SELECT post_id, user_id, post_text, post_createat, post_updateat, 
-                       post_tag, post_file, post_attitude, repost_grant_id,
-                       reply_grant_id, repost_receive_id, reply_receive_id
-                FROM post
-                WHERE post_id <= $1
-                ORDER BY post_id DESC
-                LIMIT $2;
+                WITH base_posts AS (
+                    SELECT post_id, user_id, post_text, post_createat, post_updateat, 
+                           post_tag, post_file, post_attitude, repost_grant_id,
+                           reply_grant_id, repost_receive_id, reply_receive_id
+                    FROM post
+                    WHERE post_id < $1  -- <= を < に変更
+                    ORDER BY post_id DESC
+                    LIMIT $2
+                )
+                SELECT 
+                    bp.*,
+                    json_build_object(
+                        'post_id', rp.post_id,
+                        'user_id', rp.user_id,
+                        'post_text', rp.post_text,
+                        'post_createat', rp.post_createat,
+                        'post_updateat', rp.post_updateat,
+                        'post_tag', rp.post_tag,
+                        'post_file', rp.post_file,
+                        'post_attitude', rp.post_attitude
+                    ) as repost_body,
+                    json_build_object(
+                        'post_id', reply.post_id,
+                        'user_id', reply.user_id,
+                        'post_text', reply.post_text,
+                        'post_createat', reply.post_createat,
+                        'post_updateat', reply.post_updateat,
+                        'post_tag', reply.post_tag,
+                        'post_file', reply.post_file,
+                        'post_attitude', reply.post_attitude
+                    ) as reply_body
+                FROM base_posts bp
+                LEFT JOIN post rp ON bp.repost_grant_id = rp.post_id
+                LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id;
             `;
             values = [numericStartId, numericLimit];
         }
