@@ -60,26 +60,62 @@ router.get('/post_list', async (req, res) => {
             query = `
                 SELECT 
                     bp.*,
-                    json_build_object(
-                        'post_id', rp.post_id,
-                        'user_id', rp.user_id,
-                        'post_text', rp.post_text,
-                        'post_createat', rp.post_createat,
-                        'post_updateat', rp.post_updateat,
-                        'post_tag', rp.post_tag,
-                        'post_file', rp.post_file,
-                        'post_attitude', rp.post_attitude
-                    ) as repost_body,
-                    json_build_object(
-                        'post_id', reply.post_id,
-                        'user_id', reply.user_id,
-                        'post_text', reply.post_text,
-                        'post_createat', reply.post_createat,
-                        'post_updateat', reply.post_updateat,
-                        'post_tag', reply.post_tag,
-                        'post_file', reply.post_file,
-                        'post_attitude', reply.post_attitude
-                    ) as reply_body
+                    CASE
+                        WHEN bp.repost_grant_id IS NOT NULL THEN
+                            CASE
+                                WHEN rp.post_id IS NOT NULL THEN
+                                    json_build_object(
+                                        'post_id', rp.post_id,
+                                        'user_id', rp.user_id,
+                                        'post_text', rp.post_text,
+                                        'post_createat', rp.post_createat,
+                                        'post_updateat', rp.post_updateat,
+                                        'post_tag', rp.post_tag,
+                                        'post_file', rp.post_file,
+                                        'post_attitude', rp.post_attitude
+                                    )
+                                ELSE
+                                    json_build_object(
+                                        'post_id', '00000000000000000000',
+                                        'user_id', 'system',
+                                        'post_text', 'システムメッセージ：該当の投稿は削除されました',
+                                        'post_createat', '1970-01-01T00:00:00.000Z',
+                                        'post_updateat', '1970-01-01T00:00:00.000Z',
+                                        'post_tag', NULL,
+                                        'post_file', NULL,
+                                        'post_attitude', 0
+                                    )
+                            END
+                        ELSE NULL
+                    END as repost_body,
+                    CASE
+                        WHEN bp.reply_grant_id IS NOT NULL THEN
+                            CASE
+                                WHEN reply.post_id IS NOT NULL THEN
+                                    json_build_object(
+                                        'post_id', reply.post_id,
+                                        'user_id', reply.user_id,
+                                        'post_text', reply.post_text,
+                                        'post_createat', reply.post_createat,
+                                        'post_updateat', reply.post_updateat,
+                                        'post_tag', reply.post_tag,
+                                        'post_file', reply.post_file,
+                                        'post_attitude', reply.post_attitude
+                                    )
+                                ELSE
+                                    json_build_object(
+                                        'post_id', '00000000000000000000',
+                                        'user_id', 'system',
+                                        'post_text', 'システムメッセージ：該当の投稿は削除されました',
+                                        'post_createat', '1970-01-01T00:00:00.000Z',
+                                        'post_updateat', '1970-01-01T00:00:00.000Z',
+                                        'post_tag', NULL,
+                                        'post_file', NULL,
+                                        'post_attitude', 0
+                                    )
+                            END
+                        ELSE NULL
+                    END as reply_body
                 FROM (
                     SELECT *
                     FROM post
@@ -111,26 +147,62 @@ router.get('/post_list', async (req, res) => {
                 )
                 SELECT 
                     bp.*,
-                    json_build_object(
-                        'post_id', rp.post_id,
-                        'user_id', rp.user_id,
-                        'post_text', rp.post_text,
-                        'post_createat', rp.post_createat,
-                        'post_updateat', rp.post_updateat,
-                        'post_tag', rp.post_tag,
-                        'post_file', rp.post_file,
-                        'post_attitude', rp.post_attitude
-                    ) as repost_body,
-                    json_build_object(
-                        'post_id', reply.post_id,
-                        'user_id', reply.user_id,
-                        'post_text', reply.post_text,
-                        'post_createat', reply.post_createat,
-                        'post_updateat', reply.post_updateat,
-                        'post_tag', reply.post_tag,
-                        'post_file', reply.post_file,
-                        'post_attitude', reply.post_attitude
-                    ) as reply_body
+                    CASE
+                        WHEN bp.repost_grant_id IS NOT NULL THEN
+                            CASE
+                                WHEN rp.post_id IS NOT NULL THEN
+                                    json_build_object(
+                                        'post_id', rp.post_id,
+                                        'user_id', rp.user_id,
+                                        'post_text', rp.post_text,
+                                        'post_createat', rp.post_createat,
+                                        'post_updateat', rp.post_updateat,
+                                        'post_tag', rp.post_tag,
+                                        'post_file', rp.post_file,
+                                        'post_attitude', rp.post_attitude
+                                    )
+                                ELSE
+                                    json_build_object(
+                                        'post_id', '00000000000000000000',
+                                        'user_id', 'system',
+                                        'post_text', 'システムメッセージ：該当の投稿は削除されました',
+                                        'post_createat', '1970-01-01T00:00:00.000Z',
+                                        'post_updateat', '1970-01-01T00:00:00.000Z',
+                                        'post_tag', NULL,
+                                        'post_file', NULL,
+                                        'post_attitude', 0
+                                    )
+                            END
+                        ELSE NULL
+                    END as repost_body,
+                    CASE
+                        WHEN bp.reply_grant_id IS NOT NULL THEN
+                            CASE
+                                WHEN reply.post_id IS NOT NULL THEN
+                                    json_build_object(
+                                        'post_id', reply.post_id,
+                                        'user_id', reply.user_id,
+                                        'post_text', reply.post_text,
+                                        'post_createat', reply.post_createat,
+                                        'post_updateat', reply.post_updateat,
+                                        'post_tag', reply.post_tag,
+                                        'post_file', reply.post_file,
+                                        'post_attitude', reply.post_attitude
+                                    )
+                                ELSE
+                                    json_build_object(
+                                        'post_id', '00000000000000000000',
+                                        'user_id', 'system',
+                                        'post_text', 'システムメッセージ：該当の投稿は削除されました',
+                                        'post_createat', '1970-01-01T00:00:00.000Z',
+                                        'post_updateat', '1970-01-01T00:00:00.000Z',
+                                        'post_tag', NULL,
+                                        'post_file', NULL,
+                                        'post_attitude', 0
+                                    )
+                            END
+                        ELSE NULL
+                    END as reply_body
                 FROM base_posts bp
                 LEFT JOIN post rp ON bp.repost_grant_id = rp.post_id
                 LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id;
