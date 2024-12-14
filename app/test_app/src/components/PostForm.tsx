@@ -1,4 +1,5 @@
 import React, { useRef, ChangeEvent, DragEvent, useEffect, useCallback, useState } from 'react';
+import { getTags } from '../lib/api';  // Add this import
 
 interface HashtagRank {
   post_tag_id: number;
@@ -134,9 +135,7 @@ const PostForm: React.FC<PostFormProps> = ({
   useEffect(() => {
     const fetchHashtags = async () => {
       try {
-        const response = await fetch('/api/hashtag/hashtag_rank');
-        if (!response.ok) throw new Error('Failed to fetch hashtags');
-        const data = await response.json();
+        const data = await getTags();
         setHashtagRanking(data);
       } catch (error) {
         console.error('Error fetching hashtag ranking:', error);

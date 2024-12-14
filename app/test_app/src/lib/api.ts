@@ -1,4 +1,3 @@
-
 export interface TagData {
   post_tag_id: number;
   post_tag_text: string;

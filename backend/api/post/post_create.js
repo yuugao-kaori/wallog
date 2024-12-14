@@ -122,9 +122,26 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, 
     // トランザクションを開始
     await client.query('BEGIN');
 
+    // 元の投稿を更新（リポストまたはリプライの場合）
+    if (repostId) {
+      await client.query(
+        'UPDATE post SET repost_receive_id = array_append(COALESCE(repost_receive_id, ARRAY[]::numeric[]), $1) WHERE post_id = $2',
+        [postId, repostId]
+      );
+      console.log(`投稿 ${repostId} のrepost_receive_idを更新しました`);
+    }
+
+    if (replyId) {
+      await client.query(
+        'UPDATE post SET reply_receive_id = array_append(COALESCE(reply_receive_id, ARRAY[]::numeric[]), $1) WHERE post_id = $2',
+        [postId, replyId]
+      );
+      console.log(`投稿 ${replyId} のreply_receive_idを更新しました`);
+    }
+
     // postテーブルに挿入
     const insertPostQuery = `
-      INSERT INTO post (post_id, user_id, post_text, post_tag, post_hashtag, post_file, post_attitude, repost_id, reply_id)
+      INSERT INTO post (post_id, user_id, post_text, post_tag, post_hashtag, post_file, post_attitude, repost_grant_id, reply_grant_id)
       VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8)
       RETURNING *;
     `;
@@ -136,7 +153,8 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, 
       tags.length > 0 ? tags : null,  // post_hashtagにタグ配列を設定
       fileId,
       repostId || null,  // repost_idが存在しない場合はnull
-      replyId || null    // reply_idが存在しない場合はnull
+      replyId || null    // reply_idが存在しない場��はnull
+
     ];
 
     const postResult = await client.query(insertPostQuery, postValues);

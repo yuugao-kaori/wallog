@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import PostCardPopup from './PostCardPopup';
 import { useInView } from 'react-intersection-observer';
 import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
+import PostFormPopup from './PostFormPopup';  // PostFormModalの代わりに使用
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
-
 // 既存のPostインターフェースを削除し、PostFeedのものを使用
 interface Props {
   post: PostFeedPost;  // 変更
@@ -22,6 +23,9 @@ interface Props {
   className?: string;
   onDelete: (event: React.MouseEvent, post_id: string) => Promise<boolean>;
   onRepost?: (post: PostFeedPost) => Promise<void>;  // 変更
+  onQuote?: (post: PostFeedPost) => void;
+  onReply?: (post: PostFeedPost) => void;
+  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
 }
 
 interface ImageData {
@@ -32,7 +36,7 @@ interface ImageData {
   status: 'idle' | 'loading' | 'error';
 }
 
-const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost }: Props) => {
+const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const { ref, inView } = useInView({
@@ -48,12 +52,22 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     imageModalOpen: false,  // 画像モーダル用の状態
     selectedImage: null as string | null,
     repostModalOpen: false, // 追加
+    detailModalOpen: false, // 追加
+    quoteModalOpen: false, // 追加: 引用投稿モーダル用
+    replyModalOpen: false, // 追加: 返信投稿モーダル用
+    postFormModalOpen: false,
+    postFormType: null as 'quote' | 'reply' | null,
   });
   const [notifications, setNotifications] = useState<{ id: string, message: string }[]>([]);
 
   // リトライ回数を管理するための状態を追加
   const [retryCount, setRetryCount] = useState<Record<string, number>>({});
   const MAX_RETRY = 3;
+
+  const [formState, setFormState] = useState({
+    postText: '',
+    mode: 'normal' as 'normal' | 'quote' | 'reply'
+  });
 
   const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -321,6 +335,28 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     }
   };
 
+  // 引用投稿ハンドラーの更新
+  const handleQuote = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    setFormState({ postText: '', mode: 'quote' });
+    setUiState(prev => ({
+      ...prev,
+      menuOpen: false,
+      postFormModalOpen: true
+    }));
+  }, []);
+
+  // 返信投稿ハンドラーの更新
+  const handleReply = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    setFormState({ postText: '', mode: 'reply' });
+    setUiState(prev => ({
+      ...prev,
+      menuOpen: false,
+      postFormModalOpen: true
+    }));
+  }, []);
+
   const renderImages = useCallback(() => {
     if (!post.post_file) return null;
 
@@ -371,93 +407,162 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     );
   }, [post.post_file, imageData, handleImageClick, handleImageLoad]);
 
+  const navigateToDetail = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    setUiState(prev => ({
+      ...prev,
+      menuOpen: false,
+      detailModalOpen: true
+    }));
+  }, []);
+
   return (
-    <div ref={ref} className="w-full px-2 sm:px-4">
-      <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
-        <Notification 
-          notifications={notifications} 
-          onClose={removeNotification}
-        />
+    <>
+      <div ref={ref} className="w-full px-2 sm:px-4">
+        <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
+          <Notification 
+            notifications={notifications} 
+            onClose={removeNotification}
+          />
 
-        <div className="absolute top-1 right-4 z-10">
-          <button onClick={toggleMenu} className="p-2 text-gray-700 dark:text-gray-300">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-            </svg>
-          </button>
-        </div>
-
-        {uiState.menuOpen && (
-          <div ref={menuRef} className="absolute top-11 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
-            <ul>
-              <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                  onClick={copyLink}>
-                リンクをコピー
-              </li>
-              {isLoggedIn && (
-                <>
-                  <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setUiState(prev => ({
-                        ...prev,
-                        deleteModalOpen: true
-                      }))}>
-                    削除
-                  </li>
-                  <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setUiState(prev => ({
-                        ...prev,
-                        repostModalOpen: true
-                      }))}>
-                    削除して再投稿
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-        )}
-
-        <DeleteConfirmModal
-          isOpen={uiState.deleteModalOpen}
-          onClose={() => setUiState(prev => ({
-            ...prev,
-            deleteModalOpen: false
-          }))}
-          onDelete={(e) => handleDelete(e, post.post_id)}
-        />
-
-        <DeleteConfirmModal
-          isOpen={uiState.repostModalOpen}
-          onClose={() => setUiState(prev => ({
-            ...prev,
-            repostModalOpen: false
-          }))}
-          onDelete={handleRepost}
-          title="削除して再投稿"
-          message="この投稿を削除して再投稿しますか？"
-          confirmText="再投稿"
-        />
-
-        <ImageModal
-          isOpen={uiState.imageModalOpen}
-          imageUrl={uiState.selectedImage}
-          onClose={handleCloseModal}
-          className="z-[10000]"  // z-indexを10000に変更
-        />
-
-        <div>
-          <div className="text-gray-500 text-sm break-words">
-            Created at: {formatDate(post.post_createat)}
+          <div className="absolute top-1 right-4 z-10">
+            <button onClick={toggleMenu} className="p-2 text-gray-700 dark:text-gray-300">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
           </div>
 
-          <div className="mt-2 break-words">
-            {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
+          {uiState.menuOpen && (
+            <div ref={menuRef} className="absolute top-11 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
+              <ul>
+                <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                    onClick={copyLink}>
+                  リンクをコピー
+                </li>
+                <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                    onClick={navigateToDetail}>
+                  詳細
+                </li>
+                {isLoggedIn && (
+                  <>
+                    <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={handleQuote}>
+                      引用投稿
+                    </li>
+                    <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={handleReply}>
+                      返信投稿
+                    </li>
+                    <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => setUiState(prev => ({
+                          ...prev,
+                          deleteModalOpen: true
+                        }))}>
+                      削除
+                    </li>
+                    <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => setUiState(prev => ({
+                          ...prev,
+                          repostModalOpen: true
+                        }))}>
+                      削除して再投稿
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
+          )}
+
+          <DeleteConfirmModal
+            isOpen={uiState.deleteModalOpen}
+            onClose={() => setUiState(prev => ({
+              ...prev,
+              deleteModalOpen: false
+            }))}
+            onDelete={(e) => handleDelete(e, post.post_id)}
+          />
+
+          <DeleteConfirmModal
+            isOpen={uiState.repostModalOpen}
+            onClose={() => setUiState(prev => ({
+              ...prev,
+              repostModalOpen: false
+            }))}
+            onDelete={handleRepost}
+            title="削除して再投稿"
+            message="この投稿を削除して再投稿しますか？"
+            confirmText="再投稿"
+          />
+
+          <ImageModal
+            isOpen={uiState.imageModalOpen}
+            imageUrl={uiState.selectedImage}
+            onClose={handleCloseModal}
+            className="z-[10000]"  // z-indexを10000に変更
+          />
+
+          <div>
+            <div className="text-gray-500 text-sm break-words">
+              Created at: {formatDate(post.post_createat)}
+            </div>
+
+            <div className="mt-2 break-words">
+              {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
+            </div>
+
+            {inView && renderImages()}
+
           </div>
-
-          {inView && renderImages()}
-
         </div>
       </div>
-    </div>
+      
+      <PostCardPopup
+        isOpen={uiState.detailModalOpen}
+        onClose={() => setUiState(prev => ({ ...prev, detailModalOpen: false }))}
+        post={post}
+        isLoggedIn={isLoggedIn}
+        handleDeleteClick={handleDeleteClick}
+        formatDate={formatDate}
+        formatHashtags={formatHashtags}
+        renderHashtagsContainer={renderHashtagsContainer}
+        onDelete={onDelete}
+        onRepost={onRepost}
+        onQuote={onQuote}
+        onReply={onReply}
+      />
+
+      <PostFormPopup
+        isOpen={uiState.postFormModalOpen}
+        onClose={() => setUiState(prev => ({ 
+          ...prev, 
+          postFormModalOpen: false
+        }))}
+        postText={formState.postText}
+        setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
+        handleSubmit={async (e, finalText) => {
+          e.preventDefault();
+          if (onQuoteSubmit) {
+            if (formState.mode === 'quote' || formState.mode === 'reply') {
+              await onQuoteSubmit(finalText, formState.mode, post.post_id);
+            }
+          }
+          setUiState(prev => ({ ...prev, postFormModalOpen: false }));
+        }}
+        mode={formState.mode}
+        targetPost={post}
+        isLoggedIn={isLoggedIn}
+        files={[]}
+        handleFiles={() => {}}
+        handleDelete={async () => false}
+        status=""
+        onSelectExistingFiles={() => {}}
+        fixedHashtags=""
+        setFixedHashtags={() => {}}
+        autoAppendTags={false}
+        setAutoAppendTags={() => {}}
+      />
+    </>
   );
 });
 

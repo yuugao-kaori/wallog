@@ -60,7 +60,8 @@ router.get('/post_list', async (req, res) => {
             // start_idが存在しない場合: テーブルの最上部からデータを取得
             query = `
                 SELECT post_id, user_id, post_text, post_createat, post_updateat, 
-                       post_tag, post_file, post_attitude, repost_id, reply_id
+                       post_tag, post_file, post_attitude, repost_grant_id,
+                       reply_grant_id, repost_receive_id, reply_receive_id
                 FROM post
                 ORDER BY post_id DESC
                 LIMIT $1;
@@ -76,7 +77,8 @@ router.get('/post_list', async (req, res) => {
 
             query = `
                 SELECT post_id, user_id, post_text, post_createat, post_updateat, 
-                       post_tag, post_file, post_attitude, repost_id, reply_id
+                       post_tag, post_file, post_attitude, repost_grant_id,
+                       reply_grant_id, repost_receive_id, reply_receive_id
                 FROM post
                 WHERE post_id <= $1
                 ORDER BY post_id DESC

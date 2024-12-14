@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';  // useState を追加
+import { Post } from './PostFeed'; // Add this line to import Post type
+import { getTags } from '../lib/api';  // Add this import
 
 interface FileItem {
-  id: number;
+  id: number
   isImage: boolean;
   contentType?: string;
   isExisting?: boolean;
@@ -34,6 +36,8 @@ interface PostFormPopupProps {
   repostMode?: boolean;  // 追加
   initialText?: string;  // 追加
   onRepostComplete?: () => void;  // 追加: repostMode をリセットするための関数
+  mode?: 'normal' | 'quote' | 'reply';  // 追加
+  targetPost?: Post;  // 追加: 引用/返信対象の投稿
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -54,6 +58,8 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   setAutoAppendTags,  // 追加
   repostMode = false,  // 追加
   onRepostComplete,  // 追加
+  mode = 'normal',  // 追加
+  targetPost,      // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -63,21 +69,28 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   const [hashtagRanking, setHashtagRanking] = useState<HashtagRank[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);  // 追加: ローディング状態
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);  // 追加: 初回ロード完了フラグ
 
-  // ハッシュタグランキングの取得を追加
+  // ハッシュタグランキングの取得を修正
   useEffect(() => {
     const fetchHashtags = async () => {
+      if (!isDropdownOpen || hasLoadedOnce) return;
+      
+      setIsLoading(true);
       try {
-        const response = await fetch('/api/hashtag/hashtag_rank');
-        if (!response.ok) throw new Error('Failed to fetch hashtags');
-        const data = await response.json();
+        const data = await getTags();
         setHashtagRanking(data);
+        setHasLoadedOnce(true);
       } catch (error) {
         console.error('Error fetching hashtag ranking:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
+
     fetchHashtags();
-  }, []);
+  }, [isDropdownOpen, hasLoadedOnce]);
 
   // ハッシュタグの選択処理を追加
   const handleHashtagSelect = (tagText: string) => {
@@ -133,6 +146,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     let finalPostText = postText.trim();
     let additionalTags = [];
 
+    // ハッシュタグの処理
     if (selectedHashtags.size > 0) {
       additionalTags.push(Array.from(selectedHashtags).join(' '));
     }
@@ -146,21 +160,51 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
       additionalTags.push(processedTags);
     }
 
+    // タグを投稿本文の末尾に追加
     if (additionalTags.length > 0) {
-      if (finalPostText) {
-        finalPostText += '\n';
+      finalPostText += '\n' + additionalTags.join(' ');
+    }
+
+    // モードに応じてAPIに送信するデータを構築
+    const submitData: any = {
+      post_text: finalPostText,
+    };
+
+    // files配列が空でない場合のみpost_fileを追加
+    if (files.length > 0) {
+      submitData.post_file = files.map(file => file.id);
+    }
+
+    // 引用/返信モードの場合、対応するIDを追加
+    if (mode === 'quote' && targetPost?.post_id) {
+      submitData.repost_id = targetPost.post_id;
+    }
+    if (mode === 'reply' && targetPost?.post_id) {
+      submitData.reply_id = targetPost.post_id;
+    }
+
+    // post_createに送信
+    fetch('/api/post/post_create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submitData)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.created_note) {
+        setSelectedHashtags(new Set());
+        setIsDropdownOpen(false);
+        onClose();
+        if (repostMode && onRepostComplete) {
+          onRepostComplete();
+        }
       }
-      finalPostText += additionalTags.join('\n');
-    }
-
-    handleSubmit(e, finalPostText);
-    setSelectedHashtags(new Set());
-    setIsDropdownOpen(false);
-
-    // repostMode の場合、投稿完了後にリセット
-    if (repostMode && onRepostComplete) {
-      onRepostComplete();
-    }
+    })
+    .catch(error => {
+      console.error('投稿エラー:', error);
+    });
   };
 
   const updateAutoHashtags = useCallback(async (tags: string) => {
@@ -226,8 +270,18 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
           ×
         </button>
         <h2 className="text-xl font-bold mb-4">
-          {repostMode ? "投稿を再作成" : "新規投稿"}  {/* 変更 */}
+          {mode === 'quote' ? "引用投稿" : mode === 'reply' ? "返信投稿" : "新規投稿"}
         </h2>
+
+        {/* 引用/返信対象の投稿を表示 */}
+        {targetPost && (mode === 'quote' || mode === 'reply') && (
+          <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {targetPost.post_text}
+            </p>
+          </div>
+        )}
+
         {isLoggedIn ? (
           <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-2">
@@ -261,24 +315,28 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 {isDropdownOpen && (
                   <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
                     <div className="py-1 max-h-48 overflow-y-auto">
-                      {hashtagRanking.map((tag) => (
-                        <button
-                          key={tag.post_tag_id}
-                          type="button"
-                          onClick={() => handleHashtagSelect(tag.post_tag_text)}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                            selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
-                          }`}
-                        >
-                          <span>{tag.post_tag_text}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">({tag.use_count})</span>
-                            {selectedHashtags.has(tag.post_tag_text) && (
-                              <span className="text-blue-500 text-sm">✓</span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                      {isLoading ? (
+                        <div className="p-4 text-center text-gray-500">読み込み中...</div>
+                      ) : (
+                        hashtagRanking.map((tag) => (
+                          <button
+                            key={tag.post_tag_id}
+                            type="button"
+                            onClick={() => handleHashtagSelect(tag.post_tag_text)}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
+                              selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                            }`}
+                          >
+                            <span>{tag.post_tag_text}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">({tag.use_count})</span>
+                              {selectedHashtags.has(tag.post_tag_text) && (
+                                <span className="text-blue-500 text-sm">✓</span>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -310,7 +368,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
-                ファイルをドラッグ＆ドロップするか、クリックして��択
+                ファイルを���ラッグ＆ドロップするか、クリックして選択
                 <input
                   type="file"
                   multiple
@@ -354,7 +412,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                             ? 'bg-gray-500 hover:bg-gray-600' 
                             : 'bg-red-500 hover:bg-red-600'
                         }`}
-                        title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
+                        title={file.isExisting ? "添付を取���消す" : "ファイルを削除する"}
                       >
                         {file.isExisting ? '−' : '×'}
                       </button>
@@ -370,7 +428,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                   className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
                   placeholder="ハッシュタグの固定"
                 />
-                <div className="flex items-center">  {/* ml-2 を削除し、flex ���追加 */}
+                <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
