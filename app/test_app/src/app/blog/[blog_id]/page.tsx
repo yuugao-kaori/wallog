@@ -132,6 +132,8 @@ export default function BlogDetail() {
         }
         
         setBlog(data);
+        // ブログデータがロードされたらタイトルを更新
+        document.title = `${data.blog_title} | Wallog`;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'ブログの取得に失敗しました';
         setError(errorMessage);
