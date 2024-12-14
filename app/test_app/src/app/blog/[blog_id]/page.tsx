@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/Blogformpopup';
@@ -14,19 +14,25 @@ import remarkGfm from 'remark-gfm'; // 追加
 interface BlogPost {
   blog_id: number;
   blog_title: string;
-  blog_text: string;
-  blog_thumbnail: string;
   blog_createat: string;
   blog_updateat: string;
   blog_count: number;
   blog_file: string;
   blog_fixedurl: string;
+  blog_text: string;
+  blog_thumbnail?: string;
 }
 
 interface ErrorResponse {
   error: string;
   message: string;
   status: number;
+}
+
+interface TableOfContentsItem {
+  id: string;
+  level: number;
+  text: string;
 }
 
 export default function BlogDetail() {
@@ -37,6 +43,7 @@ export default function BlogDetail() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
   const [editData, setEditData] = useState<BlogPost | null>(null);
+  const [toc, setToc] = useState<TableOfContentsItem[]>([]);
 
   const api = useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',
@@ -184,7 +191,7 @@ export default function BlogDetail() {
             });
 
             if (!results.meta || !results.data) {
-              throw new Error('パースに失敗しました');
+              throw new Error('���ースに失敗しました');
             }
 
             const parsed = results;
@@ -302,14 +309,102 @@ export default function BlogDetail() {
     `;
   }
 
+  // generateId 関数を useCallback でメモ化
+  const generateId = useCallback((text: string): string => {
+    if (!text) return '';
+    const normalized = text.normalize('NFKD');
+    let baseId = normalized
+      .replace(/[^\w\s\-]/g, '')
+      .replace(/[\s\u3000]+/g, '-')
+      .replace(/[^\w\-]/g, '')
+      .toLowerCase()
+      .replace(/--+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!baseId || baseId === '-') {
+      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 8)}`;
+    }
+
+    return baseId;
+  }, []);
+
+  // 目次生成の処理を修正
+  const generateToc = useCallback((markdownText: string) => {
+    const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+    const newToc: TableOfContentsItem[] = [];
+    let match;
+
+    while ((match = headingRegex.exec(markdownText)) !== null) {
+      const level = match[1].length;
+      const text = match[2].trim();
+      const id = generateId(text);
+      newToc.push({ id, level, text });
+    }
+    
+    setToc(newToc);
+  }, [generateId]);
+
+  // スクロール処理を修正
+  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    if (!id) return;
+    
+    const element = document.getElementById(id);
+    if (element) {
+      const headerOffset = 80; // ヘッダーの高さに応じて調整
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // ReactMarkdownのcomponentsオプションを修正
+  const markdownComponents = useMemo(() => ({
+    h1: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h1 id={id} style={{ scrollMarginTop: '80px' }} className="text-3xl font-bold mt-6 mb-4" {...props}>{children}</h1>;
+    },
+    h2: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h2 id={id} style={{ scrollMarginTop: '80px' }} className="text-2xl font-bold mt-5 mb-3" {...props}>{children}</h2>;
+    },
+    h3: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h3 id={id} style={{ scrollMarginTop: '80px' }} className="text-xl font-bold mt-4 mb-2" {...props}>{children}</h3>;
+    },
+    h4: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h4 id={id} style={{ scrollMarginTop: '80px' }} className="text-lg font-bold mt-3 mb-2" {...props}>{children}</h4>;
+    },
+    h5: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h5 id={id} style={{ scrollMarginTop: '80px' }} className="text-base font-bold mt-2 mb-1" {...props}>{children}</h5>;
+    },
+    h6: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
+      const id = generateId(String(children));
+      return <h6 id={id} style={{ scrollMarginTop: '80px' }} className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h6>;
+    }
+  }), [generateId]);
+
+  // ブログデータ取得後に目次を生成
+  useEffect(() => {
+    if (blog?.blog_text) {
+      generateToc(blog.blog_text);
+    }
+  }, [blog?.blog_text, generateToc]);
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
 
   return (
-    <div className="p-4 md:ml-48 relative min-h-screen">
-      <article className="max-w-4xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
+    <div className="p-4 mx-48 relative min-h-screen flex">
+      {/* 記事本文のコンテナ */}
+      <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
         {blog.blog_thumbnail && (
           <img
             src={blog.blog_thumbnail}
@@ -330,120 +425,41 @@ export default function BlogDetail() {
           <ReactMarkdown
             remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg, remarkGfm]} // remarkGfm を追加
             rehypePlugins={[rehypeRaw, rehypeStringify]} // rehypeStringify を追加
-            components={{
-              h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
-              h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
-              h3: ({node, ...props}) => <h3 className="text-xl font-bold mt-4 mb-2" {...props} />,
-              h4: ({node, ...props}) => <h4 className="text-lg font-bold mt-3 mb-2" {...props} />,
-              h5: ({node, ...props}) => <h5 className="text-base font-bold mt-2 mb-1" {...props} />,
-              h6: ({node, ...props}) => <h6 className="text-sm font-bold mt-2 mb-1" {...props} />,
-              code({node, className, children, ...props}) {
-                const match = /language-(\w+)/i.exec(className || '');
-                if (match && match[1].toLowerCase() === 'csv') {
-                  try {
-                    const csvContent = String(children).trim();
-                    const parsed = parse(csvContent, { 
-                      header: true, 
-                      skipEmptyLines: true,
-                      transformHeader: header => header.trim()
-                    });
-                    
-                    if (parsed.data.length === 0) return <pre>{children}</pre>;
-
-                    return (
-                      <div className="overflow-x-auto my-4">
-                        <table className="min-w-full border-collapse border border-gray-300">
-                          <thead>
-                            <tr>
-                              {parsed.meta.fields?.map((header, i) => (
-                                <th key={i} className="border border-gray-300 px-4 py-2 bg-gray-100 dark:bg-gray-700">
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {parsed.data.map((row, rowIdx) => (
-                              <tr key={rowIdx}>
-                                {parsed.meta.fields?.map((field, colIdx) => (
-                                  <td key={`${rowIdx}-${colIdx}`} className="border border-gray-300 px-4 py-2">
-                                    {String((row as Record<string, unknown>)[field] || '')}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  } catch (error) {
-                    console.error('CSV parsing error:', error);
-                    return <pre>{children}</pre>;
-                  }
-                }
-                return <code className={className} {...props}>{children}</code>;
-              },
-              a: ({node, ...props}) => {
-                const href = props.href || '';
-                if (href.startsWith('http')) {
-                  return (
-                    <a 
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer" 
-                      className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500"
-                      {...props}
-                    />
-                  );
-                }
-                return <a className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500" {...props} />;
-              },
-              p: ({node, ...props}) => {
-                const children = props.children as React.ReactNode[];
-                const text = Array.isArray(children) ? children.join(' ') : String(children);
-                
-                // URLを検出して<a>タグに変換
-                const urlRegex = /(https?:\/\/[^\s]+)/g;
-                const parts = text.split(urlRegex);
-                
-                if (parts.length > 1) {
-                  return (
-                    <p>
-                      {parts.map((part, i) => {
-                        if (part.match(urlRegex)) {
-                          return (
-                            <a
-                              key={i}
-                              href={part}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 break-all"
-                            >
-                              {part}
-                            </a>
-                          );
-                        }
-                        return part;
-                      })}
-                    </p>
-                  );
-                }
-                return <p {...props} />;
-              },
-              del: ({node, ...props}) => (
-                <del className="line-through" {...props} />
-              ),
-            }}
+            components={markdownComponents}
           >
             {blog.blog_text}
           </ReactMarkdown>
         </div>
       </article>
 
+      {/* 目次サイドバー */}
+      <div className="hidden lg:block fixed right-0 top-0 bottom-0 w-48 bg-white dark:bg-neutral-900 shadow-lg border-l border-gray-200 dark:border-gray-700">
+        <div className="sticky top-1/2 transform -translate-y-1/2 p-4 max-h-[60vh] overflow-y-auto">
+          <h2 className="text-xl font-bold mb-4 dark:text-white">目次</h2>
+          <nav className="space-y-2">
+            {toc.map((item, index) => (
+              <a
+                key={index}
+                href={`#${item.id}`}
+                onClick={(e) => handleTocClick(e, item.id)}
+                className={`
+                  block text-gray-600 dark:text-gray-400 hover:text-blue-500 
+                  transition-colors duration-200 cursor-pointer
+                  ${item.level === 1 ? 'ml-0' : `ml-${(item.level - 1) * 2}`}
+                `}
+              >
+                {item.text}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* 編集ボタンのz-indexを調整 */}
       {isLoggedIn && (
         <button
           onClick={handleEditClick}
-          className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg"
+          className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg z-50"
         >
           編集
         </button>
@@ -452,4 +468,11 @@ export default function BlogDetail() {
       <BlogFormPopup
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
-        blogData={editData ? {...editData, blog_id: String(editData.blog_id)} : { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '', blog_id: '' }}        onInputChange={handleInputChange}        onSubmit={handleSubmit}        mode="edit"      />    </div>  );}
+        blogData={editData ? {...editData, blog_id: String(editData.blog_id), blog_thumbnail: editData.blog_thumbnail || ''} : { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '', blog_id: '' }}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+        mode="edit"
+      />
+    </div>
+  );
+}
