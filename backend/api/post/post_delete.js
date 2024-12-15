@@ -41,6 +41,20 @@ app.delete('/post_delete', async (req, res) => {
 
     // 削除クエリ
     const deletePostTagsQuery = 'DELETE FROM posts_post_tags WHERE post_id = $1;';
+    // 投稿の取得クエリ
+    const getPostQuery = 'SELECT repost_grant_id, reply_grant_id FROM post WHERE post_id = $1;';
+    // repost_receive_idの更新クエリ
+    const updateRepostReceiveQuery = `
+        UPDATE post 
+        SET repost_receive_id = array_remove(repost_receive_id, $1) 
+        WHERE post_id = $2;
+    `;
+    // reply_receive_idの更新クエリ
+    const updateReplyReceiveQuery = `
+        UPDATE post 
+        SET reply_receive_id = array_remove(reply_receive_id, $1) 
+        WHERE post_id = $2;
+    `;
     const deletePostQuery = 'DELETE FROM post WHERE post_id = $1 RETURNING *;';
     const values = [postId];
 
@@ -59,6 +73,24 @@ app.delete('/post_delete', async (req, res) => {
 
         // トランザクション開始
         await client.query('BEGIN');
+
+        // 削除対象の投稿情報を取得
+        const postResult = await client.query(getPostQuery, values);
+        if (postResult.rowCount > 0) {
+            const { repost_grant_id, reply_grant_id } = postResult.rows[0];
+
+            // repost_receive_idの更新
+            if (repost_grant_id) {
+                await client.query(updateRepostReceiveQuery, [postId, repost_grant_id]);
+                console.log(`Updated repost_receive_id for post ${repost_grant_id}`);
+            }
+
+            // reply_receive_idの更新
+            if (reply_grant_id) {
+                await client.query(updateReplyReceiveQuery, [postId, reply_grant_id]);
+                console.log(`Updated reply_receive_id for post ${reply_grant_id}`);
+            }
+        }
 
         // まず posts_post_tags から関連レコードを削除
         await client.query(deletePostTagsQuery, values);

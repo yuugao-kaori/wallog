@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'; // useCallback を追加
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/Blogformpopup';
@@ -8,18 +8,19 @@ import remarkBreaks from 'remark-breaks';
 import { parse } from 'papaparse';
 import { visit } from 'unist-util-visit';
 import rehypeRaw from 'rehype-raw'; // 追加
+import rehypeStringify from 'rehype-stringify'; // 追加
 import remarkGfm from 'remark-gfm'; // 追加
 
 interface BlogPost {
   blog_id: number;
   blog_title: string;
-  blog_text: string;
-  blog_thumbnail: string;
   blog_createat: string;
   blog_updateat: string;
   blog_count: number;
   blog_file: string;
   blog_fixedurl: string;
+  blog_text: string;
+  blog_thumbnail?: string;
 }
 
 interface ErrorResponse {
@@ -28,7 +29,6 @@ interface ErrorResponse {
   status: number;
 }
 
-// TableOfContentsItem インターフェースを追加
 interface TableOfContentsItem {
   id: string;
   level: number;
@@ -43,7 +43,7 @@ export default function BlogDetail() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
   const [editData, setEditData] = useState<BlogPost | null>(null);
-  const [toc, setToc] = useState<TableOfContentsItem[]>([]); // 目次の状態を追加
+  const [toc, setToc] = useState<TableOfContentsItem[]>([]);
 
   const api = useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',
@@ -191,7 +191,7 @@ export default function BlogDetail() {
             });
 
             if (!results.meta || !results.data) {
-              throw new Error('パースに失敗しました');
+              throw new Error('���ースに失敗しました');
             }
 
             const parsed = results;
@@ -309,7 +309,7 @@ export default function BlogDetail() {
     `;
   }
 
-  // generateId 関数を追加
+  // generateId 関数を useCallback でメモ化
   const generateId = useCallback((text: string): string => {
     if (!text) return '';
     const normalized = text.normalize('NFKD');
@@ -322,13 +322,13 @@ export default function BlogDetail() {
       .replace(/^-+|-+$/g, '');
 
     if (!baseId || baseId === '-') {
-      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
+      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 8)}`;
     }
 
     return baseId;
   }, []);
 
-  // 目次を生成する関数を追加
+  // 目次生成の処理を修正
   const generateToc = useCallback((markdownText: string) => {
     const headingRegex = /^(#{1,6})\s+(.+)$/gm;
     const newToc: TableOfContentsItem[] = [];
@@ -344,7 +344,25 @@ export default function BlogDetail() {
     setToc(newToc);
   }, [generateId]);
 
-  // ReactMarkdown のコンポーネント設定を更新
+  // スクロール処理を修正
+  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    if (!id) return;
+    
+    const element = document.getElementById(id);
+    if (element) {
+      const headerOffset = 80; // ヘッダーの高さに応じて調整
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // ReactMarkdownのcomponentsオプションを修正
   const markdownComponents = useMemo(() => ({
     h1: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
@@ -369,54 +387,7 @@ export default function BlogDetail() {
     h6: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
       return <h6 id={id} style={{ scrollMarginTop: '80px' }} className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h6>;
-    },
-    // リスト関連のコンポーネントを修正
-    ul: ({children, ...props}: React.DetailedHTMLProps<React.HTMLAttributes<HTMLUListElement>, HTMLUListElement>) => (
-      <ul className="list-disc list-inside my-4" {...props}>{children}</ul>
-    ),
-    ol: ({children, ...props}: React.DetailedHTMLProps<React.OlHTMLAttributes<HTMLOListElement>, HTMLOListElement>) => (
-      <ol className="list-decimal list-inside my-4" {...props}>{children}</ol>
-    ),
-    // 引用のコンポーネントを追加
-    blockquote: ({children, ...props}: React.HTMLProps<HTMLQuoteElement>) => (
-      <blockquote className="border-l-4 border-gray-300 pl-4 my-4 italic" {...props}>{children}</blockquote>
-    ),
-    // インラインコードのコンポーネントを追加
-    code: ({inline, className, children, ...props}: any) => {
-      const match = /language-(\w+)/.exec(className || '');
-      return !inline && match ? (
-        // コードブロック用
-        <div className="not-prose">
-          <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded">
-            <code className={className} {...props}>
-              {children}
-            </code>
-          </pre>
-        </div>
-      ) : (
-        // インラインコード用
-        <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded" {...props}>
-          {children}
-        </code>
-      );
-    },
-    // preタグをカスタマイズ
-    pre: ({children, ...props}: React.HTMLProps<HTMLPreElement>) => (
-      <div className="not-prose">
-        <pre {...props}>{children}</pre>
-      </div>
-    ),
-    // 水平線のコンポーネントを追加
-    hr: () => <hr className="my-8 border-t border-gray-300 dark:border-gray-700" />,
-    strong: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => <strong {...props}>{children}</strong>, // strong を太字に戻す
-    a: ({children, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <a
-        {...props}
-        className="text-blue-500 underline"
-      >
-        {children}
-      </a>
-    ),
+    }
   }), [generateId]);
 
   // ブログデータ取得後に目次を生成
@@ -426,69 +397,14 @@ export default function BlogDetail() {
     }
   }, [blog?.blog_text, generateToc]);
 
-  // 目次クリック時のスクロール処理を追加
-  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
-    e.preventDefault();
-    if (!id) return;
-    
-    const element = document.getElementById(id);
-    if (element) {
-      const headerOffset = 80; // ヘッダーの高さに応じて調整
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      });
-    }
-  };
-
-  // remarkUnderline 関数を修正して、++テキスト++ を下線に変換
-  function remarkUnderline() {
-    return (tree: any) => {
-      visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
-        const regex = /\+\+(.*?)\+\+/g; // __ から ++ に変更
-        let match;
-        let lastIndex = 0;
-        const newNodes: any[] = [];
-
-        while ((match = regex.exec(node.value)) !== null) {
-          if (match.index > lastIndex) {
-            newNodes.push({
-              type: 'text',
-              value: node.value.substring(lastIndex, match.index),
-            });
-          }
-          newNodes.push({
-            type: 'html',
-            value: `<u>${match[1]}</u>`,
-          });
-          lastIndex = match.index + match[0].length;
-        }
-
-        if (lastIndex < node.value.length) {
-          newNodes.push({
-            type: 'text',
-            value: node.value.substring(lastIndex),
-          });
-        }
-
-        if (newNodes.length > 0) {
-          parent.children.splice(index, 1, ...newNodes);
-        }
-      });
-    };
-  }
-
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
 
   return (
-    <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
+    <div className="p-4 mx-48 relative min-h-screen flex">
       {/* 記事本文のコンテナ */}
-      <article className="max-w-4xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
+      <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
         {blog.blog_thumbnail && (
           <img
             src={blog.blog_thumbnail}
@@ -505,10 +421,10 @@ export default function BlogDetail() {
           <p>閲覧数: {blog.blog_count}</p>
         </div>
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
-        <div className="prose dark:prose-invert max-w-none mb-20 whitespace-pre-line leading-none"> {/* leading-tight を追加 */}
+        <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
-            remarkPlugins={[remarkBreaks, remarkUnderline, remarkGfm, remarkCsv, remarkCustomImg]} // remarkBreaks を最初に移動
-            rehypePlugins={[rehypeRaw]}
+            remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg, remarkGfm]} // remarkGfm を追加
+            rehypePlugins={[rehypeRaw, rehypeStringify]} // rehypeStringify を追加
             components={markdownComponents}
           >
             {blog.blog_text}
@@ -516,7 +432,7 @@ export default function BlogDetail() {
         </div>
       </article>
 
-      {/* 目次サイドバーを追加 */}
+      {/* 目次サイドバー */}
       <div className="hidden lg:block fixed right-0 top-0 bottom-0 w-48 bg-white dark:bg-neutral-900 shadow-lg border-l border-gray-200 dark:border-gray-700">
         <div className="sticky top-1/2 transform -translate-y-1/2 p-4 max-h-[60vh] overflow-y-auto">
           <h2 className="text-xl font-bold mb-4 dark:text-white">目次</h2>
@@ -539,27 +455,20 @@ export default function BlogDetail() {
         </div>
       </div>
 
+      {/* 編集ボタンのz-indexを調整 */}
       {isLoggedIn && (
         <button
           onClick={handleEditClick}
-          className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg"
+          className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg z-50"
         >
           編集
         </button>
       )}
+
       <BlogFormPopup
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
-        blogData={editData ? {
-          ...editData, 
-          blog_id: String(editData.blog_id)
-        } : {
-          blog_title: '',
-          blog_text: '',
-          blog_file: '',
-          blog_thumbnail: '',
-          blog_id: ''
-        }}
+        blogData={editData ? {...editData, blog_id: String(editData.blog_id), blog_thumbnail: editData.blog_thumbnail || ''} : { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '', blog_id: '' }}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
         mode="edit"

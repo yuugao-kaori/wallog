@@ -19,6 +19,20 @@ export interface Post {
   title?: string;
   created_at: string;
   // 他の必要なプロパティを追加
+  reply_body?: {
+    post_id: string;
+    post_text: string;
+    post_file?: string | string[];
+    post_createat: string;
+    user_id: string;
+  };
+  repost_body?: {
+    post_id: string;
+    post_text: string;
+    post_file?: string | string[];
+    post_createat: string;
+    user_id: string;
+  };
 }
 
 interface PostFeedProps {
@@ -172,6 +186,8 @@ const PostFeed: React.FC<PostFeedProps> = ({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loading) {
+          // 最後の投稿のIDを取得
+          const lastPostId = posts.length > 0 ? posts[posts.length - 1].post_id : undefined;
           loadMorePosts();
         }
       },
@@ -185,7 +201,7 @@ const PostFeed: React.FC<PostFeedProps> = ({
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, loading, loadMorePosts]);
+  }, [hasMore, loading, loadMorePosts, posts]);
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2">

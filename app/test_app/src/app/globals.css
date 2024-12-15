@@ -32,11 +32,12 @@ body {
 }
 
 /* 追加のカスタムスタイル */
+/* スクロールバーを非表示にするユーティリティクラス */
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;  /* IE, Edge 対応 */
+  scrollbar-width: none;     /* Firefox 対応 */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;  /* Chrome, Safari, Opera 対応 */
 }

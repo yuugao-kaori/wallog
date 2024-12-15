@@ -115,7 +115,7 @@ function Diary() {
 
   const loadMorePosts = useCallback(async (retryCount = 0) => {
     const now = Date.now();
-    const TIME_BETWEEN_REQUESTS = 2000; // 2秒のインターバルを設定
+    const TIME_BETWEEN_REQUESTS = 2000;
 
     if (loadingRef.current || !hasMore) return;
     
@@ -124,7 +124,7 @@ function Diary() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
-      // 次��リクエストを遅延実行
+      // 次のリクエストを遅延実行
       retryTimeoutRef.current = setTimeout(() => {
         loadMorePosts(retryCount);
       }, TIME_BETWEEN_REQUESTS - (now - lastRequestTimeRef.current));
@@ -139,11 +139,10 @@ function Diary() {
       const response = await api.get('/api/post/post_list', {
         params: {
           limit: 20,
-          ...(start_id !== null && { start_id })
+          ...(start_id != null && { start_id })  // nullの場合は最新の投稿を取得
         }
       });
       
-      // データの処理完了���確実にす��ため、setTimeout を使用
       setTimeout(() => {
         const newPosts = Array.isArray(response.data) ? response.data : [];
 
@@ -151,9 +150,17 @@ function Diary() {
           setPosts((prevPosts: Post[]) => {
             const existingIds = new Set(prevPosts.map(post => post.post_id));
             const uniqueNewPosts = newPosts.filter(post => !existingIds.has(post.post_id));
-            return [...prevPosts, ...uniqueNewPosts];
+            // 新しい投稿を追加し、post_idで降順にソート
+            const updatedPosts = [...prevPosts, ...uniqueNewPosts]
+                .sort((a, b) => Number(BigInt(b.post_id) - BigInt(a.post_id)));
+            return updatedPosts;
           });
-          setstart_id(newPosts[newPosts.length - 1].post_id - 1000000);
+          
+          // 次のstart_idを設定
+          if (newPosts.length >= 20) {
+            const lastPost = newPosts[newPosts.length - 1];
+            setstart_id(lastPost.post_id);
+          }
           setHasMore(newPosts.length >= 20);
         } else {
           setHasMore(false);
@@ -161,7 +168,7 @@ function Diary() {
         
         loadingRef.current = false;
         setLoading(false);
-      }, 1000); // 1秒の処理時間を確保
+      }, 1000);
 
     } catch (error) {
       console.error('Failed to load posts', error);
@@ -202,7 +209,9 @@ function Diary() {
           // 重複を排除して新しい投稿を追加
           const existingIds = new Set(prevPosts.map(post => post.post_id));
           const uniqueNewPosts = newPosts.filter((post: Post) => !existingIds.has(post.post_id));
-          return [...uniqueNewPosts, ...prevPosts];
+          // 新しい投稿を追加し、post_idで降順にソート
+          return [...uniqueNewPosts, ...prevPosts]
+              .sort((a, b) => Number(BigInt(b.post_id) - BigInt(a.post_id)));
         });
         reconnectAttempt = 0;
       };
@@ -232,13 +241,14 @@ function Diary() {
       };
     };
 
-    // 初期ロード
+    // 初期ロード時にstart_idをnullに設定してから読み込み
+    setstart_id(null);
     loadMorePosts();
 
     // SSE接続の確立
     createEventSource();
     
-    // クリーン��ップ関数
+    // クリーンアップ関数
     return () => {
       if (eventSource) {
         console.log('Closing SSE connection');
@@ -278,10 +288,10 @@ function Diary() {
           url, 
           isImage,
           contentType: fileFormat,
-          isExisting: false  // 追加: 新規アップロードファイルとしてマーク
+          isExisting: false  // 追加: 新規アップロードファイルとしてマー��
         }]);
       } catch (error) {
-        setStatus('ファイルのアップロードに失敗しました。');
+        setStatus('ファイルのアップロードに失敗��ました。');
       }
     }
   };
@@ -326,8 +336,9 @@ function Diary() {
   );
 
 // ファイル削除用の関数を修正
-const handleDeleteFile = async (fileId: number): Promise<boolean> => {
-  const fileToDelete = files.find(f => f.id === fileId);
+const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
+  const numericFileId = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
+  const fileToDelete = files.find(f => f.id === numericFileId);
   
   if (!fileToDelete) return false;
 
@@ -349,7 +360,7 @@ const handleDeleteFile = async (fileId: number): Promise<boolean> => {
   }
 }
 
-// 投稿削除用の関���を修正
+// 投稿削除用の関数を修正
 const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
   try {
     const response = await api.delete('/api/post/post_delete', {
@@ -446,10 +457,30 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
     }
   };
 
+  // モーダルの開閉処理を明確に分離
+  const openModal = (isRepost: boolean = false) => {
+    setIsModalOpen(true);
+    if (!isRepost) {
+      // 新規投稿の場合は repost 関連の状態をクリア
+      setRepostData(null);
+      setRepostText('');
+      setPostText('');
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    // モーダルを閉じる時に必ず全ての状態をリセット
+    setRepostData(null);
+    setRepostText('');
+    setPostText('');
+  };
+
+  // 再投稿ハンドラーを修正
   const handleRepost = async (post: Post) => {
     setRepostData(post);
     setRepostText(post.post_text);
-    setIsModalOpen(true);
+    openModal(true);
   };
 
   return (
@@ -528,7 +559,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       {isLoggedIn && (
       <button
         className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => openModal()}
       >
         +
       </button>
@@ -537,30 +568,45 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       {/* ��バイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
-      onClose={() => {
-        setIsModalOpen(false);
-        setRepostData(null);
-        setRepostText('');  // 追加: クリーンアップ
-      }}
+      onClose={closeModal}
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       handleSubmit={async (e, finalText) => {
-        if (repostData) {
-          try {
-            // React.MouseEventとして新しいイベントを作成
-            const mouseEvent = { type: 'click' } as React.MouseEvent<Element, MouseEvent>;
-            const deleteSuccess = await handleDeletePost(mouseEvent, repostData.post_id);
+        e.preventDefault();
+        try {
+          if (repostData) {
+            // 古い投稿を削除
+            const deleteSuccess = await handleDeletePost(
+              { stopPropagation: () => {} } as React.MouseEvent,
+              repostData.post_id
+            );
             
-            if (deleteSuccess) {
-              // 削除成功後に再投稿
-              await handleSubmit(e, finalText);
+            if (!deleteSuccess) {
+              addNotification('古い投稿の削除に失敗しました');
+              return;
             }
-          } catch (error) {
-            console.error('再投稿処理でエラーが発生しました:', error);
-            addNotification('再投稿に失敗しました');
           }
-        } else {
-          await handleSubmit(e, finalText);
+
+          // 新しい投稿を作成
+          const payload = {
+            post_text: finalText,
+            ...(files.length > 0 && { post_file: files.map(file => file.id) })
+          };
+
+          const response = await api.post('/api/post/post_create', payload);
+          addNotification('投稿が成功しました！');
+          setPostText('');
+          setFiles([]);
+          setRepostData(null);
+          
+          if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+            setPosts(prevPosts => [response.data, ...prevPosts]);
+          }
+          
+          closeModal();
+        } catch (error) {
+          console.error('投稿処理でエラーが発生しました:', error);
+          addNotification('投稿に失敗しました');
         }
       }}
       files={files}

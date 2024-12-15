@@ -27,9 +27,23 @@ CREATE TABLE IF NOT EXISTS "post" (
     post_tag TEXT, -- リスト形式でそのまま収容
     post_file TEXT, -- 半角コンマで区切るfile_id
     post_attitude NUMERIC DEFAULT 1,
-    repost_id text[],
-    reply_id text[]
-    post_hashtag TEXT[]
+    repost_grant_id NUMERIC,
+    reply_grant_id NUMERIC,
+    repost_receive_id NUMERIC[],
+    reply_receive_id NUMERIC[],
+    post_hashtag TEXT[],
+    x_twitter_id TEXT,
+    x_twitter_text TEXT,
+    x_twitter_create_at  TIMESTAMP,
+    x_twitter_hashtag TEXT[],
+    x_twitter_file_name TEXT[],
+    x_twitter_attitude NUMERIC DEFAULT 1,
+    misskey_id TEXT,
+    misskey_text TEXT,
+    misskey_create_at  TIMESTAMP,
+    misskey_hashtag TEXT[],
+    misskey_file_name TEXT[],
+    misskey_attitude NUMERIC DEFAULT 1,
 );
 
 -- blogテーブルの作成
