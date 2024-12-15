@@ -153,7 +153,7 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
-  // ポップアップを開く時に編集用���ータを初期化
+  // ポップアップを開く時に編集用データを初期化
   const handleEditClick = () => {
     setEditData(blog ? { ...blog } : null);
     setIsEditPopupOpen(true);
@@ -384,18 +384,28 @@ export default function BlogDetail() {
     // インラインコードのコンポーネントを追加
     code: ({inline, className, children, ...props}: any) => {
       const match = /language-(\w+)/.exec(className || '');
-      return !inline ? (
-        <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded">
-          <code className={className} {...props}>
-            {children}
-          </code>
-        </pre>
+      return !inline && match ? (
+        // コードブロック用
+        <div className="not-prose">
+          <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded">
+            <code className={className} {...props}>
+              {children}
+            </code>
+          </pre>
+        </div>
       ) : (
+        // インラインコード用
         <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded" {...props}>
           {children}
         </code>
       );
     },
+    // preタグをカスタマイズ
+    pre: ({children, ...props}: React.HTMLProps<HTMLPreElement>) => (
+      <div className="not-prose">
+        <pre {...props}>{children}</pre>
+      </div>
+    ),
     // 水平線のコンポーネントを追加
     hr: () => <hr className="my-8 border-t border-gray-300 dark:border-gray-700" />
   }), [generateId]);
@@ -427,7 +437,7 @@ export default function BlogDetail() {
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
-  if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
+  if (!blog) return <div className="ml-48 p-4">ブ��グが見つかりません</div>;
 
   return (
     <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
