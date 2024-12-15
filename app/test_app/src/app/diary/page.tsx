@@ -336,8 +336,9 @@ function Diary() {
   );
 
 // ファイル削除用の関数を修正
-const handleDeleteFile = async (fileId: number): Promise<boolean> => {
-  const fileToDelete = files.find(f => f.id === fileId);
+const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
+  const numericFileId = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
+  const fileToDelete = files.find(f => f.id === numericFileId);
   
   if (!fileToDelete) return false;
 
@@ -571,22 +572,41 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       handleSubmit={async (e, finalText) => {
-        if (repostData) {
-          try {
-            // React.MouseEventとして新しいイベントを作成
-            const mouseEvent = { type: 'click' } as React.MouseEvent<Element, MouseEvent>;
-            const deleteSuccess = await handleDeletePost(mouseEvent, repostData.post_id);
+        e.preventDefault();
+        try {
+          if (repostData) {
+            // 古い投稿を削除
+            const deleteSuccess = await handleDeletePost(
+              { stopPropagation: () => {} } as React.MouseEvent,
+              repostData.post_id
+            );
             
-            if (deleteSuccess) {
-              // 削除成功後に再投稿
-              await handleSubmit(e, finalText);
+            if (!deleteSuccess) {
+              addNotification('古い投稿の削除に失敗しました');
+              return;
             }
-          } catch (error) {
-            console.error('再投稿処理でエラーが発生しました:', error);
-            addNotification('再投稿に失敗しました');
           }
-        } else {
-          await handleSubmit(e, finalText);
+
+          // 新しい投稿を作成
+          const payload = {
+            post_text: finalText,
+            ...(files.length > 0 && { post_file: files.map(file => file.id) })
+          };
+
+          const response = await api.post('/api/post/post_create', payload);
+          addNotification('投稿が成功しました！');
+          setPostText('');
+          setFiles([]);
+          setRepostData(null);
+          
+          if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+            setPosts(prevPosts => [response.data, ...prevPosts]);
+          }
+          
+          closeModal();
+        } catch (error) {
+          console.error('投稿処理でエラーが発生しました:', error);
+          addNotification('投稿に失敗しました');
         }
       }}
       files={files}

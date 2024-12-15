@@ -25,7 +25,7 @@ interface PostFormPopupProps {
   handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
-  handleDelete: (fileId: number) => Promise<boolean>;
+  handleDelete: (fileId: string | number) => Promise<boolean>;
   isLoggedIn: boolean;
   status: string;
   onSelectExistingFiles: () => void;
@@ -36,8 +36,9 @@ interface PostFormPopupProps {
   repostMode?: boolean;  // 追加
   initialText?: string;  // 追加
   onRepostComplete?: () => void;  // 追加: repostMode をリセットするための関数
-  mode?: 'normal' | 'quote' | 'reply';  // 追加
+  mode?: 'normal' | 'quote' | 'reply' | 'correct';  // 'correct' を追加
   targetPost?: Post;  // 追加: 引用/返信対象の投稿
+  handlePostDelete?: (event: React.MouseEvent, postId: string) => Promise<boolean>;  // 追加
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -140,71 +141,84 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   };
 
   // handleFormSubmitを修正
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    let finalPostText = postText.trim();
-    let additionalTags = [];
-
-    // ハッシュタグの処理
-    if (selectedHashtags.size > 0) {
-      additionalTags.push(Array.from(selectedHashtags).join(' '));
-    }
-
-    if (autoAppendTags && fixedHashtags.trim()) {
-      const processedTags = fixedHashtags
-        .trim()
-        .split(/\s+/)
-        .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
-        .join(' ');
-      additionalTags.push(processedTags);
-    }
-
-    // タグを投稿本文の末尾に追加
-    if (additionalTags.length > 0) {
-      finalPostText += '\n' + additionalTags.join(' ');
-    }
-
-    // モードに応じてAPIに送信するデータを構築
-    const submitData: any = {
-      post_text: finalPostText,
-    };
-
-    // files配列が空でない場合のみpost_fileを追加
-    if (files.length > 0) {
-      submitData.post_file = files.map(file => file.id);
-    }
-
-    // 引用/返信モードの場合、対応するIDを追加
-    if (mode === 'quote' && targetPost?.post_id) {
-      submitData.repost_id = targetPost.post_id;
-    }
-    if (mode === 'reply' && targetPost?.post_id) {
-      submitData.reply_id = targetPost.post_id;
-    }
-
-    // post_createに送信
-    fetch('/api/post/post_create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(submitData)
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.created_note) {
-        setSelectedHashtags(new Set());
-        setIsDropdownOpen(false);
-        onClose();
-        if (repostMode && onRepostComplete) {
-          onRepostComplete();
+    try {
+      if (mode === 'correct' && handleDelete && targetPost) {
+        // 削除処理の実行
+        const deleted = await handleDelete(targetPost.post_id);
+        
+        if (!deleted) {
+          // 削除に失敗した場合は処理を中断
+          return;
         }
       }
-    })
-    .catch(error => {
-      console.error('投稿エラー:', error);
-    });
+
+      // 新規投稿の作成処理
+      let finalPostText = postText.trim();
+      let additionalTags = [];
+
+      // ハッシュタグの処理
+      if (selectedHashtags.size > 0) {
+        additionalTags.push(Array.from(selectedHashtags).join(' '));
+      }
+
+      if (autoAppendTags && fixedHashtags.trim()) {
+        const processedTags = fixedHashtags
+          .trim()
+          .split(/\s+/)
+          .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
+          .join(' ');
+        additionalTags.push(processedTags);
+      }
+
+      // タグを投稿本文の末尾に追加
+      if (additionalTags.length > 0) {
+        finalPostText += '\n' + additionalTags.join(' ');
+      }
+
+      // モードに応じてAPIに送信するデータを構築
+      const submitData: any = {
+        post_text: finalPostText,
+      };
+
+      // files配列が空でない場合のみpost_fileを追加
+      if (files.length > 0) {
+        submitData.post_file = files.map(file => file.id);
+      }
+
+      // 引用/返信モードの場合、対応するIDを追加
+      if (mode === 'quote' && targetPost?.post_id) {
+        submitData.repost_id = targetPost.post_id;
+      }
+      if (mode === 'reply' && targetPost?.post_id) {
+        submitData.reply_id = targetPost.post_id;
+      }
+
+      // post_createに送信
+      const response = await fetch('/api/post/post_create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData)
+      });
+
+      if (!response.ok) {
+        throw new Error('投稿の作成に失敗しました');
+      }
+
+      // 成功時の処理
+      setSelectedHashtags(new Set());
+      setIsDropdownOpen(false);
+      onClose();
+      if (repostMode && onRepostComplete) {
+        onRepostComplete();
+      }
+
+    } catch (error) {
+      console.error('Error in form submission:', error);
+    }
   };
 
   const updateAutoHashtags = useCallback(async (tags: string) => {
@@ -270,7 +284,10 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
           ×
         </button>
         <h2 className="text-xl font-bold mb-4">
-          {mode === 'quote' ? "引用投稿" : mode === 'reply' ? "返信投稿" : "新規投稿"}
+          {mode === 'quote' ? "引用投稿" : 
+           mode === 'reply' ? "返信投稿" : 
+           mode === 'correct' ? "削除して再投稿" :  // correct モードの表示を追加
+           "新規投稿"}
         </h2>
 
         {/* 引用/返信対象の投稿を表示 */}
@@ -368,7 +385,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 className="mt-2 p-4 border-dashed border-2 border-gray-400 rounded text-center cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
-                ファイルを���ラッグ＆ドロップするか、クリックして選択
+                ファイルをドラッグ＆ドロップするか、クリックして選択
                 <input
                   type="file"
                   multiple
@@ -412,7 +429,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                             ? 'bg-gray-500 hover:bg-gray-600' 
                             : 'bg-red-500 hover:bg-red-600'
                         }`}
-                        title={file.isExisting ? "添付を取���消す" : "ファイルを削除する"}
+                        title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
                       >
                         {file.isExisting ? '−' : '×'}
                       </button>

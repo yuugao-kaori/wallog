@@ -66,7 +66,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
   const [formState, setFormState] = useState({
     postText: '',
-    mode: 'normal' as 'normal' | 'quote' | 'reply'
+    mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct'
   });
 
   const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
@@ -318,21 +318,16 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
   const handleRepost = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    if (!onRepost) return;
-    
     setUiState(prev => ({
       ...prev,
       repostModalOpen: false,
-      menuOpen: false
+      menuOpen: false,
+      postFormModalOpen: true  // フォームを開く
     }));
-    
-    try {
-      await onRepost(post);
-      addNotification("投稿を再作成しました");
-    } catch (error) {
-      console.error("再投稿に失敗しました", error);
-      addNotification("再投稿に失敗しました");
-    }
+    setFormState({
+      postText: post.post_text,  // 元の投稿テキストを設定
+      mode: 'correct'  // correct モードを設定
+    });
   };
 
   // 引用投稿ハンドラーの更新
@@ -416,7 +411,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     }));
   }, []);
 
-  // 返信元投稿のレンダリング��数を修正
+  // 返信元投稿のレンダリング関数を修正
   const renderReplyBody = useCallback(() => {
     // reply_bodyがnullまたはpost_idがnullの場合は何も表示しない
     if (!post.reply_body || !post.reply_body.post_id) return null;
@@ -451,6 +446,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     );
   }, [post.repost_body, formatDate]);
 
+  const [posts, setPosts] = useState<PostFeedPost[]>([]);
   return (
     <>
       <div ref={ref} className="w-full px-2 sm:px-4">
@@ -578,19 +574,63 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
         handleSubmit={async (e, finalText) => {
           e.preventDefault();
-          if (onQuoteSubmit) {
-            if (formState.mode === 'quote' || formState.mode === 'reply') {
+          try {
+            // correct モードの場合、まず投稿を削除
+            if (formState.mode === 'correct') {
+              // 削除処理を post_delete エンドポイントを使用するように修正
+              const deleteResponse = await fetch('/api/post/post_delete', {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ post_id: post.post_id }),
+              });
+
+              if (!deleteResponse.ok) {
+                addNotification('削除に失敗しました');
+                return;
+              }
+
+              // 投稿一覧からも削除
+              setPosts(prevPosts => prevPosts.filter(p => p.post_id !== post.post_id));
+
+              // 新規投稿を作成
+              const createResponse = await fetch('/api/post/post_create', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  post_text: finalText
+                })
+              });
+
+              if (!createResponse.ok) {
+                throw new Error('新規投稿の作成に失敗しました');
+              }
+
+              addNotification('投稿を修正しました');
+              setUiState(prev => ({ ...prev, postFormModalOpen: false }));
+            } else if (onQuoteSubmit && (formState.mode === 'quote' || formState.mode === 'reply')) {
+              // 引用と返信の処理
               await onQuoteSubmit(finalText, formState.mode, post.post_id);
+              setUiState(prev => ({ ...prev, postFormModalOpen: false }));
             }
+          } catch (error) {
+            console.error('Error in form submission:', error);
+            addNotification('処理に失敗しました');
           }
-          setUiState(prev => ({ ...prev, postFormModalOpen: false }));
         }}
         mode={formState.mode}
         targetPost={post}
         isLoggedIn={isLoggedIn}
         files={[]}
         handleFiles={() => {}}
-        handleDelete={async () => false}
+        handleDelete={async (fileId) => {
+          // Assuming fileId is a number, we create a dummy event
+          const dummyEvent = new MouseEvent('click') as unknown as React.MouseEvent;
+          return await onDelete(dummyEvent, fileId.toString());
+        }}
         status=""
         onSelectExistingFiles={() => {}}
         fixedHashtags=""
