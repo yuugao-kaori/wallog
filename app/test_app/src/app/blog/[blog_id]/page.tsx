@@ -322,7 +322,7 @@ export default function BlogDetail() {
       .replace(/^-+|-+$/g, '');
 
     if (!baseId || baseId === '-') {
-      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 8)}`;
+      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
     }
 
     return baseId;
@@ -505,10 +505,10 @@ export default function BlogDetail() {
           <p>閲覧数: {blog.blog_count}</p>
         </div>
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
-        <div className="prose dark:prose-invert max-w-none mb-20">
+        <div className="prose dark:prose-invert max-w-none mb-20 whitespace-pre-line leading-none"> {/* leading-tight を追加 */}
           <ReactMarkdown
-            remarkPlugins={[remarkUnderline, remarkGfm, remarkBreaks, remarkCsv, remarkCustomImg]} // remarkUnderline を最初に適用
-            rehypePlugins={[rehypeRaw]} // rehypeStringify を削除
+            remarkPlugins={[remarkBreaks, remarkUnderline, remarkGfm, remarkCsv, remarkCustomImg]} // remarkBreaks を最初に移動
+            rehypePlugins={[rehypeRaw]}
             components={markdownComponents}
           >
             {blog.blog_text}
