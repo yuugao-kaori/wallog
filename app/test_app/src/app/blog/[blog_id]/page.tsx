@@ -407,7 +407,16 @@ export default function BlogDetail() {
       </div>
     ),
     // 水平線のコンポーネントを追加
-    hr: () => <hr className="my-8 border-t border-gray-300 dark:border-gray-700" />
+    hr: () => <hr className="my-8 border-t border-gray-300 dark:border-gray-700" />,
+    strong: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => <strong {...props}>{children}</strong>, // strong を太字に戻す
+    a: ({children, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+      <a
+        {...props}
+        className="text-blue-500 underline"
+      >
+        {children}
+      </a>
+    ),
   }), [generateId]);
 
   // ブログデータ取得後に目次を生成
@@ -435,9 +444,46 @@ export default function BlogDetail() {
     }
   };
 
+  // remarkUnderline 関数を修正して、++テキスト++ を下線に変換
+  function remarkUnderline() {
+    return (tree: any) => {
+      visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
+        const regex = /\+\+(.*?)\+\+/g; // __ から ++ に変更
+        let match;
+        let lastIndex = 0;
+        const newNodes: any[] = [];
+
+        while ((match = regex.exec(node.value)) !== null) {
+          if (match.index > lastIndex) {
+            newNodes.push({
+              type: 'text',
+              value: node.value.substring(lastIndex, match.index),
+            });
+          }
+          newNodes.push({
+            type: 'html',
+            value: `<u>${match[1]}</u>`,
+          });
+          lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < node.value.length) {
+          newNodes.push({
+            type: 'text',
+            value: node.value.substring(lastIndex),
+          });
+        }
+
+        if (newNodes.length > 0) {
+          parent.children.splice(index, 1, ...newNodes);
+        }
+      });
+    };
+  }
+
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
-  if (!blog) return <div className="ml-48 p-4">ブ��グが見つかりません</div>;
+  if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
 
   return (
     <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
@@ -461,7 +507,7 @@ export default function BlogDetail() {
         <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkBreaks, remarkCsv, remarkCustomImg]} // remarkGfm を追加
+            remarkPlugins={[remarkUnderline, remarkGfm, remarkBreaks, remarkCsv, remarkCustomImg]} // remarkUnderline を最初に適用
             rehypePlugins={[rehypeRaw]} // rehypeStringify を削除
             components={markdownComponents}
           >
