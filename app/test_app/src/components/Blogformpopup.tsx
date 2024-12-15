@@ -34,6 +34,91 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
   const [emptyLineCount, setEmptyLineCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const [history, setHistory] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [isUndoRedo, setIsUndoRedo] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 履歴に新しいテキストを追加するヘルパー関数を修正
+  const addToHistory = (newValue: string, immediate: boolean = false) => {
+    if (isUndoRedo) return;
+
+    const updateHistory = () => {
+      const lastHistoryItem = history[currentIndex];
+      if (lastHistoryItem !== newValue) {
+        const newHistory = [...history.slice(0, currentIndex + 1), newValue];
+        setHistory(newHistory);
+        setCurrentIndex(newHistory.length - 1);
+      }
+    };
+
+    if (immediate) {
+      // マークダウン挿入時は即時に履歴を更新
+      updateHistory();
+    } else {
+      // 通常の入力時はデバウンス処理を適用
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(updateHistory, 500);
+    }
+
+    // テキストエリアの値を更新
+    const event = {
+      target: {
+        name: 'blog_text',
+        value: newValue
+      }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    onInputChange(event);
+  };
+
+  // テキストエリアの内容が変更されたときの処理を修正
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    addToHistory(e.target.value, false);
+  };
+
+  // Undo/Redoのキーボードショートカット処理を更新
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      setIsUndoRedo(true);
+      
+      if (e.shiftKey) {
+        // Redo
+        if (currentIndex < history.length - 1) {
+          const newIndex = currentIndex + 1;
+          setCurrentIndex(newIndex);
+          const event = {
+            target: {
+              name: 'blog_text',
+              value: history[newIndex]
+            }
+          } as React.ChangeEvent<HTMLTextAreaElement>;
+          onInputChange(event);
+        }
+      } else {
+        // Undo
+        if (currentIndex > 0) {
+          const newIndex = currentIndex - 1;
+          setCurrentIndex(newIndex);
+          const event = {
+            target: {
+              name: 'blog_text',
+              value: history[newIndex]
+            }
+          } as React.ChangeEvent<HTMLTextAreaElement>;
+          onInputChange(event);
+        }
+      }
+      
+      setTimeout(() => {
+        setIsUndoRedo(false);
+      }, 100);
+    }
+  };
+
   const handleDeleteClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
     if (!blogData.blog_id) return;
 
@@ -63,6 +148,8 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
       alert('削除に失敗しました');
     }
   };
+
+  // マークダウン挿入処理を修正
   const insertMarkdown = (markdownSyntax: { prefix: string, suffix?: string }) => {
     if (!textareaRef.current) return;
 
@@ -83,14 +170,8 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
       (isHeading || isList ? '' : (markdownSyntax.suffix || markdownSyntax.prefix)) + 
       text.substring(end);
 
-    const event = {
-      target: {
-        name: 'blog_text',
-        value: newText
-      }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    
-    onInputChange(event);
+    // 履歴に即時追加
+    addToHistory(newText, true);
     
     setTimeout(() => {
       textarea.focus();
@@ -99,6 +180,7 @@ const BlogFormPopup: React.FC<BlogFormPopupProps> = ({
       textarea.scrollTop = scrollPosition; // スクロール位置を復元
     }, 0);
 };
+
 const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
   // Shift+Enterでform submit
   if (e.key === 'Enter' && e.shiftKey) {
@@ -180,6 +262,14 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
   }
 };
 
+  // コンポーネントがマウントされたときに初期テキストを履歴に追加
+  useEffect(() => {
+    if (blogData.blog_text) {
+      setHistory([blogData.blog_text]);
+      setCurrentIndex(0);
+    }
+  }, []);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-2xl">
@@ -259,8 +349,11 @@ const handleTextAreaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             ref={textareaRef}
             name="blog_text"
             value={blogData.blog_text}
-            onChange={onInputChange}
-            onKeyDown={handleTextAreaKeyDown}
+            onChange={handleTextChange}
+            onKeyDown={(e) => {
+              handleKeyDown(e);
+              handleTextAreaKeyDown(e);
+            }}
             placeholder="本文 (Shift+Enterで送信)"
             required
             className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

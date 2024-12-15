@@ -201,7 +201,7 @@ export default function BlogDetail() {
             console.log('Parsed Data:', parsed.data);
 
             if (!parsed.meta.fields || parsed.meta.fields.length === 0) {
-              throw new Error('ヘッダーが見つかりません');
+              throw new Error('ヘッダーが��つかりません');
             }
 
             // フィルタリングを緩和
@@ -329,7 +329,7 @@ export default function BlogDetail() {
         <div className="prose dark:prose-invert max-w-none mb-20">
           <ReactMarkdown
             remarkPlugins={[remarkBreaks, remarkCsv, remarkCustomImg, remarkGfm]} // remarkGfm を追加
-            rehypePlugins={[rehypeRaw, rehypeStringify]} // rehypeStringify を追加
+            rehypePlugins={[rehypeRaw, [rehypeStringify, { allowDangerousHtml: true }]]} // rehypeStringify を追加
             components={{
               h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />,
               h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3" {...props} />,
@@ -402,6 +402,11 @@ export default function BlogDetail() {
                 const children = props.children as React.ReactNode[];
                 const text = Array.isArray(children) ? children.join(' ') : String(children);
                 
+                // 空の段落の場合のみ余白を持たせる
+                if (!text.trim()) {
+                  return <p className="my-4">&nbsp;</p>;
+                }
+
                 // URLを検出して<a>タグに変換
                 const urlRegex = /(https?:\/\/[^\s]+)/g;
                 const parts = text.split(urlRegex);
@@ -433,6 +438,26 @@ export default function BlogDetail() {
               del: ({node, ...props}) => (
                 <del className="line-through" {...props} />
               ),
+              ol: ({node, ...props}) => (
+                <ol className="list-decimal pl-4 mb-4" {...props} />
+              ),
+              ul: ({node, ...props}) => (
+                <ul className="list-disc pl-4 mb-4" {...props} />
+              ),
+              li: ({node, ...props}) => (
+                <li className="ml-4 dark:text-gray-300" {...props} />
+              ),
+              blockquote: ({node, children, ...props}) => (
+                <blockquote 
+                  className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 py-2 my-4 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300" 
+                  {...props}
+                >
+                  {children}
+                </blockquote>
+              ),
+              hr: ({node, ...props}) => (
+                <hr className="border-t border-gray-300 my-8" {...props} />
+              ),
             }}
           >
             {blog.blog_text}
@@ -448,8 +473,23 @@ export default function BlogDetail() {
           編集
         </button>
       )}
-
       <BlogFormPopup
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
-        blogData={editData ? {...editData, blog_id: String(editData.blog_id)} : { blog_title: '', blog_text: '', blog_file: '', blog_thumbnail: '', blog_id: '' }}        onInputChange={handleInputChange}        onSubmit={handleSubmit}        mode="edit"      />    </div>  );}
+        blogData={editData ? {
+          ...editData, 
+          blog_id: String(editData.blog_id)
+        } : {
+          blog_title: '',
+          blog_text: '',
+          blog_file: '',
+          blog_thumbnail: '',
+          blog_id: ''
+        }}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+        mode="edit"
+      />
+    </div>
+  );
+}
