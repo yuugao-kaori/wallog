@@ -41,3 +41,10 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari, Opera 対応 */
 }
+
+/* カスタム高さクラスの追加 */
+@layer utilities {
+  .max-h-128 {
+    max-height: 512px;
+  }
+}

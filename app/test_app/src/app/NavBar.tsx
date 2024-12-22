@@ -240,7 +240,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2024.12.22.0001
+            Dev 2024.12.22.0002
                   
           </div>
         </div>

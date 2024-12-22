@@ -449,7 +449,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
   return (
     <>
-      <div ref={ref} className="w-full px-2 sm:px-4">
+      <div ref={ref} className="w-full">
         <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
           <Notification 
             notifications={notifications} 
