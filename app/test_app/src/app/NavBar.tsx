@@ -111,7 +111,7 @@ const NavBarClient = () => {
     // パスに基づいてタイトルを更新
     const pageName = pathname.substring(1);
     const formattedPageName = pageName ? pageName.charAt(0).toUpperCase() + pageName.slice(1) : 'Home';
-    document.title = `${formattedPageName} | Wallog`;
+    document.title = `${formattedPageName} | ${process.env.NEXT_PUBLIC_SITE_TITLE}`;
   }, [pathname]);
 
   // スクロール制御のためのuseEffect追加
@@ -171,8 +171,8 @@ const NavBarClient = () => {
         flex flex-col justify-between
       `}>
         <div className="space-y-1">
-          <h2 className="text-xl font-bold dark:text-white">Wallog</h2>
-          <p className="text-sm dark:text-white">繋がらないマイクロブログ</p>
+          <h2 className="text-xl font-bold dark:text-white">{process.env.NEXT_PUBLIC_SITE_TITLE}</h2>
+          <p className="text-sm dark:text-white">{process.env.NEXT_PUBLIC_SITE_EXPLANATION}</p>
         </div>
         <div className="flex flex-col space-y-4">
           <MenuLink href="/diary">Diary</MenuLink>
@@ -240,9 +240,8 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Build 2024.12.15.0000
-
-            
+            Dev 2024.12.22.0001
+                  
           </div>
         </div>
       </nav>
