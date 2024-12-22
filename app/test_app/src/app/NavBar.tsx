@@ -171,8 +171,10 @@ const NavBarClient = () => {
         flex flex-col justify-between
       `}>
         <div className="space-y-1">
-          <h2 className="text-xl font-bold dark:text-white">{process.env.NEXT_PUBLIC_SITE_TITLE}</h2>
-          <p className="text-sm dark:text-white">{process.env.NEXT_PUBLIC_SITE_EXPLANATION}</p>
+          <Link href="/" className="block hover:opacity-80 transition-opacity">
+            <h2 className="text-xl font-bold dark:text-white">{process.env.NEXT_PUBLIC_SITE_TITLE}</h2>
+            <p className="text-sm dark:text-white">{process.env.NEXT_PUBLIC_SITE_EXPLANATION}</p>
+          </Link>
         </div>
         <div className="flex flex-col space-y-4">
           <MenuLink href="/diary">Diary</MenuLink>
@@ -240,7 +242,7 @@ const NavBarClient = () => {
             </Link>
           </div>
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2024.12.22.0002
+            Dev 2024.12.22.00033
                   
           </div>
         </div>
