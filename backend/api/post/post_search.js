@@ -47,7 +47,7 @@ router.get('/search/:search_text?', async (req, res) => { // search_textをオ�
 
   res.setHeader('Cache-Control', 'no-cache');
   const { search_text } = req.params;
-  const { offset, limit = 10, since, until } = req.query;
+  const { offset, limit = 10, since, until, searchType = 'full_text' } = req.query;
 
   try {
     if (search_text) {
@@ -55,6 +55,9 @@ router.get('/search/:search_text?', async (req, res) => { // search_textをオ�
       const normalizedSearchText = search_text.replace(/\u3000/g, ' ');
       const searchTerms = normalizedSearchText.split(' ').filter(term => term.length > 0);
       console.log('Normalized search terms:', searchTerms);
+
+      // 検索タイプに応じてクエリを構築
+      const searchField = searchType === 'hashtag' ? 'post_tag' : 'post_text';
 
       // ElasticSearchクエリを構築
       const esQuery = {
@@ -64,14 +67,19 @@ router.get('/search/:search_text?', async (req, res) => { // search_textをオ�
         query: {
           bool: {
             must: [
-              ...searchTerms.map(term => ({
-                wildcard: {
-                  post_text: {
-                    value: `*${term}*`, // 部分一致を許可
-                    case_insensitive: true, // 必要に応じて大文字小文字を無視
-                  },
-                },
-              })),
+              {
+                bool: {
+                  should: searchTerms.map(term => ({
+                    wildcard: {
+                      [searchField]: {
+                        value: `*${term}*`,
+                        case_insensitive: true,
+                      },
+                    },
+                  })),
+                  minimum_should_match: 1,
+                }
+              },
               ...(since ? [{
                 range: {
                   post_id: {
