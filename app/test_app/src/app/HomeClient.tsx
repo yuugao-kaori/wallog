@@ -26,7 +26,7 @@ export function HomeClient({ randomPosts, blogs, total }: HomeClientProps) {
       </div>
       <div className="flex mt-2">
         <div className="w-1/2 p-4">
-          <h2 className="text-xl font-bold mb-4 dark:text-white mb-8">Blogs</h2>
+          <h2 className="text-xl font-bold mb-4 dark:text-white mb-8">Blog（Latest）</h2>
           <div className="max-h-128 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             {blogs.map((blog: BlogPost) => (
               <Link href={`/blog/${blog.blog_id}`} key={blog.blog_id}>
@@ -47,7 +47,7 @@ export function HomeClient({ randomPosts, blogs, total }: HomeClientProps) {
         </div>        
         <div className="w-1/2">
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-xl font-bold dark:text-white pt-4 mb-4">Diary-Random</h2>
+            <h2 className="text-xl font-bold dark:text-white pt-4 mb-4">Diary（Random）</h2>
             <div className="max-h-128 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
               <PostFeed
                 posts={randomPosts}

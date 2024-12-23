@@ -37,6 +37,41 @@ interface ImageData {
   status: 'idle' | 'loading' | 'error';
 }
 
+// YouTube URLからビデオIDを抽出する関数を修正
+const extractYoutubeVideoId = (url: string): string | null => {
+  console.log('Attempting to extract video ID from:', url); // デバッグログ追加
+
+  const patterns = [
+    /((?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:shorts|live|embed|watch\?.*v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    console.log('Match result:', match); // デバッグログ追加
+    if (match && match[2]) { // [1]から[2]に変更
+      console.log('Extracted video ID:', match[2]); // デバッグログ追加
+      return match[2];
+    }
+  }
+  console.log('No video ID found'); // デバッグログ追加
+  return null;
+};
+
+// YouTube埋め込みプレイヤーコンポーネント
+const YouTubeEmbed: React.FC<{ videoId: string }> = ({ videoId }) => {
+  return (
+    <div className="relative pb-[56.25%] h-0 mt-2 rounded-lg overflow-hidden">
+      <iframe
+        className="absolute top-0 left-0 w-full h-full"
+        src={`https://www.youtube.com/embed/${videoId}`}
+        title="YouTube video player"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
+  );
+};
+
 const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit, handleDelete }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -133,51 +168,77 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     }
     
     // 通常のテキスト処理
-    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/g;
+    const pattern = /(https?:\/\/[^\s]+)|(?<=^|\s)(#[^\s]+)(?=\s|$)/g;
     const parts = displayText.split(pattern).filter(Boolean);
     const matches = displayText.match(pattern) || [];
     const combined = [];
-    
-    for (let i = 0; i < Math.max(parts.length, matches.length); i++) {
-      if (parts[i]) combined.push(parts[i]);
-      if (matches[i]) combined.push(matches[i]);
+    const youtubeVideos: string[] = [];
+
+    let i = 0;
+    let j = 0;
+    while (i < parts.length || j < matches.length) {
+      // 通常のテキスト部分を追加
+      if (i < parts.length) {
+        combined.push(<span key={`text-${i}`}>{parts[i]}</span>);
+        i++;
+      }
+
+      // URLまたはハッシュタグを処理
+      if (j < matches.length) {
+        const match = matches[j];
+        console.log('Detected URL or hashtag:', match); // デバッグログを追加
+
+        if (match.startsWith('#')) {
+          combined.push(
+            <a
+              key={`tag-${j}`}
+              href={`/search?searchText=${encodeURIComponent(match.slice(1))}&searchType=hashtag`}
+              className="text-blue-500 font-bold hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                handleHashtagClick(match, e);
+              }}
+            >
+              {match}
+            </a>
+          );
+        } else {
+          // URLの処理
+          const videoId = extractYoutubeVideoId(match);
+          console.log('Extracted YouTube video ID:', videoId); // デバッグログを追加
+
+          if (videoId) {
+            console.log('Found YouTube video, adding to embed list:', videoId); // デバッグログを追加
+            youtubeVideos.push(videoId);
+          }
+          combined.push(
+            <a
+              key={`link-${j}`}
+              href={match}
+              className="text-blue-500 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {match}
+            </a>
+          );
+        }
+        j++;
+      }
     }
-    
+
     return (
       <div>
         <div className="whitespace-pre-wrap break-words text-base">
-          {combined.map((part, index) => {
-            if (part.startsWith('#')) {
-              return (
-                <a
-                  key={index}
-                  href={`/search?searchText=${encodeURIComponent(part.slice(1))}&searchType=hashtag`}
-                  className="text-blue-500 font-bold hover:underline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleHashtagClick(part, e);
-                  }}
-                >
-                  {part}
-                </a>
-              );
-            } else if (part.match(/^https?:\/\/[^\s]+$/)) {
-              return (
-                <a
-                  key={index}
-                  href={part}
-                  className="text-blue-500 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {part}
-                </a>
-              );
-            }
-            return <span key={index}>{part}</span>;
-          })}
+          {combined}
         </div>
+
+        {/* YouTube埋め込みプレイヤーを表示 */}
+        {youtubeVideos.map((videoId, index) => (
+          <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
+        ))}
+
         {shouldTruncate ? (
           <div className="flex justify-center mt-2">
             <button
