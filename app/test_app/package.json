@@ -34,7 +34,8 @@
     "@types/papaparse":"^5.3.15",
     "rehype-raw": "^7.0.0",
     "rehype": "^13.0.2",
-    "rehype-stringify": "^10.0.0"
+    "rehype-stringify": "^10.0.0",
+    "date-fns":"4.1.0"
   },
   "devDependencies": {
   }

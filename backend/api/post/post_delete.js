@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import pkg from 'pg';
+import { Client as ESClient } from '@elastic/elasticsearch';
 const { Client } = pkg;
 import cors  from 'cors';
 const router = express.Router();
@@ -29,6 +30,21 @@ const client = new Client({
     database: POSTGRES_DB,
     password: POSTGRES_PASSWORD,
     port: 5432,
+});
+
+// ElasticSearchクライアントの初期化
+const esClient = new ESClient({
+    node: `http://${process.env.ELASTICSEARCH_HOST}:${process.env.ELASTICSEARCH_PORT}`,
+    auth: {
+        username: process.env.ELASTICSEARCH_USER,
+        password: process.env.ELASTICSEARCH_PASSWORD,
+    },
+    maxRetries: 5,
+    requestTimeout: 60000,
+    sniffOnStart: true,
+    ssl: {
+        rejectUnauthorized: false,
+    },
 });
 
 // post_idの削除API
@@ -99,7 +115,20 @@ app.delete('/post_delete', async (req, res) => {
         // 次に post テーブルからレコードを削除
         const result = await client.query(deletePostQuery, values);
         if (result.rowCount > 0) {
-            console.log(`Post with post_id ${postId} deleted.`);
+            console.log(`Post with post_id ${postId} deleted from PostgreSQL.`);
+            
+            // ElasticSearchからも削除
+            try {
+                await esClient.delete({
+                    index: 'post',
+                    id: postId
+                });
+                console.log(`Post with post_id ${postId} deleted from Elasticsearch.`);
+            } catch (esError) {
+                console.error('Elasticsearch deletion error:', esError);
+                // ElasticSearchの削除に失敗してもトランザクションは続行
+            }
+
             // トランザクションコミット
             await client.query('COMMIT');
             return res.status(200).json({ message: 'Post deleted successfully', deleted_post: result.rows[0] });
@@ -116,6 +145,12 @@ app.delete('/post_delete', async (req, res) => {
     } finally {
         await client.end();
     }
+});
+
+// アプリ終了時にElasticSearchクライアントを閉じる
+process.on('exit', async () => {
+    await esClient.close();
+    console.log('Elasticsearchクライアントが正常に終了しました。');
 });
 
 export default app;
