@@ -455,7 +455,7 @@ export default function SearchPage() {
 
       {/* モバイル用検索ボタン */}
       <button
-        className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-30"
+        className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50"
         onClick={() => setIsModalOpen(true)}
       >
         🔍
@@ -463,7 +463,7 @@ export default function SearchPage() {
 
       {/* モーダル内検索フォーム */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[60]">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-11/12 max-w-md">
             <h2 className="text-xl font-bold mb-4 dark:text-white">検索</h2>
             <div className="flex flex-col space-y-4">
