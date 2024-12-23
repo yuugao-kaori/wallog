@@ -78,6 +78,7 @@ const NavBarClient = () => {
   const { theme, toggleTheme } = useTheme();
   const api = useApi();
   const [copyMessage, setCopyMessage] = useState<string>('タイトルとURLをコピー');
+  const [isBubbleVisible, setIsBubbleVisible] = useState(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -125,6 +126,24 @@ const NavBarClient = () => {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  const handleOutsideClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.bubble') && !target.closest('.toggle-button')) {
+      setIsBubbleVisible(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isBubbleVisible) {
+      document.addEventListener('click', handleOutsideClick);
+    } else {
+      document.removeEventListener('click', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('click', handleOutsideClick);
+    };
+  }, [isBubbleVisible]);
 
   const copyCurrentPageUrl = () => {
     const pageTitle = document.title;
@@ -192,57 +211,64 @@ const NavBarClient = () => {
             >
               {isDark ? '☀️' : '🌙'}
             </button>
-            <div className="flex items-center space-x-1 p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+            <div className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                  onClick={copyCurrentPageUrl}>
               <FaLink />
-              <span className="text-xs">{copyMessage}</span>
             </div>
           </div>
 
-          <div className="flex justify-center space-x-1">
-            <Link 
-              href="https://github.com/yuugao-kaori/wallog" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <FaGithub className="text-2xl" />
-            </Link>
-            <Link 
-              href="https://twitter.com/takumin3211" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <FaXTwitter className="text-2xl" />
-            </Link>
-            <Link 
-              href="https://twitter.com/takumin3211" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <FaTwitter className="text-2xl" />
-            </Link>
-            <Link 
-              href="https://misskey.seitendan.com/@takumin3211" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <PiFediverseLogoFill  className="text-2xl" />
-            </Link>
-            <Link 
-              href="https://bsky.app/profile/takumin3211.bsky.social" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <FaBluesky  className="text-2xl" />
-            </Link>
-          </div>
+          <button
+            className="toggle-button"
+            onClick={() => setIsBubbleVisible(prev => !prev)}
+          >
+            {isBubbleVisible ? '＜' : '＞'}
+          </button>
+          {isBubbleVisible && (
+            <div className="bubble flex justify-center space-x-1 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-lg">
+              <Link 
+                href="https://github.com/yuugao-kaori/wallog" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaGithub className="text-2xl" />
+              </Link>
+              <Link 
+                href="https://twitter.com/takumin3211" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaXTwitter className="text-2xl" />
+              </Link>
+              <Link 
+                href="https://twitter.com/takumin3211" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaTwitter className="text-2xl" />
+              </Link>
+              <Link 
+                href="https://misskey.seitendan.com/@takumin3211" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <PiFediverseLogoFill  className="text-2xl" />
+              </Link>
+              <Link 
+                href="https://bsky.app/profile/takumin3211.bsky.social" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaBluesky  className="text-2xl" />
+              </Link>
+            </div>
+          )}
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2024.12.22.00033
+            Dev 2024.12.22.0005
                   
           </div>
         </div>

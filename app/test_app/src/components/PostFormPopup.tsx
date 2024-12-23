@@ -3,13 +3,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';  // useState を追加
 import { Post } from './PostFeed'; // Add this line to import Post type
 import { getTags } from '../lib/api';  // Add this import
-
-interface FileItem {
-  id: number
-  isImage: boolean;
-  contentType?: string;
-  isExisting?: boolean;
-}
+import { FileItem } from '@/types';  // 型をインポート
 
 interface HashtagRank {  // 追加
   post_tag_id: number;
@@ -25,7 +19,6 @@ interface PostFormPopupProps {
   handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
   files: FileItem[];
   handleFiles: (files: FileList | null) => void;
-  handleDelete: (fileId: string | number) => Promise<boolean>;
   isLoggedIn: boolean;
   status: string;
   onSelectExistingFiles: () => void;
@@ -39,6 +32,10 @@ interface PostFormPopupProps {
   mode?: 'normal' | 'quote' | 'reply' | 'correct';  // 'correct' を追加
   targetPost?: Post;  // 追加: 引用/返信対象の投稿
   handlePostDelete?: (event: React.MouseEvent, postId: string) => Promise<boolean>;  // 追加
+  setFiles: (files: FileItem[]) => void;  // 追加: ファイル状態を更新する関数
+  handleCancelAttach: (fileId: string | number) => void;     // 追加
+  handleDeletePermanently: (fileId: string | number) => void; // 追加
+  handleDelete?: (postId: string) => Promise<boolean>;   // 追加: 投稿削除用の関数
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -49,7 +46,6 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   handleSubmit,
   files,
   handleFiles,
-  handleDelete,
   isLoggedIn,
   status,
   onSelectExistingFiles,
@@ -61,6 +57,10 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   onRepostComplete,  // 追加
   mode = 'normal',  // 追加
   targetPost,      // 追加
+  handleDelete,    // 追加
+  setFiles,  // 追加
+  handleCancelAttach,        // 追加
+  handleDeletePermanently,   // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -140,6 +140,25 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     }
   };
 
+  // クリップボードからの画像添付処理を追加
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          handleFiles(new DataTransfer().files);
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          handleFiles(dataTransfer.files);
+        }
+      }
+    }
+  };
+
   // handleFormSubmitを修正
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +228,8 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
       }
 
       // 成功時の処理
+      setPostText('');  // 投稿テキストをクリア
+      setFiles([]);    // ファイル状態をリセット
       setSelectedHashtags(new Set());
       setIsDropdownOpen(false);
       onClose();
@@ -307,6 +328,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}  // ペーストイベントハンドラを追加
                 placeholder="ここに投稿内容を入力してください"
                 rows={4}
               />
@@ -423,15 +445,19 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleDelete(file.id)}
-                        className={`absolute top-2 right-2 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
-                          file.isExisting 
-                            ? 'bg-gray-500 hover:bg-gray-600' 
-                            : 'bg-red-500 hover:bg-red-600'
-                        }`}
-                        title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
+                        onClick={() => handleCancelAttach(file.id)}
+                        className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                        title="添付を取り消す"
                       >
-                        {file.isExisting ? '−' : '×'}
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePermanently(file.id)}
+                        className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                        title="ファイルを削除する"
+                      >
+                        ×
                       </button>
                     </div>
                   ))}

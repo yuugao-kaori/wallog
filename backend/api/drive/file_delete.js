@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 
 // CORS の設定を詳細に指定し、セッションミドルウェアの前に配置
 router.use(cors({
-  origin: 'http://192.168.1.148:23000', // フ��ントエンドのオリジンに置き換え
+  origin: 'http://192.168.1.148:23000', // フロントエンドのオリジンに置き換え
   methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -166,6 +166,9 @@ router.post('/file_delete', async (req, res) => {
     // if (!ownsFile) { 
     //   return res.status(403).json({ error: 'You do not have permission to delete this file' }); 
     // } 
+
+    // ファイル削除処理が正しく動作しているか確認してください
+    console.log('Deleting file:', req.body.file_id);
 
     // ファイルを削除 
     await deleteFileFromDisk(file_id); 

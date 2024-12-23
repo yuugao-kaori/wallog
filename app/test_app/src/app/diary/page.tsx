@@ -9,6 +9,7 @@ import PostFormPopup from '@/components/PostFormPopup';
 import NotificationComponent from '@/components/Notification';
 import Tagcloud from '@/components/Tagcloud';
 import { getTags, type TagData } from '@/lib/api';  // 追加
+import { FileItem } from '@/types';  // 追加
 
 // 型定義
 interface Post {
@@ -18,13 +19,6 @@ interface Post {
   post_createat: string;
   title?: string;
   created_at: string;
-}
-
-interface FileItem {
-  id: number;
-  url: string;
-  isImage: boolean;
-  isExisting?: boolean; // 追加
 }
 
 // DriveFile インターフェースを修正
@@ -312,27 +306,32 @@ function Diary() {
     async (e: React.FormEvent, finalText?: string) => {
       e.preventDefault();
       try {
-        // finalTextをそのまま使用し、追加の処理は行わない
         const payload = {
-          post_text: finalText || postText,  // finalTextが渡された場合はそのまま使用
+          post_text: finalText || postText,
           ...(files.length > 0 && { post_file: files.map(file => file.id) })
         };
 
         const response = await api.post('/api/post/post_create', payload);
         addNotification('投稿が成功しました！');
         setPostText('');
-        setFiles([]);
+        setFiles([]); // 既存のファイル配列をクリア
         
         if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
           setPosts(prevPosts => [response.data, ...prevPosts]);
         }
         
+        // モーダルを閉じる
         setIsModalOpen(false);
+
+        // ファイル選択状態をリセット
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       } catch (error) {
         addNotification('投稿に失敗しました。');
       }
     },
-    [postText, files, addNotification]  // fixedHashtagsを依存配列から削除
+    [postText, files, addNotification]
   );
 
 // ファイル削除用の関数を修正
@@ -342,20 +341,24 @@ const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
   
   if (!fileToDelete) return false;
 
-  if (fileToDelete.isExisting) {
-    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
-    return true;
-  }
-
   try {
-    await api.post('/api/drive/file_delete', {
-      file_id: fileId
-    });
-    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
-    return true;
+    if (fileToDelete.isExisting) {
+      // 既存ファイルの場合は添付のみ解除
+      setFiles(prevFiles => prevFiles.filter(f => f.id !== numericFileId));
+      addNotification('ファイルの添付を取り消しました');
+      return true;
+    } else {
+      // 新規アップロードファイルの場合はMinIOとDBから削除
+      await api.post('/api/drive/file_delete', {
+        file_id: numericFileId
+      });
+      setFiles(prevFiles => prevFiles.filter(f => f.id !== numericFileId));
+      addNotification('ファイルを削除しました');
+      return true;
+    }
   } catch (error) {
     console.error('Failed to delete file:', error);
-    setStatus('ファイルの削除に失敗しました。');
+    addNotification('ファイルの削除に失敗しました');
     return false;
   }
 }
@@ -379,6 +382,21 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
     return false;
   }
 }
+
+  const handleCancelAttach = (fileId: string | number) => {
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+  };
+
+  const handleDeletePermanently = async (fileId: string | number) => {
+    try {
+      await api.post('/api/drive/file_delete', { file_id: fileId });
+      setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+      addNotification('ファイルを削除しました');
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      addNotification('ファイルの削除に失敗しました');
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -571,6 +589,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       onClose={closeModal}
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
+      setFiles={(files: FileItem[]) => setFiles(files)}
       handleSubmit={async (e, finalText) => {
         e.preventDefault();
         try {
@@ -611,7 +630,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       }}
       files={files}
       handleFiles={handleFiles}
-      handleDelete={handleDeleteFile}
+      handleDeletePermanently={handleDeletePermanently} // 追加
       isLoggedIn={isLoggedIn}
       status={status}
       onSelectExistingFiles={handleSelectExistingFiles}
@@ -620,6 +639,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       autoAppendTags={autoAppendTags}  // ���加
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
+      handleCancelAttach={handleCancelAttach} // 追加
       />
 
       {/* ファ���ル選択モーダル */}
