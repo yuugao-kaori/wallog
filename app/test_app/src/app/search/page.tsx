@@ -17,11 +17,23 @@ interface Post {
 }
 
 export default function SearchPage() {
+  // 日付変換用の関数を追加
+  const convertPostIdToDateString = (postId: string): string => {
+    if (!postId || postId.length < 8) return '';
+    // YYYYMMDDの部分を抽出してYYYY-MM-DD形式に変換
+    const year = postId.substring(0, 4);
+    const month = postId.substring(4, 6);
+    const day = postId.substring(6, 8);
+    return `${year}-${month}-${day}`;
+  };
+
   const searchParams = useSearchParams();
   const router = useRouter();
   
   const urlSearchText = searchParams.get('searchText') || '';
   const urlSearchType = searchParams.get('searchType') || 'full_text';
+  const urlSinceDate = searchParams.get('since') || '';
+  const urlUntilDate = searchParams.get('until') || '';
 
   const [searchText, setSearchText] = useState(urlSearchText);
   const [searchType, setSearchType] = useState(urlSearchType);
@@ -31,8 +43,9 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const isLoggedIn = true;
-  const [sinceDate, setSinceDate] = useState<string>('');
-  const [untilDate, setUntilDate] = useState<string>('');
+  // 初期値にURLパラメータを設定
+  const [sinceDate, setSinceDate] = useState<string>(convertPostIdToDateString(urlSinceDate));
+  const [untilDate, setUntilDate] = useState<string>(convertPostIdToDateString(urlUntilDate));
 
   const formatDate = (date: Date): string => {
     const pad = (n: number): string => String(n).padStart(2, '0');
@@ -218,6 +231,7 @@ export default function SearchPage() {
     }
   };
 
+  // handleSearch 関数を修正
   const handleSearch = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void => {
     event.preventDefault();
     
@@ -233,8 +247,8 @@ export default function SearchPage() {
       queryParams.set('searchText', searchText);
       queryParams.set('searchType', searchType);
     }
-    if (sinceDate) queryParams.set('since', convertDateToPostId(sinceDate, true));
-    if (untilDate) queryParams.set('until', convertDateToPostId(untilDate, false));
+    if (sinceDate) queryParams.set('since', sinceDate);
+    if (untilDate) queryParams.set('until', untilDate);
 
     // URLを更新
     const queryString = queryParams.toString();
@@ -251,16 +265,23 @@ export default function SearchPage() {
   useEffect(() => {
     let isInitialMount = true;
 
-    if (urlSearchText && isInitialMount) {
+    if (isInitialMount) {
       setSearchText(urlSearchText);
       setSearchType(urlSearchType);
-      performSearch(urlSearchText, urlSearchType, true);
+      // 日付パラメータが存在する場合は変換してステートを更新
+      if (urlSinceDate) setSinceDate(convertPostIdToDateString(urlSinceDate));
+      if (urlUntilDate) setUntilDate(convertPostIdToDateString(urlUntilDate));
+      
+      // 検索条件が存在する場合は検索を実行
+      if (urlSearchText || urlSinceDate || urlUntilDate) {
+        performSearch(urlSearchText, urlSearchType, true);
+      }
     }
 
     return () => {
       isInitialMount = false;
     };
-  }, [urlSearchText, urlSearchType]); // performSearch を依存配列から削除
+  }, [urlSearchText, urlSearchType, urlSinceDate, urlUntilDate]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
