@@ -149,14 +149,16 @@ const PostFeed: React.FC<PostFeedProps> = ({
         body: JSON.stringify({ post_id: postId }),
       });
 
-      if (!response.ok) {
-        throw new Error('削除に失敗しました');
+      if (response.ok) {
+        // 投稿の削除成功時の処理
+        setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+        addNotification('投稿を削除しました');
+        return true;
+      } else {
+        // 削除失敗時の処理
+        addNotification('投稿の削除に失敗しました');
+        return false;
       }
-
-      setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
-      addNotification('投稿を削除しました');
-      return true;
-
     } catch (error) {
       console.error('Error deleting post:', error);
       addNotification('投稿の削除に失敗しました');
@@ -203,6 +205,30 @@ const PostFeed: React.FC<PostFeedProps> = ({
     };
   }, [hasMore, loading, loadMorePosts, posts]);
 
+  const handleDelete = async (postId: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/post/post_delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: postId }),
+      });
+
+      if (response.ok) {
+        setPosts(prevPosts => prevPosts.filter(post => post.post_id !== postId));
+        addNotification('投稿を削除しました');
+        return true;
+      } else {
+        addNotification('投稿の削除に失敗しました');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      addNotification('投稿の削除に失敗しました');
+      return false;
+    }
+  };
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide md:px-2">
       <Notification
@@ -222,6 +248,7 @@ const PostFeed: React.FC<PostFeedProps> = ({
             formatDate={formatDate}
             renderHashtagsContainer={renderHashtagsContainer}
             onRepost={onRepost}
+            handleDelete={handleDelete} // 追加: handleDeleteを渡す
           />
         </div>
       ))}

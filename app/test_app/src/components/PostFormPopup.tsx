@@ -35,7 +35,7 @@ interface PostFormPopupProps {
   setFiles: (files: FileItem[]) => void;  // 追加: ファイル状態を更新する関数
   handleCancelAttach: (fileId: string | number) => void;     // 追加
   handleDeletePermanently: (fileId: string | number) => void; // 追加
-  handleDelete?: (postId: string) => Promise<boolean>;   // 追加: 投稿削除用の関数
+  handleDelete?: (postId: string) => Promise<boolean>;   // オプショナルに変更
 }
 
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
@@ -57,7 +57,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   onRepostComplete,  // 追加
   mode = 'normal',  // 追加
   targetPost,      // 追加
-  handleDelete,    // 追加
+  handleDelete,    // オプショナル
   setFiles,  // 追加
   handleCancelAttach,        // 追加
   handleDeletePermanently,   // 追加
@@ -163,16 +163,21 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (mode === 'correct' && handleDelete && targetPost) {
-        // 削除処理の実行
-        const deleted = await handleDelete(targetPost.post_id);
-        
-        if (!deleted) {
-          // 削除に失敗した場合は処理を中断
-          return;
+      if (mode === 'correct') {
+        console.log('Mode is correct:', { handleDelete, targetPost }); // デバッグログを追加
+        if (handleDelete && targetPost) {
+          console.log('Deleting post with ID:', targetPost.post_id);
+          const deleted = await handleDelete(targetPost.post_id);
+          
+          if (!deleted) {
+            return;
+          }
+        } else {
+          console.log('handleDelete または targetPost が未定義です'); // 条件未満の場合のログ
         }
       }
 
+      console.log('Submitting form in mode:', mode);
       // 新規投稿の作成処理
       let finalPostText = postText.trim();
       let additionalTags = [];
@@ -324,6 +329,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
           <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-2">
               <textarea
+                id="postText" // 追加: textareaにidを追加
                 className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}

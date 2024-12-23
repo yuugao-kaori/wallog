@@ -26,6 +26,7 @@ interface Props {
   onQuote?: (post: PostFeedPost) => void;
   onReply?: (post: PostFeedPost) => void;
   onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
+  handleDelete?: (postId: string) => Promise<boolean>; // 追加: handleDelete をプロパティに追加
 }
 
 interface ImageData {
@@ -36,7 +37,7 @@ interface ImageData {
   status: 'idle' | 'loading' | 'error';
 }
 
-const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit }: Props) => {
+const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit, handleDelete }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const { ref, inView } = useInView({
@@ -299,7 +300,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     return formatHashtags ? formatHashtags(text) : text;
   };
 
-  const handleDelete = async (event: React.MouseEvent, postId: string) => {
+  const handleInternalDelete = async (event: React.MouseEvent, postId: string) => {
     event.stopPropagation();
     setUiState(prev => ({
       ...prev,
@@ -511,7 +512,13 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
               ...prev,
               deleteModalOpen: false
             }))}
-            onDelete={(e) => handleDelete(e, post.post_id)}
+            onDelete={() => { // 修正: 引数を1つに変更
+              if (handleDelete) {
+                handleDelete(post.post_id).catch(error => {
+                  console.error('Error handling delete:', error);
+                });
+              }
+            }}
           />
 
           <DeleteConfirmModal
@@ -624,6 +631,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         }}
         mode={formState.mode}
         targetPost={post}
+        handleDelete={handleDelete} // 追加
         isLoggedIn={isLoggedIn}
         files={[]}
         handleFiles={() => {}}
