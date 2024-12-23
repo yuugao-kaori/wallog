@@ -70,6 +70,15 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct'
   });
 
+  // 追加: テキストの展開状態を管理
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // 追加: テキストを制限する関数
+  const truncateText = (text: string, limit: number = 60): string => {
+    if (!text || text.length <= limit) return text;
+    return text.slice(0, limit);
+  };
+
   const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -77,50 +86,127 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   }, [router]);
 
+  // renderText関数を修正
   const renderText = (text: string | null): React.ReactNode => {
     if (!text) return null;
     
+    // 文字数制限とテキストの省略処理を追加
+    const maxLength = 140;
+    const shouldTruncate = !isExpanded && text.length > maxLength;
+    const displayText = shouldTruncate ? `${text.slice(0, 60)}...` : text;
+    
     if (renderHashtagsContainer) {
-      return renderHashtagsContainer(text);
-    }
-    
-    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
-    const parts = text.split(pattern);
-    
-    return (
-      <div className="whitespace-pre-wrap break-words text-base">
-        {parts.map((part, index) => {
-          if (part.match(/^#[^\s]+$/)) {
-            const tag = part.slice(1); // # を除去
-            return (
-              <a
-                key={index}
-                href={`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`}
-                className="text-blue-500 font-bold hover:underline"
+      return (
+        <div>
+          {renderHashtagsContainer(displayText)}
+          {shouldTruncate ? (
+            <div className="flex justify-center mt-2">
+              <button
                 onClick={(e) => {
                   e.preventDefault();
-                  handleHashtagClick(part, e);
+                  e.stopPropagation();
+                  setIsExpanded(true);
                 }}
+                className="bg-blue-100 dark:bg-gray-600 dark:text-white text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
               >
-                {part}
-              </a>
-            );
-          } else if (part.match(/^https?:\/\/[^\s]+$/)) {
-            return (
-              <a
-                key={index}
-                href={part}
-                className="text-blue-500 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                続きを読む
+              </button>
+            </div>
+          ) : (
+            isExpanded && (
+              <div className="flex justify-center mt-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsExpanded(false);
+                  }}
+                  className="bg-gray-100 dark:bg-gray-600 dark:text-white text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
+                >
+                  収納する
+                </button>
+              </div>
+            )
+          )}
+        </div>
+      );
+    }
+    
+    // 通常のテキスト処理
+    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/g;
+    const parts = displayText.split(pattern).filter(Boolean);
+    const matches = displayText.match(pattern) || [];
+    const combined = [];
+    
+    for (let i = 0; i < Math.max(parts.length, matches.length); i++) {
+      if (parts[i]) combined.push(parts[i]);
+      if (matches[i]) combined.push(matches[i]);
+    }
+    
+    return (
+      <div>
+        <div className="whitespace-pre-wrap break-words text-base">
+          {combined.map((part, index) => {
+            if (part.startsWith('#')) {
+              return (
+                <a
+                  key={index}
+                  href={`/search?searchText=${encodeURIComponent(part.slice(1))}&searchType=hashtag`}
+                  className="text-blue-500 font-bold hover:underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleHashtagClick(part, e);
+                  }}
+                >
+                  {part}
+                </a>
+              );
+            } else if (part.match(/^https?:\/\/[^\s]+$/)) {
+              return (
+                <a
+                  key={index}
+                  href={part}
+                  className="text-blue-500 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {part}
+                </a>
+              );
+            }
+            return <span key={index}>{part}</span>;
+          })}
+        </div>
+        {shouldTruncate ? (
+          <div className="flex justify-center mt-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsExpanded(true);
+              }}
+              className="bg-blue-100 text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
+            >
+              続きを読む
+            </button>
+          </div>
+        ) : (
+          isExpanded && (
+            <div className="flex justify-center mt-2">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsExpanded(false);
+                }}
+                className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
               >
-                {part}
-              </a>
-            );
-          }
-          return <span key={index}>{part}</span>;
-        })}
+                収納する
+              </button>
+            </div>
+          )
+        )}
       </div>
     );
   };
@@ -547,7 +633,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
             </div>
 
             <div className="mt-2 break-words">
-              {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
+              {renderText(post.post_text)}
             </div>
 
             {inView && renderImages()}
