@@ -204,27 +204,28 @@ const NavBarClient = () => {
         </div>
 
         <div className="flex flex-col space-y-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-4 justify-center">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
             >
               {isDark ? '☀️' : '🌙'}
             </button>
-            <div className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-                 onClick={copyCurrentPageUrl}>
+            <div
+              className="w-10 h-10 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              onClick={copyCurrentPageUrl}
+            >
               <FaLink />
             </div>
+            <button
+              className="w-10 h-10 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer toggle-button"
+              onClick={() => setIsBubbleVisible(prev => !prev)}
+            >
+              {isBubbleVisible ? '＜' : '＞'}
+            </button>
           </div>
-
-          <button
-            className="toggle-button"
-            onClick={() => setIsBubbleVisible(prev => !prev)}
-          >
-            {isBubbleVisible ? '＜' : '＞'}
-          </button>
           {isBubbleVisible && (
-            <div className="bubble flex justify-center space-x-1 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-lg">
+            <div className="bubble flex justify-end space-x-1 p-2 bg-white dark:bg-blue-900 rounded-lg shadow-lg absolute right-0">
               <Link 
                 href="https://github.com/yuugao-kaori/wallog" 
                 target="_blank" 
