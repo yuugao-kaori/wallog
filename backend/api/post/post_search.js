@@ -142,19 +142,39 @@ router.get('/search/:search_text?', async (req, res) => { // search_textをオ�
       // PostgreSQLから取得したデータを返却
       res.json(pgResponse.rows);
     } else if (since || until) {
-      console.log('Direct PostgreSQL query with since/until:', { since, until });
-      // search_textがないが、sinceまたはuntilが指定されている場合の新しいロジック
-      const pgQuery = `SELECT * FROM post 
-                       WHERE 1=1 
-                       ${since ? 'AND post_id >= $1' : ''} 
-                       ${until ? 'AND post_id <= $2' : ''} 
-                       ORDER BY post_id DESC 
-                       LIMIT $3`;
+      console.log('Direct PostgreSQL query with since/until:', { since, until, offset });
+      
+      // offsetを含むクエリ条件を構築
+      const conditions = [];
       const pgParams = [];
       let paramIndex = 1;
-      if (since) pgParams.push(since);
-      if (until) pgParams.push(until);
-      pgParams.push(limit);
+
+      if (since) {
+        conditions.push(`post_id >= $${paramIndex}`);
+        pgParams.push(since);
+        paramIndex++;
+      }
+      if (until) {
+        conditions.push(`post_id <= $${paramIndex}`);
+        pgParams.push(until);
+        paramIndex++;
+      }
+      if (offset) {
+        conditions.push(`post_id < $${paramIndex}`);
+        pgParams.push(offset);
+        paramIndex++;
+      }
+
+      // 最後にlimitパラメータを追加
+      pgParams.push(parseInt(limit));
+
+      const pgQuery = `
+        SELECT * FROM post 
+        WHERE ${conditions.length > 0 ? conditions.join(' AND ') : '1=1'}
+        ORDER BY post_id DESC 
+        LIMIT $${paramIndex}
+      `;
+
       console.log('PostgreSQL query:', pgQuery);
       console.log('PostgreSQL params:', pgParams);
 

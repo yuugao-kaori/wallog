@@ -17,14 +17,34 @@ interface Post {
 }
 
 export default function SearchPage() {
-  // 日付変換用の関数を追加
+  // 日付変換用の関数を改善
   const convertPostIdToDateString = (postId: string): string => {
-    if (!postId || postId.length < 8) return '';
-    // YYYYMMDDの部分を抽出してYYYY-MM-DD形式に変換
-    const year = postId.substring(0, 4);
-    const month = postId.substring(4, 6);
-    const day = postId.substring(6, 8);
-    return `${year}-${month}-${day}`;
+    try {
+      if (!postId) return '';
+      
+      // すでにYYYY-MM-DD形式の場合
+      if (postId.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return postId;
+      }
+      
+      // YYYYMMDDの形式から変換
+      if (postId.match(/^\d{8}/)) {
+        const year = postId.substring(0, 4);
+        const month = postId.substring(4, 6);
+        const day = postId.substring(6, 8);
+        
+        // 日付として有効かチェック
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (isNaN(date.getTime())) return '';
+        
+        return `${year}-${month}-${day}`;
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Date conversion error:', error);
+      return '';
+    }
   };
 
   const searchParams = useSearchParams();
@@ -93,10 +113,12 @@ export default function SearchPage() {
 
         // パラメータの構築を修正
         const params: Record<string, string> = {
-          searchType: searchMode, // 検索タイプを追加
+          searchType: searchMode,
+          limit: '10'  // limitパラメータを常に含める
         };
+        
+        // offset, since, untilの処理を修正
         if (offset) params.offset = offset;
-        params.limit = '10';
         if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
         if (untilDate) params.until = convertDateToPostId(untilDate, false);
 
@@ -173,15 +195,19 @@ export default function SearchPage() {
       ? `${baseUrl}/${encodeURIComponent(searchText)}`
       : baseUrl;
 
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       searchType: searchType,
-      ...(offset && { offset: offset }),
-      limit: '10',
-    });
+      limit: '10'
+    };
+
+    // offset, since, untilの処理を追加
+    if (offset) params.offset = offset;
+    if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
+    if (untilDate) params.until = convertDateToPostId(untilDate, false);
 
     try {
       setLoading(true);
-      const response = await axios.get(`${apiUrl}?${params.toString()}`);
+      const response = await axios.get(`${apiUrl}?${new URLSearchParams(params).toString()}`);
       const data = response.data;
 
       if (data && Array.isArray(data)) {
@@ -202,7 +228,7 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [hasMore, loading, offset, searchText, searchType]);
+  }, [hasMore, loading, offset, searchText, searchType, sinceDate, untilDate]);
 
   const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, post_id: string): Promise<boolean> => {
     event.stopPropagation();  // イベントの伝播を停止
@@ -231,7 +257,7 @@ export default function SearchPage() {
     }
   };
 
-  // handleSearch 関数を修正
+  // handleSearch関数の日付パラメータ処理を修正
   const handleSearch = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void => {
     event.preventDefault();
     
@@ -247,8 +273,15 @@ export default function SearchPage() {
       queryParams.set('searchText', searchText);
       queryParams.set('searchType', searchType);
     }
-    if (sinceDate) queryParams.set('since', sinceDate);
-    if (untilDate) queryParams.set('until', untilDate);
+    
+    // 日付パラメータの検証と設定を改善
+    if (sinceDate && sinceDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      queryParams.set('since', sinceDate);
+    }
+    if (untilDate && untilDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      queryParams.set('until', untilDate);
+    }
+    queryParams.set('limit', '10');  // limitパラメータを追加
 
     // URLを更新
     const queryString = queryParams.toString();
@@ -261,20 +294,41 @@ export default function SearchPage() {
     setIsModalOpen(false);
   };
 
-  // URLパラメータの変更を監視して検索を実行
+  // URLパラメータの変更を監視して検索を実行するuseEffectを修正
   useEffect(() => {
     let isInitialMount = true;
 
     if (isInitialMount) {
       setSearchText(urlSearchText);
       setSearchType(urlSearchType);
-      // 日付パラメータが存在する場合は変換してステートを更新
-      if (urlSinceDate) setSinceDate(convertPostIdToDateString(urlSinceDate));
-      if (urlUntilDate) setUntilDate(convertPostIdToDateString(urlUntilDate));
       
-      // 検索条件が存在する場合は検索を実行
-      if (urlSearchText || urlSinceDate || urlUntilDate) {
-        performSearch(urlSearchText, urlSearchType, true);
+      try {
+        // 日付パラメータの処理を改善
+        if (urlSinceDate) {
+          const normalizedSinceDate = convertPostIdToDateString(urlSinceDate);
+          if (normalizedSinceDate) {
+            setSinceDate(normalizedSinceDate);
+          } else {
+            console.warn('Invalid since date format:', urlSinceDate);
+          }
+        }
+        
+        if (urlUntilDate) {
+          const normalizedUntilDate = convertPostIdToDateString(urlUntilDate);
+          if (normalizedUntilDate) {
+            setUntilDate(normalizedUntilDate);
+          } else {
+            console.warn('Invalid until date format:', urlUntilDate);
+          }
+        }
+        
+        // 検索条件が存在する場合は検索を実行
+        if (urlSearchText || (urlSinceDate && convertPostIdToDateString(urlSinceDate)) || (urlUntilDate && convertPostIdToDateString(urlUntilDate))) {
+          performSearch(urlSearchText, urlSearchType, true);
+        }
+      } catch (error) {
+        console.error('Date parameter processing error:', error);
+        setError('日付の形式が正しくありません');
       }
     }
 
