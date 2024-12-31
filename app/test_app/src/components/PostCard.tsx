@@ -186,9 +186,10 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
       // URLまたはハッシュタグを処理
       if (j < matches.length) {
         const match = matches[j];
-        console.log('Detected URL or hashtag:', match); // デバッグログを追加
+        console.log('Detected match:', match); // 追加: マッチした文字列をログ出力
 
         if (match.startsWith('#')) {
+          console.log('Detected hashtag:', match); // 追加: ハッシュタグをログ出力
           combined.push(
             <a
               key={`tag-${j}`}
@@ -204,6 +205,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           );
         } else {
           // URLの処理
+          console.log('Detected URL:', match); // 追加: URLをログ出力
           const videoId = extractYoutubeVideoId(match);
           console.log('Extracted YouTube video ID:', videoId); // デバッグログを追加
 

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'; // useCallback を追加
+import React, { useEffect, useState, useMemo, useRef, useCallback, isValidElement } from 'react'; // React を追加
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/Blogformpopup';
@@ -348,31 +348,31 @@ export default function BlogDetail() {
   const markdownComponents = useMemo(() => ({
     h1: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h1 id={id} style={{ scrollMarginTop: '80px' }} className="text-3xl font-bold mt-6 mb-4" {...props}>{children}</h1>;
+      return <h1 id={id} style={{ scrollMarginTop: '80px' }} className="text-3xl font-bold mt-6 mb-2" {...props}>{children}</h1>;
     },
     h2: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h2 id={id} style={{ scrollMarginTop: '80px' }} className="text-2xl font-bold mt-5 mb-3" {...props}>{children}</h2>;
+      return <h2 id={id} style={{ scrollMarginTop: '80px' }} className="text-2xl font-bold mt-5 mb-1.5" {...props}>{children}</h2>;
     },
     h3: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h3 id={id} style={{ scrollMarginTop: '80px' }} className="text-xl font-bold mt-4 mb-2" {...props}>{children}</h3>;
+      return <h3 id={id} style={{ scrollMarginTop: '80px' }} className="text-xl font-bold mt-4 mb-1" {...props}>{children}</h3>;
     },
     h4: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h4 id={id} style={{ scrollMarginTop: '80px' }} className="text-lg font-bold mt-3 mb-2" {...props}>{children}</h4>;
+      return <h4 id={id} style={{ scrollMarginTop: '80px' }} className="text-lg font-bold mt-3 mb-1" {...props}>{children}</h4>;
     },
     h5: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h5 id={id} style={{ scrollMarginTop: '80px' }} className="text-base font-bold mt-2 mb-1" {...props}>{children}</h5>;
+      return <h5 id={id} style={{ scrollMarginTop: '80px' }} className="text-base font-bold mt-2 mb-0.5" {...props}>{children}</h5>;
     },
     h6: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
       const id = generateId(String(children));
-      return <h6 id={id} style={{ scrollMarginTop: '80px' }} className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h6>;
+      return <h6 id={id} style={{ scrollMarginTop: '80px' }} className="text-sm font-bold mt-2 mb-0.5" {...props}>{children}</h6>;
     },
     // リスト関連のコンポーネントを修正
     ul: ({children, ...props}: React.DetailedHTMLProps<React.HTMLAttributes<HTMLUListElement>, HTMLUListElement>) => (
-      <ul className="list-disc list-inside my-4" {...props}>{children}</ul>
+      <ul className="list-disc list-inside my-1" {...props}>{children}</ul>
     ),
     ol: ({children, ...props}: React.DetailedHTMLProps<React.OlHTMLAttributes<HTMLOListElement>, HTMLOListElement>) => (
       <ol className="list-decimal list-inside my-4" {...props}>{children}</ol>
@@ -417,6 +417,15 @@ export default function BlogDetail() {
         {children}
       </a>
     ),
+    p: ({children, ...props}: React.HTMLProps<HTMLParagraphElement>) => {
+      // 子要素がulやolの場合はpタグをスキップ
+      if (React.Children.toArray(children).some(child => 
+        isValidElement(child) && (child.type === 'ul' || child.type === 'ol')
+      )) {
+        return <>{children}</>;
+      }
+      return <p className="my-2" {...props}>{children}</p>;
+    },
   }), [generateId]);
 
   // ブログデータ取得後に目次を生成

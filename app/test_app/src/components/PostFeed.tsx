@@ -98,7 +98,7 @@ const PostFeed: React.FC<PostFeedProps> = ({
 
     const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
     const parts = text.split(pattern);
-
+    console.log('PostFeed_Match result:', parts); // デバッグログ追加
     return (
       <div className="whitespace-pre-wrap break-words">
         {parts.map((part, index) => {
