@@ -14,19 +14,17 @@ const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
 // 既存のPostインターフェースを削除し、PostFeedのものを使用
 interface Props {
-  post: PostFeedPost;  // 変更
+  post: PostFeedPost;
   isLoggedIn: boolean;
   handleDeleteClick: (event: React.MouseEvent, postId: string) => void;
   formatDate: (date: string) => string;
-  formatHashtags?: (text: string) => string;
-  renderHashtagsContainer?: (text: string) => React.ReactNode;
   className?: string;
   onDelete: (event: React.MouseEvent, post_id: string) => Promise<boolean>;
-  onRepost?: (post: PostFeedPost) => Promise<void>;  // 変更
+  onRepost?: (post: PostFeedPost) => Promise<void>;
   onQuote?: (post: PostFeedPost) => void;
   onReply?: (post: PostFeedPost) => void;
   onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
-  handleDelete?: (postId: string) => Promise<boolean>; // 追加: handleDelete をプロパティに追加
+  handleDelete?: (postId: string) => Promise<boolean>;
 }
 
 interface ImageData {
@@ -39,7 +37,6 @@ interface ImageData {
 
 // YouTube URLからビデオIDを抽出する関数を修正
 const extractYoutubeVideoId = (url: string): string | null => {
-  console.log('Attempting to extract video ID from:', url); // デバッグログ追加
 
   const patterns = [
     /((?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:shorts|live|embed|watch\?.*v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
@@ -47,13 +44,10 @@ const extractYoutubeVideoId = (url: string): string | null => {
 
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    console.log('Match result:', match); // デバッグログ追加
     if (match && match[2]) { // [1]から[2]に変更
-      console.log('Extracted video ID:', match[2]); // デバッグログ追加
       return match[2];
     }
   }
-  console.log('No video ID found'); // デバッグログ追加
   return null;
 };
 
@@ -72,7 +66,18 @@ const YouTubeEmbed: React.FC<{ videoId: string }> = ({ videoId }) => {
   );
 };
 
-const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit, handleDelete }: Props) => {
+const Card = memo(({ 
+  post, 
+  isLoggedIn, 
+  handleDeleteClick, 
+  formatDate, 
+  onDelete, 
+  onRepost, 
+  onQuote, 
+  onReply, 
+  onQuoteSubmit, 
+  handleDelete 
+}: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const { ref, inView } = useInView({
@@ -121,126 +126,71 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   }, [router]);
 
-  // renderText関数を修正
+  // renderText関数を更新
   const renderText = (text: string | null): React.ReactNode => {
     if (!text) return null;
     
-    // 文字数制限とテキストの省略処理を追加
     const maxLength = 140;
     const shouldTruncate = !isExpanded && text.length > maxLength;
     const displayText = shouldTruncate ? `${text.slice(0, 60)}...` : text;
     
-    if (renderHashtagsContainer) {
-      return (
-        <div>
-          {renderHashtagsContainer(displayText)}
-          {shouldTruncate ? (
-            <div className="flex justify-center mt-2">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsExpanded(true);
-                }}
-                className="bg-blue-100 dark:bg-gray-600 dark:text-white text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
-              >
-                続きを読む
-              </button>
-            </div>
-          ) : (
-            isExpanded && (
-              <div className="flex justify-center mt-2">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsExpanded(false);
-                  }}
-                  className="bg-gray-100 dark:bg-gray-600 dark:text-white text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
-                >
-                  収納する
-                </button>
-              </div>
-            )
-          )}
-        </div>
-      );
-    }
-    
-    // 通常のテキスト処理
-    const pattern = /(https?:\/\/[^\s]+)|(?<=^|\s)(#[^\s]+)(?=\s|$)/g;
-    const parts = displayText.split(pattern).filter(Boolean);
-    const matches = displayText.match(pattern) || [];
-    const combined = [];
+    // パターンを修正して、スペースの前後のルックアラウンドを改善
+    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?:^)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?<=\s)(#[^\s]+|https?:\/\/[^\s]+)(?:$)/g;
+    const segments = displayText.split(pattern);
+    const combined: React.ReactNode[] = [];
     const youtubeVideos: string[] = [];
 
-    let i = 0;
-    let j = 0;
-    while (i < parts.length || j < matches.length) {
-      // 通常のテキスト部分を追加
-      if (i < parts.length) {
-        combined.push(<span key={`text-${i}`}>{parts[i]}</span>);
-        i++;
-      }
+    segments.forEach((segment, index) => {
+      if (!segment) return;
 
-      // URLまたはハッシュタグを処理
-      if (j < matches.length) {
-        const match = matches[j];
-        console.log('Detected match:', match); // 追加: マッチした文字列をログ出力
-
-        if (match.startsWith('#')) {
-          console.log('Detected hashtag:', match); // 追加: ハッシュタグをログ出力
-          combined.push(
-            <a
-              key={`tag-${j}`}
-              href={`/search?searchText=${encodeURIComponent(match.slice(1))}&searchType=hashtag`}
-              className="text-blue-500 font-bold hover:underline"
-              onClick={(e) => {
-                e.preventDefault();
-                handleHashtagClick(match, e);
-              }}
-            >
-              {match}
-            </a>
-          );
-        } else {
-          // URLの処理
-          console.log('Detected URL:', match); // 追加: URLをログ出力
-          const videoId = extractYoutubeVideoId(match);
-          console.log('Extracted YouTube video ID:', videoId); // デバッグログを追加
-
-          if (videoId) {
-            console.log('Found YouTube video, adding to embed list:', videoId); // デバッグログを追加
-            youtubeVideos.push(videoId);
-          }
-          combined.push(
-            <a
-              key={`link-${j}`}
-              href={match}
-              className="text-blue-500 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {match}
-            </a>
-          );
+      if (segment.startsWith('#')) {
+        // ハッシュタグの処理
+        combined.push(
+          <a
+            key={`tag-${index}`}
+            href={`/search?searchText=${encodeURIComponent(segment.slice(1))}&searchType=hashtag`}
+            className="text-blue-500 font-bold cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/search?searchText=${encodeURIComponent(segment.slice(1))}&searchType=hashtag`);
+            }}
+          >
+            {segment}
+          </a>
+        );
+      } else if (segment.match(/^https?:\/\//)) {
+        // URLの処理
+        const videoId = extractYoutubeVideoId(segment);
+        if (videoId) {
+          youtubeVideos.push(videoId);
         }
-        j++;
+        combined.push(
+          <a
+            key={`link-${index}`}
+            href={segment}
+            className="text-blue-500 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {segment}
+          </a>
+        );
+      } else {
+        // 通常のテキストの処理
+        combined.push(<span key={`text-${index}`}>{segment}</span>);
       }
-    }
+    });
 
     return (
       <div>
         <div className="whitespace-pre-wrap break-words text-base">
           {combined}
         </div>
-
-        {/* YouTube埋め込みプレイヤーを表示 */}
         {youtubeVideos.map((videoId, index) => (
           <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
         ))}
-
         {shouldTruncate ? (
           <div className="flex justify-center mt-2">
             <button
@@ -249,7 +199,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
                 e.stopPropagation();
                 setIsExpanded(true);
               }}
-              className="bg-blue-100 text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
+              className="bg-blue-100 dark:bg-gray-600 dark:text-white text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
             >
               続きを読む
             </button>
@@ -263,7 +213,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
                   e.stopPropagation();
                   setIsExpanded(false);
                 }}
-                className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
+                className="bg-gray-100 dark:bg-gray-600 dark:text-white text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
               >
                 収納する
               </button>
@@ -444,9 +394,9 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     };
   }, []);
 
-  const formatText = (text: string | null): React.ReactNode => {
-    if (!text) return null;
-    return formatHashtags ? formatHashtags(text) : text;
+  const formatText = (text: string | null): string => {
+    if (!text) return '';
+    return text;
   };
 
   const handleInternalDelete = async (event: React.MouseEvent, postId: string) => {
@@ -600,7 +550,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
   return (
     <>
       <div ref={ref} className="w-full">
-        <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
+        <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]`}>
           <Notification 
             notifications={notifications} 
             onClose={removeNotification}
@@ -712,8 +662,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         isLoggedIn={isLoggedIn}
         handleDeleteClick={handleDeleteClick}
         formatDate={formatDate}
-        formatHashtags={formatHashtags}
-        renderHashtagsContainer={renderHashtagsContainer}
         onDelete={onDelete}
         onRepost={onRepost}
         onQuote={onQuote}

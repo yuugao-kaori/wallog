@@ -66,7 +66,6 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      PGADMIN_CONFIG_CHECK_EMAIL_DELIVERABILITY: False]
     restart: unless-stopped
     ports:
       - "15050:80"

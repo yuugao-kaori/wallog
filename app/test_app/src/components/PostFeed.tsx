@@ -93,51 +93,6 @@ const PostFeed: React.FC<PostFeedProps> = ({
     return date.toLocaleString();
   };
 
-  const renderHashtagsContainer = useCallback((text: string): React.ReactNode => {
-    if (typeof text !== 'string') return null;
-
-    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
-    const parts = text.split(pattern);
-    console.log('PostFeed_Match result:', parts); // デバッグログ追加
-    return (
-      <div className="whitespace-pre-wrap break-words">
-        {parts.map((part, index) => {
-          if (part.match(/^#[^\s]+$/)) {
-            const tag = part.slice(1); // # を除去
-            return (
-              <a
-                key={index}
-                href={`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`}
-                className="text-blue-500 font-bold cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  router.push(`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`);
-                }}
-              >
-                {part}
-              </a>
-            );
-          } else if (part.match(/^https?:\/\/[^\s]+$/)) {
-            return (
-              <a
-                key={index}
-                href={part}
-                className="text-blue-500 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {part}
-              </a>
-            );
-          }
-          return <span key={index}>{part}</span>;
-        })}
-      </div>
-    );
-  }, [router]);
-
   const handleDeleteClick = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
     event.stopPropagation();
     try {
@@ -246,9 +201,8 @@ const PostFeed: React.FC<PostFeedProps> = ({
             isLoggedIn={isLoggedIn}
             handleDeleteClick={handleDeleteClick}
             formatDate={formatDate}
-            renderHashtagsContainer={renderHashtagsContainer}
             onRepost={onRepost}
-            handleDelete={handleDelete} // 追加: handleDeleteを渡す
+            handleDelete={handleDelete}
           />
         </div>
       ))}
