@@ -16,9 +16,9 @@ async function getTags() {
 
 function Tagcloud({ tags }: Props) {
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4 dark:text-white">タグクラウド</h2>
-      <div className="flex flex-wrap gap-2 mb-6">
+    <div className="">
+      <h2 className="text-xl font-bold mb-2 dark:text-white">タグクラウド</h2>
+      <div className="flex flex-wrap gap-2 mb-12">
         {tags.map((tag) => {
           const fontSize = Math.min(0.7 + (tag.use_count / 20), 1.3);
 

@@ -19,17 +19,17 @@ GET http://192.168.1.148:25000/api/test/test1
 
 ###
 
-curl -X POST http://192.168.1.148:25000/api/test/test2 \
+curl -X POST http://192.168.1.148:15000/api/test/test2 \
 -H "Content-Type: application/json" \
 -d '{
 "test_body1": "test"
 }'
 
 ###
-GET http://192.168.1.148:25000/api/test/test3
+GET http://192.168.1.148:15000/api/test/test3
 ###
 
-curl -X POST http://192.168.1.148:25000/api/user/login \
+curl -X POST http://192.168.1.148:15000/api/user/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "myuser", "password": "mypassword", "rememberMe": true}'
 

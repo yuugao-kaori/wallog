@@ -60,7 +60,9 @@ import blog_updateRoute from './api/blog/blog_update.js';
 import blog_deleteRoute from './api/blog/blog_delete.js';
 import blog_listRoute from './api/blog/blog_list.js';
 import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
-
+import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
+// スケジューラーを実際に起動
+startMaintenanceScheduler();
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
 app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
@@ -90,4 +92,5 @@ post_wsRoute(server);
 
 server.listen(port, () => {
     console.log(`Express app listening on port ${port}`);
+    // サーバー起動後にスケジューラーを開始
 });
