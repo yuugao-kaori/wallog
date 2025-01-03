@@ -50,6 +50,7 @@ import test3Route from './api/test/test3.js';
 import test4Route from './api/test/test4.js';
 import settings_readRoute from './api/settings/settings_read.js';
 import settings_updateRoute from './api/settings/settings_update.js';
+import settings_writeRoute from './api/settings/settings_write.js';
 import sticky_note_createRoute from './api/sticky-note/sticky-note_create.js';
 import sticky_note_readRoute from './api/sticky-note/sticky-note_read.js';
 import sticky_note_updateRoute from './api/sticky-note/sticky-note_update.js';
@@ -61,17 +62,21 @@ import blog_deleteRoute from './api/blog/blog_delete.js';
 import blog_listRoute from './api/blog/blog_list.js';
 import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
+import logs_readRoute from './api/logs/logs_read.js';
+import logs_createRoute from './api/logs/logs_create.js';
 // スケジューラーを実際に起動
 startMaintenanceScheduler();
+
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
 app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute, user_readRoute, user_updateRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
-app.use('/api/settings', settings_readRoute, settings_updateRoute);
+app.use('/api/settings', settings_readRoute, settings_updateRoute, settings_writeRoute);
 app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, sticky_note_updateRoute, sticky_note_deleteRoute);
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
-app.use('/api/hashtag', hashtagRankRoute);
+app.use('/api/hashtag', hashtagRankRoute); 
+app.use('/api/logs', logs_readRoute, logs_createRoute);
 
 // 404エラーハンドリング
 app.use((req, res, next) => {
@@ -92,5 +97,6 @@ post_wsRoute(server);
 
 server.listen(port, () => {
     console.log(`Express app listening on port ${port}`);
+
     // サーバー起動後にスケジューラーを開始
 });

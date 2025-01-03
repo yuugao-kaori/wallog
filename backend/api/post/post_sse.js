@@ -24,6 +24,7 @@ client.connect().then(() => {
 const router = express.Router();
 
 const getNewPosts = async () => {
+    console.log('新しいポストを取得しています...');
     const query = `
         WITH base_posts AS (
             SELECT post_id, user_id, post_text, post_createat, post_updateat, 
@@ -60,6 +61,7 @@ const getNewPosts = async () => {
         LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id;
     `;
     const res = await client.query(query);
+    console.log(`${res.rows.length}件の新しいポストをDBから取得しました`);
     return res.rows.map(post => {
         if (post.post_file === '{""}') {
             delete post.post_file;
@@ -91,7 +93,7 @@ router.get('/post_sse', async (req, res) => {
     await client.query('LISTEN post_updates');
 
     req.on('close', () => {
-        console.log('SSE接��が閉じられました');
+        console.log('SSE接続が閉じられました');
         clearInterval(keepAliveInterval);
         client.removeListener('notification', listener);
         res.end();

@@ -10,22 +10,47 @@ import { esClient, pgClient, initializeClients } from './maintenance.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function setupDatabase() {
+// ログ記録関数を追加
+async function logSetupAction(client, level, message, metadata = {}) {
   try {
-    const client = new Client({
-      user: process.env.POSTGRES_USER,
-      host: process.env.POSTGRES_NAME,
-      database: process.env.POSTGRES_DB,
-      password: process.env.POSTGRES_PASSWORD,
-      port: 5432,
-    });
+    const query = `
+      INSERT INTO logs (level, source, message, metadata)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await client.query(query, [
+      level,
+      'setup',
+      message,
+      JSON.stringify(metadata)
+    ]);
+  } catch (error) {
+    console.error('ログの記録に失敗しました:', error);
+  }
+}
 
+async function setupDatabase() {
+  const client = new Client({
+    user: process.env.POSTGRES_USER,
+    host: process.env.POSTGRES_NAME,
+    database: process.env.POSTGRES_DB,
+    password: process.env.POSTGRES_PASSWORD,
+    port: 5432,
+  });
+
+  try {
     await client.connect();
+    await logSetupAction(client, 'INFO', 'データベース接続を確認しました。');
     console.log('データベース接続を確認しました。');
-    await client.end();
   } catch (error) {
     console.error('データベースセットアップ中にエラーが発生しました:', error);
+    if (client) {
+      await logSetupAction(client, 'ERROR', 'データベースセットアップ中にエラーが発生しました', { error: error.message });
+    }
     throw error;
+  } finally {
+    if (client) {
+      await client.end();
+    }
   }
 }
 
@@ -156,8 +181,10 @@ async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
     `);
 
     if (res.rows[0].exists) {
+      await logSetupAction(pgClient, 'INFO', '動作に必要なテーブルの存在を確認しました。');
       console.log('動作に必要なテーブルの存在を確認しました。');
     } else {
+      await logSetupAction(pgClient, 'INFO', '必要なテーブルが存在しません。テーブル作成を実行します。');
       console.log('動作に必要なテーブルが存在しません。\nテーブル作成を実行します。');
 
       // ./setup/init.sqlを実行
@@ -166,6 +193,7 @@ async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
       
       console.log('データベースにテーブル作成SQLを実行します。');
       await pgClient.query(sql);
+      await logSetupAction(pgClient, 'INFO', 'テーブル作成SQLを実行し、テーブルが作成されました。');
       console.log('テーブル作成SQLを実行し、テーブルが作成されました。');
     }
 
@@ -206,6 +234,7 @@ async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
     const result = await pgClient.query(checkAdminUserQuery, [APP_ADMIN_USER]);
 
     if (result.rows.length === 0) {
+      await logSetupAction(pgClient, 'INFO', '管理者ユーザーの作成を開始します。', { user_id: APP_ADMIN_USER });
       console.log(`.envで定義された管理者ユーザーがテーブルに存在しません。\n初期ユーザの作成処理を行います。`);
       const insert_sql = `
         INSERT INTO "user" (
@@ -225,8 +254,10 @@ async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
       `;
       
       await pgClient.query(insert_sql, [APP_ADMIN_USER, APP_ADMIN_PASSWORD, now, now]);
+      await logSetupAction(pgClient, 'INFO', '管理者ユーザーが作成されました。', { user_id: APP_ADMIN_USER });
       console.log(`管理者ユーザーが作成されました。ユーザID：'${APP_ADMIN_USER}'`);
     } else {
+      await logSetupAction(pgClient, 'INFO', '管理者ユーザーの存在を確認しました。', { user_id: APP_ADMIN_USER });
       console.log(`管理者ユーザーの存在を確認しました。ユーザID：'${APP_ADMIN_USER}'`);
     }
 
@@ -242,6 +273,7 @@ async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
     );
     
   } catch (err) {
+    await logSetupAction(pgClient, 'ERROR', 'SQL実行中にエラーが発生しました', { error: err.message });
     console.error('SQL実行中にエラーが発生しました:', err);
   } finally {
     console.log(`ElasticSearchのセットアップ処理を完了しました`);
@@ -369,12 +401,17 @@ export const runSetup = async () => {
     try {
       console.log('PostgreSQLに接続を試みています...');
       await pgClient.connect();
+      await logSetupAction(pgClient, 'INFO', 'セットアップ処理を開始します');
       console.log('PostgreSQLに接続されました。');
 
       await checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD);
       await updateSettingsFromJson(pgClient);
       await setupDatabase();
+      await logSetupAction(pgClient, 'INFO', 'セットアップ処理が完了しました');
     } catch (err) {
+      if (pgClient) {
+        await logSetupAction(pgClient, 'ERROR', 'セットアップ処理中にエラーが発生しました', { error: err.message });
+      }
       console.error('SQL実行中にエラーが発生しました:', err);
       throw err;
     } finally {

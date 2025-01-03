@@ -383,6 +383,24 @@ export const initializeClients = () => {
   });
 };
 
+// ログ記録関数を追加
+async function logMaintenanceAction(client, level, message, metadata = {}) {
+  try {
+    const query = `
+      INSERT INTO logs (level, source, message, metadata)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await client.query(query, [
+      level,
+      'maintenance',
+      message,
+      JSON.stringify(metadata)
+    ]);
+  } catch (error) {
+    console.error('ログの記録に失敗しました:', error);
+  }
+}
+
 export const runMaintenance = async () => {
   console.log('\n############################\nメンテナンススクリプトを開始します\n############################\n');
 
@@ -399,6 +417,7 @@ export const runMaintenance = async () => {
     // PostgreSQLに接続
     await pgClient.connect();
     console.log('PostgreSQLに接続しました。');
+    await logMaintenanceAction(pgClient, 'INFO', 'メンテナンス処理を開始します');
 
     // ElasticSearchのセットアップ
     await setupElasticSearchWithRetry(5);
@@ -428,8 +447,12 @@ export const runMaintenance = async () => {
     await bulkInsertBlogToElasticSearch(blogData);
     console.log('blogデータの同期が完了しました。\n');
 
+    await logMaintenanceAction(pgClient, 'INFO', 'メンテナンス処理が完了しました');
     console.log('\n############################\nメンテナンス処理が完了しました\n############################\n');
   } catch (error) {
+    await logMaintenanceAction(pgClient, 'ERROR', 'メンテナンス処理中にエラーが発生しました', {
+      error: error.message
+    });
     console.error('メンテナンス処理中に予期せぬエラーが発生しました:', error);
   } finally {
     // クライアントを終了

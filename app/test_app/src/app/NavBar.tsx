@@ -269,7 +269,7 @@ const NavBarClient = () => {
             </div>
           )}
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Build 2024.12.23.0001                  
+            Dev 2025.1.3.0001                  
           </div>
         </div>
       </nav>
