@@ -1,7 +1,8 @@
 -- settingsテーブルの作成
 CREATE TABLE IF NOT EXISTS "settings" (
     settings_key TEXT PRIMARY KEY,
-    settings_value TEXT NOT NULL
+    settings_value TEXT NOT NULL,
+    is_public BOOLEAN DEFAULT true NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
