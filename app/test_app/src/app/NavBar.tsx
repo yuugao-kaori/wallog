@@ -266,10 +266,16 @@ const NavBarClient = () => {
           <MenuLink href="/search">Search</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
           {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
-          {settings.pined_page_name_A && <MenuLink href="/pined_page_url_A">pined_page_name_A</MenuLink>}
-          {settings.pined_page_name_B && <MenuLink href="/pined_page_url_A">pined_page_name_B</MenuLink>}
-        </div>
-
+          {settings.pined_page_name_A && <MenuLink href="pined_page_url_A">{settings.pined_page_name_A}</MenuLink>}
+          {settings.pined_page_name_B && <MenuLink href="pined_page_url_B">{settings.pined_page_name_B}</MenuLink>}
+          {settings.pined_page_name_C && <MenuLink href="pined_page_url_C">{settings.pined_page_name_C}</MenuLink>}
+          {settings.pined_page_name_D && <MenuLink href="pined_page_url_D">{settings.pined_page_name_D}</MenuLink>}
+          {settings.pined_page_name_E && <MenuLink href="pined_page_url_E">{settings.pined_page_name_E}</MenuLink>}
+          {settings.pined_page_name_F && <MenuLink href="pined_page_url_F">{settings.pined_page_name_F}</MenuLink>}
+          {settings.pined_page_name_G && <MenuLink href="pined_page_url_G">{settings.pined_page_name_G}</MenuLink>}
+          {settings.pined_page_name_H && <MenuLink href="pined_page_url_H">{settings.pined_page_name_H}</MenuLink>}        </div>
+          {settings.pined_page_name_I && <MenuLink href="pined_page_url_I">{settings.pined_page_name_I}</MenuLink>}
+          {settings.pined_page_name_J && <MenuLink href="pined_page_url_J">{settings.pined_page_name_J}</MenuLink>} 
         <div className="flex flex-col space-y-4">
           <div className="flex items-center space-x-4 justify-center relative">
             <button
