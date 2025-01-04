@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
-import { FaGithub, FaXTwitter, FaTwitter, FaBluesky, FaLink } from 'react-icons/fa6'
+import { FaGithub, FaXTwitter, FaTwitter, FaBluesky, FaLink,FaYoutube, FaDiscord, FaSteam   } from 'react-icons/fa6'
 import { PiFediverseLogoFill } from 'react-icons/pi'
+import { IoMail  } from 'react-icons/io5'
+import { TbWorld,TbBadgeVrFilled  } from 'react-icons/tb'
 import { useTheme } from './ThemeProvider'
 
 // APIインスタンスをメモ化
@@ -79,6 +81,8 @@ const NavBarClient = () => {
   const api = useApi();
   const [copyMessage, setCopyMessage] = useState<string>('タイトルとURLをコピー');
   const [isBubbleVisible, setIsBubbleVisible] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [lastSettingsUpdate, setLastSettingsUpdate] = useState<number>(0);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -162,6 +166,63 @@ const NavBarClient = () => {
       });
   };
 
+  // settings_readのAPIコールを関数として抽出
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get('/api/settings/settings_read');
+      const newSettings: Record<string, string> = {};
+      response.data.forEach((item: { settings_key: string, settings_value: string }) => {
+        newSettings[item.settings_key] = item.settings_value;
+      });
+      
+      setSettings(newSettings);
+      localStorage.setItem('siteSettings', JSON.stringify({
+        data: newSettings,
+        timestamp: Date.now()
+      }));
+    } catch (err) {
+      console.error('設定の読み込みに失敗しました:', err);
+    }
+  };
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        // ローカルストレージから設定を取得
+        const cachedSettings = localStorage.getItem('siteSettings');
+        if (cachedSettings) {
+          const parsed = JSON.parse(cachedSettings);
+          // キャッシュが24時間以内で、最後の更新より前の場合のみキャッシュを使用
+          const cacheAge = Date.now() - parsed.timestamp;
+          if (cacheAge < 24 * 60 * 60 * 1000 && parsed.timestamp > lastSettingsUpdate) {
+            setSettings(parsed.data);
+            return;
+          }
+        }
+
+        await fetchSettings();
+      } catch (err) {
+        console.error('設定の読み込みに失敗しました:', err);
+      }
+    };
+
+    if (isMounted) {
+      loadSettings();
+    }
+  }, [isMounted, lastSettingsUpdate]);
+
+  // settings更新イベントをリッスンするためのイベントハンドラを追加
+  useEffect(() => {
+    const handleSettingsUpdate = (event: CustomEvent) => {
+      setLastSettingsUpdate(event.detail.timestamp);
+    };
+
+    window.addEventListener('settingsUpdated', handleSettingsUpdate as EventListener);
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate as EventListener);
+    };
+  }, []);
+
   // サーバーサイドレンダリング時やマウント前は何も表示しない
   if (!isMounted) {
     return (
@@ -191,8 +252,12 @@ const NavBarClient = () => {
       `}>
         <div className="space-y-1">
           <Link href="/" className="block hover:opacity-80 transition-opacity">
-            <h2 className="text-xl font-bold dark:text-white">{process.env.NEXT_PUBLIC_SITE_TITLE}</h2>
-            <p className="text-sm dark:text-white">{process.env.NEXT_PUBLIC_SITE_EXPLANATION}</p>
+            <h2 className="text-xl font-bold dark:text-white">
+              {settings.site_title || process.env.NEXT_PUBLIC_SITE_TITLE}
+            </h2>
+            <p className="text-sm dark:text-white">
+              {settings.site_explanation || process.env.NEXT_PUBLIC_SITE_EXPLANATION}
+            </p>
           </Link>
         </div>
         <div className="flex flex-col space-y-4">
@@ -201,10 +266,12 @@ const NavBarClient = () => {
           <MenuLink href="/search">Search</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
           {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
+          {settings.pined_page_name_A && <MenuLink href="/pined_page_url_A">pined_page_name_A</MenuLink>}
+          {settings.pined_page_name_B && <MenuLink href="/pined_page_url_A">pined_page_name_B</MenuLink>}
         </div>
 
         <div className="flex flex-col space-y-4">
-          <div className="flex items-center space-x-4 justify-center">
+          <div className="flex items-center space-x-4 justify-center relative">
             <button
               onClick={toggleTheme}
               className="w-10 h-10 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
@@ -225,51 +292,121 @@ const NavBarClient = () => {
             </button>
           </div>
           {isBubbleVisible && (
-            <div className="bubble flex justify-end space-x-1 p-2 bg-white dark:bg-blue-900 rounded-lg shadow-lg absolute right-0">
-              <Link 
-                href="https://github.com/yuugao-kaori/wallog" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <FaGithub className="text-2xl" />
-              </Link>
-              <Link 
-                href="https://twitter.com/takumin3211" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <FaXTwitter className="text-2xl" />
-              </Link>
-              <Link 
-                href="https://twitter.com/takumin3211" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <FaTwitter className="text-2xl" />
-              </Link>
-              <Link 
-                href="https://misskey.seitendan.com/@takumin3211" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <PiFediverseLogoFill  className="text-2xl" />
-              </Link>
-              <Link 
-                href="https://bsky.app/profile/takumin3211.bsky.social" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <FaBluesky  className="text-2xl" />
-              </Link>
+            <div className="fixed left-52 top-auto bottom-24 bubble flex flex-wrap justify-start gap-2 p-3 bg-white dark:bg-blue-900 rounded-lg shadow-lg max-w-[280px]">
+              {settings.admin_github_account && (
+                <Link 
+                  href={settings.admin_github_account}
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+                >
+                  <FaGithub className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_X_account && (
+                <Link 
+                  href={settings.admin_X_account}
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <FaXTwitter className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_twitter_account && (
+                <Link 
+                  href={settings.admin_twitter_account}
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <FaTwitter className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_fedi_account && (
+                <Link 
+                  href={settings.admin_fedi_account} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <PiFediverseLogoFill  className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_bluesky_account && (
+                  <Link 
+                    href={settings.admin_bluesky_account}  
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <FaBluesky  className="text-2xl" />
+                  </Link>
+              )}
+              {settings.admin_discord_account && (
+                <Link 
+                  href={settings.admin_discord_account}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <FaDiscord   className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_steam_account && (
+                <Link 
+                  href={settings.admin_steam_account}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <FaSteam className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_youtube_account && (
+                <Link 
+                  href={settings.admin_youtube_account}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <FaYoutube className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_vrchat_account && (
+                <Link 
+                  href={settings.admin_vrchat_account}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <TbBadgeVrFilled  className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_email && (
+                <Link 
+                  href={settings.admin_email}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <IoMail className="text-2xl" />
+                </Link>
+              )}
+              {settings.admin_homepage && (
+                <Link 
+                  href={settings.admin_homepage}  
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <TbWorld className="text-2xl" />
+                </Link>
+              )}
             </div>
           )}
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2025.1.3.0001                  
+            Dev 2025.1.3.0002                  
           </div>
         </div>
       </nav>

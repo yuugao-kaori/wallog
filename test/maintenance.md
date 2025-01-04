@@ -2,8 +2,7 @@
 tar ztf app.tar.gz
 
 # appだけ再起動
-docker-compose stop app && docker-compose rm -f app && docker-compose up -d 
-app
+docker-compose stop app && docker-compose rm -f app && docker-compose up -d app
 
 # Docker関連のメンテナンス
 ## データベースのバックアップ

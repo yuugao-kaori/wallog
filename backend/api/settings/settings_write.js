@@ -70,43 +70,68 @@ router.post('/settings_write', async (req, res) => {
     try {
       await client.connect();
       console.log('PostgreSQLに接続しました。');
-      console.log('接続情報:', {
-        host: process.env.POSTGRES_NAME,
-        database: process.env.POSTGRES_DB,
-        // パスワードはログに出力しない
-      });
+      console.log('リクエストボディ:', settings); // デバッグ用
 
       // トランザクション開始
       await client.query('BEGIN');
 
       try {
-        // まず既存の設定を全て削除
-        await client.query('DELETE FROM settings');
+        // 既存の設定を削除する前にカウントを確認
+        const beforeCount = await client.query('SELECT COUNT(*) FROM settings');
+        console.log('削除前のレコード数:', beforeCount.rows[0].count);
+
+        // 既存の設定を全て削除
+        const deleteResult = await client.query('DELETE FROM settings');
+        console.log('削除されたレコード数:', deleteResult.rowCount);
 
         // 新しい設定を一括挿入
         for (const [key, value] of Object.entries(settings)) {
-          // null、undefined の場合は空文字列として扱う
           const safeValue = value === null || value === undefined ? '' : String(value);
-          await client.query(
-            'INSERT INTO settings (settings_key, settings_value) VALUES ($1, $2)',
+          const insertResult = await client.query(
+            'INSERT INTO settings (settings_key, settings_value) VALUES ($1, $2) RETURNING *',
             [key, safeValue]
           );
+          console.log(`設定が挿入されました: ${key} = ${safeValue}`);
+          
+          if (insertResult.rowCount !== 1) {
+            throw new Error(`Failed to insert setting: ${key}`);
+          }
         }
+
+        // 最終的なレコード数を確認
+        const afterCount = await client.query('SELECT COUNT(*) FROM settings');
+        console.log('挿入後のレコード数:', afterCount.rows[0].count);
 
         // トランザクションのコミット
         await client.query('COMMIT');
+        console.log('トランザクションがコミットされました');
         
-        return res.status(200).json({ message: 'Settings updated successfully' });
+        return res.status(200).json({ 
+          message: 'Settings updated successfully',
+          updatedCount: afterCount.rows[0].count,
+          timestamp: Date.now()  // 追加: 更新時のタイムスタンプ
+        });
       } catch (error) {
         // エラー発生時はロールバック
         await client.query('ROLLBACK');
+        console.error('トランザクションエラー:', error);
         throw error;
       }
     } catch (err) {
-      console.error('詳細なデータベースエラー:', err);  // より詳細なエラー情報をログに出力
+      console.error('データベースエラーの詳細:', {
+        message: err.message,
+        stack: err.stack,
+        code: err.code,
+        detail: err.detail
+      });
       return res.status(500).json({ 
         error: 'Database error occurred',
-        details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        details: process.env.NODE_ENV === 'development' ? 
+          {
+            message: err.message,
+            code: err.code
+          } : 
+          'An internal error occurred'
       });
     } finally {
       await client.end();

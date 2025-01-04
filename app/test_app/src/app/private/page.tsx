@@ -32,7 +32,13 @@ export default function SettingsPage() {
     // 設定を読み込む
     const fetchSettings = async () => {
         try {
-            const response = await fetch('/api/settings/settings_read');
+            const response = await fetch('/api/settings/settings_read', {
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                },
+                cache: 'no-store'
+            });
             if (!response.ok) throw new Error('設定の読み込みに失敗しました');
             const data = await response.json();
             setSettings(data);
@@ -117,6 +123,8 @@ export default function SettingsPage() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
                 },
                 body: JSON.stringify(settingsObject),
                 credentials: 'include'
@@ -128,6 +136,9 @@ export default function SettingsPage() {
             }
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
+            
+            // 強制的にキャッシュを無視して再取得
+            await new Promise(resolve => setTimeout(resolve, 100)); // 少し待機
             await fetchSettings();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred');

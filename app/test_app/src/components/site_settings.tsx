@@ -14,6 +14,7 @@ interface SiteSettingsProps {
 
 export default function SiteSettings({ settings, onSettingChange, onUpdateAll }: SiteSettingsProps) {
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isClearing, setIsClearing] = useState(false);
 
     const handleUpdateAll = async () => {
         if (isUpdating) return;
@@ -22,6 +23,22 @@ export default function SiteSettings({ settings, onSettingChange, onUpdateAll }:
             await onUpdateAll();
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleClearCache = () => {
+        setIsClearing(true);
+        try {
+            // キャッシュを削除
+            localStorage.removeItem('siteSettings');
+            
+            // カスタムイベントを発火してNavBarに通知
+            const event = new CustomEvent('settingsUpdated', {
+                detail: { timestamp: Date.now() }
+            });
+            window.dispatchEvent(event);
+        } finally {
+            setIsClearing(false);
         }
     };
 
@@ -44,13 +61,20 @@ export default function SiteSettings({ settings, onSettingChange, onUpdateAll }:
                     </div>
                 ))}
             </div>
-            <div className="mt-6">
+            <div className="mt-6 flex gap-4">
                 <button
                     className={`${isUpdating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'} bg-blue-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     onClick={handleUpdateAll}
                     disabled={isUpdating}
                 >
                     {isUpdating ? '更新中...' : 'すべての設定を更新'}
+                </button>
+                <button
+                    className={`${isClearing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-600'} bg-red-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-red-500`}
+                    onClick={handleClearCache}
+                    disabled={isClearing}
+                >
+                    キャッシュを破棄
                 </button>
             </div>
         </>
