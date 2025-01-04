@@ -546,21 +546,24 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
                 タグ
               </button>
             </div>
-            <div className="h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+              
               {activeTab === 'post' ? (
-                <PostForm
-                  postText={postText}
-                  setPostText={setPostText}
-                  handleSubmit={handleSubmit}
-                  files={files}
-                  handleFiles={handleFiles}
-                  handleDelete={handleDeleteFile}
-                  onSelectExistingFiles={handleSelectExistingFiles}
-                  fixedHashtags={fixedHashtags}
-                  setFixedHashtags={setFixedHashtags}
-                  autoAppendTags={autoAppendTags}
-                  setAutoAppendTags={setAutoAppendTags}
-                />
+                <div className="p-4">
+                  <PostForm
+                    postText={postText}
+                    setPostText={setPostText}
+                    handleSubmit={handleSubmit}
+                    files={files}
+                    handleFiles={handleFiles}
+                    handleDelete={handleDeleteFile}
+                    onSelectExistingFiles={handleSelectExistingFiles}
+                    fixedHashtags={fixedHashtags}
+                    setFixedHashtags={setFixedHashtags}
+                    autoAppendTags={autoAppendTags}
+                    setAutoAppendTags={setAutoAppendTags}
+                  />
+                </div>
               ) : (
                 <Tagcloud tags={tagData} />  
               )}
