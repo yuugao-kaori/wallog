@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS "blog" (
     user_id TEXT NOT NULL,
     blog_title TEXT,
     blog_text TEXT,
+    blog_pursed_text TEXT,
     blog_tag TEXT, -- リスト形式でそのまま収容
     blog_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     blog_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

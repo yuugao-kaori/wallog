@@ -1,5 +1,5 @@
 'use client'
-
+const version = 'Dev 2025.1.3.0004'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
@@ -178,7 +178,8 @@ const NavBarClient = () => {
       setSettings(newSettings);
       localStorage.setItem('siteSettings', JSON.stringify({
         data: newSettings,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        isLogin: isLoggedIn // ログイン状態を保存
       }));
     } catch (err) {
       console.error('設定の読み込みに失敗しました:', err);
@@ -192,15 +193,26 @@ const NavBarClient = () => {
         const cachedSettings = localStorage.getItem('siteSettings');
         if (cachedSettings) {
           const parsed = JSON.parse(cachedSettings);
-          // キャッシュが24時間以内で、最後の更新より前の場合のみキャッシュを使用
+          // キャッシュが2時間以内で、最後の更新より前の場合のみキャッシュを使用
           const cacheAge = Date.now() - parsed.timestamp;
-          if (cacheAge < 24 * 60 * 60 * 1000 && parsed.timestamp > lastSettingsUpdate) {
+          if (cacheAge < 2 * 60 * 60 * 1000 && parsed.timestamp > lastSettingsUpdate) {
             setSettings(parsed.data);
-            return;
+            // キャッシュされたログイン状態があれば使用
+            if (parsed.isLogin) {
+              setIsLoggedIn(true);
+              return; // ログインチェックをスキップ
+            }
           }
         }
 
-        await fetchSettings();
+        // キャッシュがない場合や無効な場合は、設定とログイン状態を取得
+        const [settingsResponse, loginResponse] = await Promise.all([
+          fetchSettings(),
+          api.get('/api/user/login_check').catch(() => ({ status: 401 }))
+        ]);
+        
+        setIsLoggedIn(loginResponse.status === 200);
+
       } catch (err) {
         console.error('設定の読み込みに失敗しました:', err);
       }
@@ -266,16 +278,17 @@ const NavBarClient = () => {
           <MenuLink href="/search">Search</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
           {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
-          {settings.pined_page_name_A && <MenuLink href="pined_page_url_A">{settings.pined_page_name_A}</MenuLink>}
-          {settings.pined_page_name_B && <MenuLink href="pined_page_url_B">{settings.pined_page_name_B}</MenuLink>}
-          {settings.pined_page_name_C && <MenuLink href="pined_page_url_C">{settings.pined_page_name_C}</MenuLink>}
-          {settings.pined_page_name_D && <MenuLink href="pined_page_url_D">{settings.pined_page_name_D}</MenuLink>}
-          {settings.pined_page_name_E && <MenuLink href="pined_page_url_E">{settings.pined_page_name_E}</MenuLink>}
-          {settings.pined_page_name_F && <MenuLink href="pined_page_url_F">{settings.pined_page_name_F}</MenuLink>}
-          {settings.pined_page_name_G && <MenuLink href="pined_page_url_G">{settings.pined_page_name_G}</MenuLink>}
-          {settings.pined_page_name_H && <MenuLink href="pined_page_url_H">{settings.pined_page_name_H}</MenuLink>}        </div>
-          {settings.pined_page_name_I && <MenuLink href="pined_page_url_I">{settings.pined_page_name_I}</MenuLink>}
-          {settings.pined_page_name_J && <MenuLink href="pined_page_url_J">{settings.pined_page_name_J}</MenuLink>} 
+          {settings.pined_page_name_A && <MenuLink href={settings.pined_page_url_A}>{settings.pined_page_name_A}</MenuLink>}
+          {settings.pined_page_name_B && <MenuLink href={settings.pined_page_url_B}>{settings.pined_page_name_B}</MenuLink>}
+          {settings.pined_page_name_C && <MenuLink href={settings.pined_page_url_C}>{settings.pined_page_name_C}</MenuLink>}
+          {settings.pined_page_name_D && <MenuLink href={settings.pined_page_url_D}>{settings.pined_page_name_D}</MenuLink>}
+          {settings.pined_page_name_E && <MenuLink href={settings.pined_page_url_E}>{settings.pined_page_name_E}</MenuLink>}
+          {settings.pined_page_name_F && <MenuLink href={settings.pined_page_url_F}>{settings.pined_page_name_F}</MenuLink>}
+          {settings.pined_page_name_G && <MenuLink href={settings.pined_page_url_G}>{settings.pined_page_name_G}</MenuLink>}
+          {settings.pined_page_name_H && <MenuLink href={settings.pined_page_url_H}>{settings.pined_page_name_H}</MenuLink>}        
+          {settings.pined_page_name_I && <MenuLink href={settings.pined_page_url_I}>{settings.pined_page_name_I}</MenuLink>}
+          {settings.pined_page_name_J && <MenuLink href={settings.pined_page_url_J}>{settings.pined_page_name_J}</MenuLink>} 
+          </div>
         <div className="flex flex-col space-y-4">
           <div className="flex items-center space-x-4 justify-center relative">
             <button
@@ -412,7 +425,7 @@ const NavBarClient = () => {
             </div>
           )}
           <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Dev 2025.1.3.0003               
+            {version}            
           </div>
         </div>
       </nav>
