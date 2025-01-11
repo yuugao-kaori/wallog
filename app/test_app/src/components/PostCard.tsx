@@ -524,27 +524,28 @@ const Card = memo(({
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400">
           {formatDate(post.reply_body.post_createat)}
+          
         </div>
       </div>
     );
   }, [post.reply_body, formatDate]);
 
-  // 引用元投稿のレンダリング関数を修正
-  const renderRepostBody = useCallback(() => {
-    // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
-    if (!post.repost_body || !post.repost_body.post_id) return null;
+  // renderRepostBodyを修正
+const renderRepostBody = useCallback(() => {
+  // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
+  if (!post.repost_body || !post.repost_body.post_id) return null;
 
-    return (
-      <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
-        <div className="text-sm">
-          {renderText(post.repost_body.post_text)}
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {formatDate(post.repost_body.post_createat)}
-        </div>
+  return (
+    <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
+      <div className="text-sm">
+        {renderText(post.repost_body.post_text)}
       </div>
-    );
-  }, [post.repost_body, formatDate]);
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
+      </div>
+    </div>
+  );
+}, [post.repost_body, formatDate]);
 
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
   return (
