@@ -28,23 +28,40 @@
             display: inline-block;
             margin-top: 1.5rem;
             padding: 0.5rem 1rem;
-            background-color: #3182ce;
+            background-color: #B4E900;
+            color: #1B1B1B;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .back-button-reload {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.5rem 1rem;
+            background-color: #1D4ED8;
             color: white;
             text-decoration: none;
             border-radius: 4px;
             transition: background-color 0.2s;
         }
         .back-button:hover {
-            background-color: #2c5282;
+            background-color: #2CA13F;
+        }
+        .back-button-reload:hover {
+            background-color: #446ddb;
         }
     </style>
 </head>
 <body>
     <div class="error-container">
         <h1>サーバーエラー</h1>
-        <p>申し訳ありません。一時的なサーバーの問題が発生しています。</p>
+        <p>申し訳ありません。</p>
+        <p>一時的なサーバーの問題が発生しています。</p>
+        <p>おそらく、ページのビルドが行われているか、サーバの再起動が行われています。<p>
         <p>しばらく時間をおいてから再度アクセスしてください。</p>
-        <a href="/" class="back-button">ホームに戻る</a>
+        <a href="javascript:location.reload()" class="back-button-reload">リロードする</a>
+        <a href="https://misskey.seitendan.com/@takumin3211" class="back-button">管理者の連絡先に行く</a>
+
     </div>
 </body>
 </html>
