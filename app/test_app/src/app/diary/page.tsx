@@ -219,10 +219,14 @@ function Diary() {
           addNotification('接続が切断されました。', {
             label: 'リロード',
             onClick: () => {
-              addNotification('再接続中...', { label: 'キャンセル', onClick: () => {} });
+              removeNotification('connection-error'); // 既存の接続エラー通知を削除
+              addNotification('再接続中...', {
+                label: 'キャンセル',
+                onClick: () => {}
+              });
               createEventSource();
             }
-          });
+          }, 'connection-error', false); // ID と auto-dismiss を指定
         }
         if (reconnectAttempt < maxReconnectAttempts) {
           const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempt - 1), 30000);
@@ -230,7 +234,7 @@ function Diary() {
             createEventSource();
           }, delay);
         } else {
-          console.error('最大再接続試行回数に達しました');
+          console.info('最大再接続試行回数に達しました');
         }
       };
     };
@@ -290,12 +294,20 @@ function Diary() {
     }
   };
 
-  const addNotification = useCallback((message: string, action?: { label: string; onClick: () => void }) => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, message, action }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(notification => notification.id !== id));
-    }, 5000);
+  const addNotification = useCallback((
+    message: string,
+    action?: { label: string; onClick: () => void },
+    id?: string,
+    autoDismiss: boolean = true
+  ) => {
+    const notificationId = id || Date.now().toString();
+    setNotifications(prev => [...prev.filter(n => n.id !== notificationId), { id: notificationId, message, action }]);
+    
+    if (autoDismiss) {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      }, 5000);
+    }
   }, []);
 
   const removeNotification = (id: string) => {

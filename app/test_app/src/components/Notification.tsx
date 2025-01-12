@@ -22,7 +22,9 @@ const Notification: React.FC<NotificationProps> = ({ notifications, onClose }) =
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="bg-blue-500 text-white py-2 px-4 rounded shadow-lg text-sm flex items-center justify-between"
+          className={`bg-blue-500 text-white py-2 px-4 rounded shadow-lg text-sm flex items-center justify-between ${
+            notification.id === 'connection-error' ? 'border-2 border-red-400' : ''
+          }`}
         >
           <span>{notification.message}</span>
           {notification.action && (
