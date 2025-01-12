@@ -366,7 +366,7 @@ const Card = memo(({
 
   const copyLink = (): void => {
     const domain = process.env.NEXT_PUBLIC_SITE_DOMAIN || window.location.origin;
-    const url = `${domain}/post/${post.post_id}`;
+    const url = `${domain}/diary/${post.post_id}`;
     
     navigator.clipboard.writeText(url)
       .then(() => {
