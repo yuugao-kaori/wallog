@@ -562,6 +562,8 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
                     setFixedHashtags={setFixedHashtags}
                     autoAppendTags={autoAppendTags}
                     setAutoAppendTags={setAutoAppendTags}
+                    handleCancelAttach={handleCancelAttach}        // 追加
+                    handleDeletePermanently={handleDeletePermanently}   // 追加
                   />
                 </div>
               ) : (

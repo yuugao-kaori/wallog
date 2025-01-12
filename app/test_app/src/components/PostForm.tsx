@@ -27,6 +27,8 @@ interface PostFormProps {
   setFixedHashtags: (tags: string) => void;
   autoAppendTags: boolean;  // 追加
   setAutoAppendTags: (value: boolean) => void;  // 追加
+  handleCancelAttach: (fileId: string | number) => void;     // 型を修正
+  handleDeletePermanently: (fileId: string | number) => void; // 型を修正
 }
 
 const PostForm: React.FC<PostFormProps> = ({
@@ -40,7 +42,9 @@ const PostForm: React.FC<PostFormProps> = ({
   fixedHashtags,
   setFixedHashtags,
   autoAppendTags,  // 追加
-  setAutoAppendTags  // 追加
+  setAutoAppendTags,  // 追加
+  handleCancelAttach,        // 追加
+  handleDeletePermanently,   // 追加
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -233,7 +237,7 @@ const PostForm: React.FC<PostFormProps> = ({
               placeholder="ここに投稿内容を入力してください"
               rows={4}
             />
-            {/* 字数��ウンターを追加 */}
+            {/* 字数カウンターを追加 */}
             <div className="text-right text-sm text-gray-500 mt-1">
               {postText.length}/140
             </div>
@@ -343,19 +347,19 @@ const PostForm: React.FC<PostFormProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault(); // フォームの送信を防ぐ
-                      e.stopPropagation(); // イベントの伝播を停止
-                      handleDelete(file.id); // 正しい file_id を渡す
-                    }}
-                    className={`absolute top-2 right-2 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
-                      file.isExisting 
-                        ? 'bg-gray-500 hover:bg-gray-600' 
-                        : 'bg-red-500 hover:bg-red-600'
-                    }`}
-                    title={file.isExisting ? "添付を取り消す" : "ファイルを削除する"}
+                    onClick={() => handleCancelAttach(file.id)}  // 型チェックを削除
+                    className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                    title="添付を取り消す"
                   >
-                    {file.isExisting ? '✓' : '×'}
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePermanently(file.id)}  // 型チェックを削除
+                    className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                    title="ファイルを削除する"
+                  >
+                    ×
                   </button>
                 </div>
               ))}
