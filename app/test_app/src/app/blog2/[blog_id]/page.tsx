@@ -173,7 +173,15 @@ export default function BlogDetail() {
         <div className="prose dark:prose-invert max-w-none mb-20">
           <div 
             dangerouslySetInnerHTML={{ __html: blog?.blog_pursed_text || '' }}
-            className="markdown-body"
+            className="markdown-body 
+              [&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mt-6 [&>h1]:mb-4 [&>h1]:pb-3 [&>h1]:border-b [&>h1]:border-gray-200 dark:[&>h1]:border-gray-700
+              [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-5 [&>h2]:mb-4 [&>h2]:pb-2 [&>h2]:border-b [&>h2]:border-gray-200 dark:[&>h2]:border-gray-700
+              [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-3
+              [&>ol]:list-decimal [&>ol]:pl-10 [&>ol]:my-4
+              [&>ol>li]:my-2
+              [&>pre]:bg-gray-100 [&>pre]:dark:bg-gray-800 [&>pre]:rounded-lg [&>pre]:p-4 [&>pre]:my-4 [&>pre]:overflow-x-auto
+              [&>pre>code]:text-sm [&>pre>code]:font-mono [&>pre>code]:text-gray-800 [&>pre>code]:dark:text-gray-200
+              [&>code]:bg-gray-100 [&>code]:dark:bg-gray-800 [&>code]:rounded [&>code]:px-1 [&>code]:py-0.5 [&>code]:text-sm [&>code]:font-mono"
           />
         </div>
       </article>
