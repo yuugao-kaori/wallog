@@ -3,6 +3,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import ReactDOMServer from 'react-dom/server';
 
 interface BlogPost {
   blog_id: number;
@@ -23,6 +26,104 @@ interface ErrorResponse {
   message: string;
   status: number;
 }
+
+const detectCodeLanguage = (code: string): string => {
+  // Python の特徴的なパターン
+  if (code.includes('print(') || 
+      code.includes('def ') || 
+      code.includes('import ') || 
+      code.match(/:\s*$/m)) {
+    console.log('コードパターン検出: Python');
+    return 'python';
+  }
+  
+  // JavaScript の特徴的なパターン
+  if (code.includes('function ') || 
+      code.includes('const ') || 
+      code.includes('let ') || 
+      code.includes('var ') ||
+      code.includes('=>') ||
+      code.includes('console.log(')) {
+    console.log('コードパターン検出: JavaScript');
+    return 'javascript';
+  }
+
+  if (code.includes('services:') || 
+      code.includes('environment:') || 
+      code.includes('volumes:') || 
+      code.includes('ports:') ){
+      console.log('コードパターン検出: Docker');
+      return 'docker';
+  }
+
+  if (code.includes('sudo ') || 
+      code.includes(' && ') ){
+      console.log('コードパターン検出: bash');
+      return 'bash';
+    }
+  
+  console.log('コードパターン検出: 不明なため text として処理');
+  return 'text';
+};
+
+const CodeBlock = ({ language, code }: { language: string, code: string }) => {
+  const normalizedLanguage = language 
+    ? language.replace('language-', '')
+    : detectCodeLanguage(code);
+
+  return (
+    <div className="code-block-wrapper">
+      <SyntaxHighlighter
+        language={normalizedLanguage}
+        style={vscDarkPlus}
+        customStyle={{
+          margin: 0,
+          padding: '1rem',
+          background: '#1E1E1E',
+        }}
+        PreTag="div"
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
+
+const processCodeBlocks = (htmlContent: string) => {
+  if (typeof document === 'undefined') return htmlContent;
+
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+
+  const codeBlocks = tempDiv.querySelectorAll('pre code');
+  console.log('検出されたコードブロック数:', codeBlocks.length); // デバッグログ
+
+  codeBlocks.forEach((block, index) => {
+    const language = block.className;
+    console.log(`コードブロック ${index + 1} の言語:`, language); // デバッグログ
+
+    // HTMLエンティティをデコード
+    const decodedCode = block.innerHTML
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = ReactDOMServer.renderToString(
+      <CodeBlock language={language} code={decodedCode.trim()} />
+    );
+
+    const preElement = block.parentElement;
+    if (preElement?.parentElement) {
+      preElement.parentElement.replaceChild(wrapper.firstChild!, preElement);
+      console.log(`コードブロック ${index + 1} を置換完了`); // デバッグログ
+    }
+  });
+
+  return tempDiv.innerHTML;
+};
 
 export default function BlogDetail() {
   const params = useParams();
@@ -147,6 +248,16 @@ export default function BlogDetail() {
     setIsEditPopupOpen(true);
   };
 
+  // blog_pursed_text の処理を最適化
+  useEffect(() => {
+    if (typeof window !== 'undefined' && blog?.blog_pursed_text) {
+      requestAnimationFrame(() => {
+        const processedHtml = processCodeBlocks(blog.blog_pursed_text);
+        setBlog(prev => prev ? { ...prev, blog_pursed_text: processedHtml } : null);
+      });
+    }
+  }, [blog?.blog_pursed_text]);
+
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
@@ -179,9 +290,27 @@ export default function BlogDetail() {
               [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-3
               [&>ol]:list-decimal [&>ol]:pl-10 [&>ol]:my-4
               [&>ol>li]:my-2
-              [&>pre]:bg-gray-100 [&>pre]:dark:bg-gray-800 [&>pre]:rounded-lg [&>pre]:p-4 [&>pre]:my-4 [&>pre]:overflow-x-auto
-              [&>pre>code]:text-sm [&>pre>code]:font-mono [&>pre>code]:text-gray-800 [&>pre>code]:dark:text-gray-200
-              [&>code]:bg-gray-100 [&>code]:dark:bg-gray-800 [&>code]:rounded [&>code]:px-1 [&>code]:py-0.5 [&>code]:text-sm [&>code]:font-mono"
+              [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 dark:[&>blockquote]:border-gray-700
+              [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4
+              [&>blockquote]:bg-gray-50 dark:[&>blockquote]:bg-gray-800
+              [&>blockquote]:italic
+              [&_.syntax-highlighter]:bg-[#1E1E1E] 
+              [&_.syntax-highlighter]:rounded-lg 
+              [&_.syntax-highlighter]:p-4 
+              [&_.syntax-highlighter]:my-4 
+              [&_.syntax-highlighter]:overflow-x-auto
+              [&_.syntax-highlighter_pre]:m-0
+              [&_.syntax-highlighter_code]:font-mono
+              [&_.syntax-highlighter_code]:text-sm
+              [&_.code-block-wrapper]:my-4
+              [&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
+              [&_.code-block-wrapper_code]:!text-white
+              dark:[&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
+              [&_.code-block-wrapper]:rounded-lg
+              [&_.code-block-wrapper]:overflow-hidden
+              [&_.code-block-wrapper_div]:!bg-[#1E1E1E]
+              [&_.code-block-wrapper_code]:!text-white
+              [&_.code-block-wrapper]:whitespace-pre-wrap"
           />
         </div>
       </article>
@@ -198,6 +327,7 @@ export default function BlogDetail() {
         isOpen={isEditPopupOpen}
         onClose={() => setIsEditPopupOpen(false)}
         blogData={editData ? {
+
           ...editData, 
           blog_id: String(editData.blog_id)
         } : {
