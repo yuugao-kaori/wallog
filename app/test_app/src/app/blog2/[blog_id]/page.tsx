@@ -362,10 +362,6 @@ export default function BlogDetail() {
           onSubmit={handleSubmit}
           mode="edit"
         />
-        <NotificationComponent
-          notifications={notifications}
-          onClose={removeNotification}
-        />
       </div>
     </CodeBlockProvider>
   );

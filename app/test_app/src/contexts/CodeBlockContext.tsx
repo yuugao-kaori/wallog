@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useCallback, useState } from 'react';
+'use client';
+
+import React, { createContext, useContext, useCallback, useState, useEffect } from 'react';
+import NotificationComponent from '@/components/Notification';
 
 interface NotificationItem {
   id: string;
@@ -16,6 +19,11 @@ const CodeBlockContext = createContext<CodeBlockContextType | undefined>(undefin
 
 export function CodeBlockProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const addNotification = useCallback((message: string) => {
     const id = Date.now().toString();
@@ -33,6 +41,12 @@ export function CodeBlockProvider({ children }: { children: React.ReactNode }) {
   return (
     <CodeBlockContext.Provider value={{ notifications, addNotification, removeNotification }}>
       {children}
+      {mounted && (
+        <NotificationComponent
+          notifications={notifications}
+          onClose={removeNotification}
+        />
+      )}
     </CodeBlockContext.Provider>
   );
 }

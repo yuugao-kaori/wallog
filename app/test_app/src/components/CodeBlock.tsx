@@ -1,3 +1,5 @@
+'use client';
+
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useCodeBlock } from '@/contexts/CodeBlockContext';
@@ -39,6 +41,7 @@ export function CodeBlock({ language, code, onCopy }: CodeBlockProps) {
       }
     } catch (err) {
       console.error('コピーに失敗しました', err);
+      addNotification('コピーに失敗しました');
     }
   };
 
