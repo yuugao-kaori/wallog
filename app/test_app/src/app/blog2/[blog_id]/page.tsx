@@ -1,11 +1,14 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import ReactDOMServer from 'react-dom/server';
+import ReactDOM from 'react-dom/client';
+import NotificationComponent from '@/components/Notification';
+
 
 interface BlogPost {
   blog_id: number;
@@ -66,13 +69,31 @@ const detectCodeLanguage = (code: string): string => {
   return 'text';
 };
 
-const CodeBlock = ({ language, code }: { language: string, code: string }) => {
+const CodeBlock = ({ language, code, onCopy }: { 
+  language: string, 
+  code: string,
+  onCopy: (message: string) => void 
+}) => {
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      onCopy('コードがクリップボードにコピーされました');
+    }, (err) => {
+      console.error('コピーに失敗しました', err);
+    });
+  };
+
   const normalizedLanguage = language 
     ? language.replace('language-', '')
     : detectCodeLanguage(code);
 
   return (
-    <div className="code-block-wrapper">
+    <div className="code-block-wrapper relative group">
+      <button 
+        onClick={copyToClipboard} 
+        className="absolute top-2 right-2 bg-gray-700 text-white px-2 py-1 rounded z-10 "
+      >
+        Copy
+      </button>
       <SyntaxHighlighter
         language={normalizedLanguage}
         style={vscDarkPlus}
@@ -80,6 +101,8 @@ const CodeBlock = ({ language, code }: { language: string, code: string }) => {
           margin: 0,
           padding: '1rem',
           background: '#1E1E1E',
+          position: 'relative',
+          zIndex: 1
         }}
         PreTag="div"
       >
@@ -96,35 +119,45 @@ const processCodeBlocks = (htmlContent: string) => {
   tempDiv.innerHTML = htmlContent;
 
   const codeBlocks = tempDiv.querySelectorAll('pre code');
-  console.log('検出されたコードブロック数:', codeBlocks.length); // デバッグログ
-
+  
   codeBlocks.forEach((block, index) => {
     const language = block.className;
-    console.log(`コードブロック ${index + 1} の言語:`, language); // デバッグログ
-
-    // HTMLエンティティをデコード
     const decodedCode = block.innerHTML
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'");
-    
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = ReactDOMServer.renderToString(
-      <CodeBlock language={language} code={decodedCode.trim()} />
+
+    // まずReactコンポーネントを文字列としてレンダリング
+    const initialHtml = ReactDOMServer.renderToString(
+      <CodeBlock 
+        language={language} 
+        code={decodedCode.trim()} 
+        onCopy={() => {}} 
+      />
     );
 
+    // 新しいコンテナを作成
+    const container = document.createElement('div');
+    container.innerHTML = initialHtml;
+    container.setAttribute('data-code-block', 'true');
+
+    // 既存のpre要素を置き換え
     const preElement = block.parentElement;
     if (preElement?.parentElement) {
-      preElement.parentElement.replaceChild(wrapper.firstChild!, preElement);
-      console.log(`コードブロック ${index + 1} を置換完了`); // デバッグログ
+      preElement.parentElement.replaceChild(container, preElement);
     }
   });
 
   return tempDiv.innerHTML;
 };
-
+// ������������定義に NotificationItem を追加
+interface NotificationItem {
+  id: string;
+  message: string;
+  action?: { label: string; onClick: () => void }; // 追加
+}
 export default function BlogDetail() {
   const params = useParams();
   const [blog, setBlog] = useState<BlogPost | null>(null);
@@ -133,7 +166,28 @@ export default function BlogDetail() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
   const [editData, setEditData] = useState<BlogPost | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  const addNotification = useCallback((
+    message: string,
+    action?: { label: string; onClick: () => void },
+    id?: string,
+    autoDismiss: boolean = true
+  ) => {
+    const notificationId = id || Date.now().toString();
+    setNotifications(prev => [...prev.filter(n => n.id !== notificationId), { id: notificationId, message, action }]);
+    
+    if (autoDismiss) {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      }, 5000);
+    }
+  }, []);
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
+  
   const api = useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',
     headers: {
@@ -251,12 +305,26 @@ export default function BlogDetail() {
   // blog_pursed_text の処理を最適化
   useEffect(() => {
     if (typeof window !== 'undefined' && blog?.blog_pursed_text) {
-      requestAnimationFrame(() => {
+      const processAndHydrate = async () => {
+        // Step 1: 初期HTML生成
         const processedHtml = processCodeBlocks(blog.blog_pursed_text);
         setBlog(prev => prev ? { ...prev, blog_pursed_text: processedHtml } : null);
-      });
+
+        // Step 2: hydration
+        requestAnimationFrame(() => {
+          document.querySelectorAll('[data-code-block="true"]').forEach((container) => {
+            const language = container.querySelector('code')?.className || '';
+            const code = container.querySelector('code')?.textContent || '';
+            
+            const root = ReactDOM.createRoot(container);
+            root.render(<CodeBlock language={language} code={code} onCopy={addNotification} />);
+          });
+        });
+      };
+
+      processAndHydrate();
     }
-  }, [blog?.blog_pursed_text]);
+  }, [blog?.blog_pursed_text, processCodeBlocks]);
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
@@ -280,7 +348,7 @@ export default function BlogDetail() {
           </div>
           <p>閲覧数: {blog?.blog_count}</p>
         </div>
-        <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
+        <hr className="border-2 border-gray-200 dark:border-gray-700 mb-8" />
         <div className="prose dark:prose-invert max-w-none mb-20">
           <div 
             dangerouslySetInnerHTML={{ __html: blog?.blog_pursed_text || '' }}
@@ -292,8 +360,10 @@ export default function BlogDetail() {
               [&>ol>li]:my-2
               [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 dark:[&>blockquote]:border-gray-700
               [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4
-              [&>blockquote]:bg-gray-50 dark:[&>blockquote]:bg-gray-800
+              [&>blockquote]:bg-gray-200 dark:[&>blockquote]:bg-gray-800
               [&>blockquote]:italic
+              [&>hr]:border-2
+              [&>hr]:border-gray-200 dark:[&>hr]:border-gray-700 [&>hr]:my-8
               [&_.syntax-highlighter]:bg-[#1E1E1E] 
               [&_.syntax-highlighter]:rounded-lg 
               [&_.syntax-highlighter]:p-4 
@@ -309,7 +379,6 @@ export default function BlogDetail() {
               [&_.code-block-wrapper]:rounded-lg
               [&_.code-block-wrapper]:overflow-hidden
               [&_.code-block-wrapper_div]:!bg-[#1E1E1E]
-              [&_.code-block-wrapper_code]:!text-white
               [&_.code-block-wrapper]:whitespace-pre-wrap"
           />
         </div>
@@ -340,6 +409,10 @@ export default function BlogDetail() {
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
         mode="edit"
+      />
+      <NotificationComponent
+        notifications={notifications}
+        onClose={removeNotification}
       />
     </div>
   );
