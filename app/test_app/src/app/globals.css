@@ -44,6 +44,161 @@ body {
   display: none;  /* Chrome, Safari, Opera 対応 */
 }
 
+/* コードブロックのスタイリング */
+.code-block-wrapper {
+  position: relative;
+  margin: 1rem 0;
+  background: #1E1E1E;
+  border-radius: 0.5rem;
+  overflow: visible;
+}
+
+pre {
+  margin: 0;
+  padding: 1rem;
+}
+
+code {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.syntax-highlighter {
+  background: #1E1E1E !important;
+  margin: 0 !important;
+  padding: 1rem !important;
+  border-radius: 0.5rem !important;
+  font-size: 0.875rem !important;
+}
+
+.syntax-highlighter * {
+  color: inherit !important;
+  background: transparent !important;
+}
+
+.code-block-mount-point {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+button.copy-button {
+  position: absolute !important;
+  z-index: 999 !important;
+  top: 8px !important;
+  right: 8px !important;
+}
+
+/* シンタックスハイライトとコードブロックのスタイル */
+.not-prose pre {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.not-prose code {
+  color: #D4D4D4 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.copy-button {
+  position: absolute !important;
+  z-index: 9999 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* react-syntax-highlighter のスタイル上書き */
+.syntax-highlighter {
+  background: #1E1E1E !important;
+  color: #D4D4D4 !important;
+  padding: 1rem !important;
+  border-radius: 0.5rem !important;
+  margin: 1rem 0 !important;
+}
+
+/* シンタックスハイライトの強制スタイル */
+.markdown-body pre,
+.markdown-body code {
+  all: revert !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
+.markdown-body pre {
+  background-color: #1E1E1E !important;
+  border-radius: 0.5rem !important;
+  margin: 1rem 0 !important;
+  padding: 1rem !important;
+  overflow: visible !important;
+}
+
+.markdown-body .syntax-highlighter {
+  background-color: #1E1E1E !important;
+  color: #D4D4D4 !important;
+}
+
+.markdown-body .syntax-highlighter * {
+  font-family: var(--font-geist-mono), monospace !important;
+  color: inherit !important;
+}
+
+/* コピーボタンのスタイル */
+.markdown-body button[class*="copy-button"] {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 9999 !important;
+  background-color: #374151 !important;
+  color: white !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.875rem !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* シンタックスハイライトの基本スタイル */
+.highlighted-code {
+  margin: 1rem 0;
+  position: relative;
+}
+
+.highlighted-code pre {
+  margin: 0 !important;
+  padding: 1rem !important;
+  background-color: #1E1E1E !important;
+  border-radius: 0.5rem !important;
+  overflow: auto !important;
+}
+
+.highlighted-code code {
+  font-family: var(--font-geist-mono), monospace !important;
+  color: #D4D4D4 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+/* react-syntax-highlighter のスタイル上書き */
+.highlighted-code span {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+/* プロースタイルのリセット */
+.prose pre {
+  all: unset !important;
+  display: block !important;
+  margin: 1rem 0 !important;
+}
+
+.prose code {
+  all: unset !important;
+  font-family: var(--font-geist-mono), monospace !important;
+}
+
 /* カスタム高さクラスの追加 */
 @layer utilities {
   .max-h-128 {
