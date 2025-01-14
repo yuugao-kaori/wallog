@@ -77,6 +77,7 @@ const processCodeBlocks = (htmlContent: string) => {
   tempDiv.innerHTML = htmlContent;
 
   const codeBlocks = tempDiv.querySelectorAll('pre code');
+  let blockCounter = 0;
   
   codeBlocks.forEach((block) => {
     const language = block.className;
@@ -88,9 +89,12 @@ const processCodeBlocks = (htmlContent: string) => {
       .replace(/&#39;/g, "'");
 
     const container = document.createElement('div');
+    const containerId = `code-block-${Date.now()}-${blockCounter++}`;
     container.setAttribute('data-code-block', 'true');
+    container.setAttribute('data-code-block-id', containerId);
     container.setAttribute('data-code', decodedCode.trim());
     container.setAttribute('data-language', language);
+    container.className = 'code-block-container';
 
     const preElement = block.parentElement;
     if (preElement?.parentElement) {
@@ -107,6 +111,10 @@ interface NotificationItem {
   message: string;
   action?: { label: string; onClick: () => void }; // 追加
 }
+
+// コードブロックのルートを管理するMapを追加
+const codeBlockRoots = new Map();
+
 export default function BlogDetail() {
   const params = useParams();
   const [blog, setBlog] = useState<BlogPost | null>(null);
@@ -253,27 +261,66 @@ export default function BlogDetail() {
 
   // blog_pursed_text の処理を最適化
   useEffect(() => {
+    let isUnmounting = false;
+
     if (typeof window !== 'undefined' && blog?.blog_pursed_text) {
       const processedHtml = processCodeBlocks(blog.blog_pursed_text);
-      setBlog(prev => prev ? { ...prev, blog_pursed_text: processedHtml } : null);
-
-      requestAnimationFrame(() => {
-        document.querySelectorAll('[data-code-block="true"]').forEach((container) => {
-          const code = container.getAttribute('data-code') || '';
-          const language = container.getAttribute('data-language') || '';
+      
+      // 状態更新後にコードブロックをレンダリング
+      setBlog(prev => {
+        if (prev) {
+          const updatedBlog = { ...prev, blog_pursed_text: processedHtml };
           
-          const root = ReactDOM.createRoot(container);
-          root.render(
-            <CodeBlockProvider>
-              <CodeBlock 
-                language={language} 
-                code={code} 
-              />
-            </CodeBlockProvider>
-          );
-        });
+          // DOM更新後にコードブロックを処理
+          setTimeout(() => {
+            if (isUnmounting) return;
+
+            document.querySelectorAll('.code-block-container').forEach((container) => {
+              const code = container.getAttribute('data-code') || '';
+              const language = container.getAttribute('data-language') || '';
+              const containerId = container.getAttribute('data-code-block-id');
+
+              if (!containerId) return;
+
+              if (container.childNodes.length === 0) {
+                let root = codeBlockRoots.get(containerId);
+                if (!root) {
+                  root = ReactDOM.createRoot(container);
+                  codeBlockRoots.set(containerId, root);
+                }
+
+                root.render(
+                  <CodeBlockProvider>
+                    <CodeBlock 
+                      language={language} 
+                      code={code}
+                    />
+                  </CodeBlockProvider>
+                );
+              }
+            });
+          }, 100); // DOMの更新を待つため少し遅延
+
+          return updatedBlog;
+        }
+        return prev;
       });
     }
+
+    return () => {
+      isUnmounting = true;
+      // アンマウント時のクリーンアップ
+      requestAnimationFrame(() => {
+        codeBlockRoots.forEach((root) => {
+          try {
+            root.unmount();
+          } catch (error) {
+            console.error('Error unmounting root:', error);
+          }
+        });
+        codeBlockRoots.clear();
+      });
+    };
   }, [blog?.blog_pursed_text]);
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
@@ -332,6 +379,7 @@ export default function BlogDetail() {
                 [&_.code-block-wrapper]:overflow-hidden
                 [&_.code-block-wrapper_div]:!bg-[#1E1E1E]
                 [&_.code-block-wrapper]:whitespace-pre-wrap"
+              style={{ position: 'relative' }}
             />
           </div>
         </article>
