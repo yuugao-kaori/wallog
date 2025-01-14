@@ -132,7 +132,7 @@ export default function BlogDetail() {
     autoDismiss: boolean = true
   ) => {
     const notificationId = id || Date.now().toString();
-    setNotifications(prev => [...prev.filter(n => n.id !== notificationId), { id: notificationId, message, action }]);
+    setNotifications(prev => [...prev, { id: notificationId, message, action }]);
     
     if (autoDismiss) {
       setTimeout(() => {
@@ -344,7 +344,6 @@ export default function BlogDetail() {
               <p>作成日: {blog && new Date(blog.blog_createat).toLocaleDateString()}</p>
               <p>更新日: {blog && new Date(blog.blog_updateat).toLocaleDateString()}</p>
             </div>
-            <p>閲覧数: {blog?.blog_count}</p>
           </div>
           <hr className="border-2 border-gray-200 dark:border-gray-700 mb-8" />
           <div className="prose dark:prose-invert max-w-none mb-20">
