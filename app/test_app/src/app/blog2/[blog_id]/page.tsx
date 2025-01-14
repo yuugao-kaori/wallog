@@ -102,7 +102,9 @@ const CodeBlock = ({ language, code, onCopy }: {
           padding: '1rem',
           background: '#1E1E1E',
           position: 'relative',
+          fontSize: '1rem',  // フォントサイズを18pxに変更
           zIndex: 1
+          
         }}
         PreTag="div"
       >
@@ -371,10 +373,11 @@ export default function BlogDetail() {
               [&_.syntax-highlighter]:overflow-x-auto
               [&_.syntax-highlighter_pre]:m-0
               [&_.syntax-highlighter_code]:font-mono
-              [&_.syntax-highlighter_code]:text-sm
+              [&_.syntax-highlighter_code]:text-base
               [&_.code-block-wrapper]:my-4
               [&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
               [&_.code-block-wrapper_code]:!text-white
+              [&_.code-block-wrapper_code]:!text-base
               dark:[&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
               [&_.code-block-wrapper]:rounded-lg
               [&_.code-block-wrapper]:overflow-hidden

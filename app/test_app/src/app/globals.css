@@ -8,6 +8,7 @@
     --foreground: 0 0 0;
     --card: 255 255 255;
     --card-foreground: 0 0 0;
+    --code-bg: #f3f4f6;  /* ライトモードでのコードブロック背景色 */
   }
   
   .dark {
@@ -15,6 +16,7 @@
     --foreground: 255 255 255;
     --card: 31 41 55;
     --card-foreground: 255 255 255;
+    --code-bg: #1E1E1E;  /* ダークモードでのコードブロック背景色 */
   }
 }
 
