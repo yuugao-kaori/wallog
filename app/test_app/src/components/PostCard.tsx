@@ -641,9 +641,9 @@ const renderRepostBody = useCallback(() => {
           />
 
           <div>
-            {renderReplyBody()} {/* 返信元投稿を表示 */}
+            {renderReplyBody()} {/* 返信元投稿を表示、「Create at:」の表示*/}
             <div className="text-gray-500 text-sm break-words">
-              Created at: {formatDate(post.post_createat)}
+              {formatDate(post.post_createat)}
             </div>
 
             <div className="mt-2 break-words">
