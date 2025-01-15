@@ -361,6 +361,8 @@ export default function BlogDetail() {
                 [&>blockquote]:italic
                 [&>hr]:border-2
                 [&>hr]:border-gray-200 dark:[&>hr]:border-gray-700 [&>hr]:my-8
+                [&>a]:text-blue-500 [&>a]:underline hover:[&>a]:text-blue-700
+                [&_a]:text-blue-500 [&_a]:underline hover:[&_a]:text-blue-700
                 [&_.syntax-highlighter]:bg-[#1E1E1E] 
                 [&_.syntax-highlighter]:rounded-lg 
                 [&_.syntax-highlighter]:p-4 
