@@ -215,6 +215,11 @@ export default function BlogDetail() {
       window.onerror = (message, source, lineno, colno, error) => {
         if (typeof message === 'string' && message.includes('runtime.lastError')) {
           return true; // エラーを抑制
+        } else if (typeof message === 'string' && (
+          message.includes('Uncaught TypeError: Cannot read property \'then\' of undefined') ||
+          message.includes('Internal React error: Expected static flag was missing')
+        )) {
+          return true; // エラーを抑制
         }
         return originalOnError ? originalOnError(message, source, lineno, colno, error) : false;
       };
