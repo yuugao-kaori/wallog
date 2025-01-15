@@ -209,6 +209,19 @@ export default function BlogDetail() {
   };
 
   useEffect(() => {
+    // Chrome拡張機能のエラーを抑制
+    const suppressChromeError = () => {
+      const originalOnError = window.onerror;
+      window.onerror = (message, source, lineno, colno, error) => {
+        if (typeof message === 'string' && message.includes('runtime.lastError')) {
+          return true; // エラーを抑制
+        }
+        return originalOnError ? originalOnError(message, source, lineno, colno, error) : false;
+      };
+    };
+
+    suppressChromeError();
+    
     const fetchBlog = async () => {
       if (!params.blog_id || Array.isArray(params.blog_id)) {
         setError('無効なブログIDです');
