@@ -368,6 +368,8 @@ export default function BlogDetail() {
                 [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-3
                 [&>ol]:list-decimal [&>ol]:pl-10 [&>ol]:my-4
                 [&>ol>li]:my-2
+                [&>p]:min-h-[1.3em] [&>p:empty]:block [&>p]:mb-1 [&>p]:leading-relaxed
+                [&>p:empty]:h-[1.3em]
                 [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 dark:[&>blockquote]:border-gray-700
                 [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4
                 [&>blockquote]:bg-gray-200 dark:[&>blockquote]:bg-gray-800

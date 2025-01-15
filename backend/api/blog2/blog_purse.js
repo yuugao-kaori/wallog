@@ -162,10 +162,9 @@ export function markdownToHtml(markdown) {
             .replace(/__(.+?)__/g, '<u>$1</u>')
             .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
 
-        // 空行でない場合は段落として処理
-        if (line.length > 0) {
-            html += `<p>${line}</p>\n`;
-        }
+        // 空行またはスペースのみの行も段落として処理
+        html += `<p>${line}</p>\n`;
+
     }
 
     // ファイル終端でまだリストが開いている場合は閉じる
