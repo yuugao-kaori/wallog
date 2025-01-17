@@ -33,6 +33,74 @@ export function markdownToHtml(markdown) {
             .replace(/`/g, '&#96;');  // バッククォートのエスケープを追加
     }
 
+    // YouTube URLを検出する正規表現
+    const YOUTUBE_REGEX = /https?:\/\/(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)|https?:\/\/(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/;
+    
+    // Google Spreadsheet URLを検出する正規表現
+    const SPREADSHEET_REGEX = /https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)(?:\/.*)?/;
+
+    function convertSpreadsheetUrl(url) {
+        const match = url.match(SPREADSHEET_REGEX);
+        if (match) {
+            const spreadsheetId = match[1];
+            return `
+                <div class="spreadsheet-container" style="position: relative; width: 100%; padding-bottom: 56.25%;">
+                    <iframe 
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                        src="https://docs.google.com/spreadsheets/d/${spreadsheetId}/pubhtml?widget=true&amp;headers=false"
+                        frameborder="0">
+                    </iframe>
+                </div>`;
+        }
+        return null;
+    }
+
+    function convertYoutubeUrl(url) {
+        const match = url.match(YOUTUBE_REGEX);
+        if (match) {
+            const videoId = match[1] || match[2];
+            return `
+                <div class="youtube-container" style="position: relative; width: 100%; padding-bottom: 56.25%;">
+                    <iframe 
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                        src="https://www.youtube.com/embed/${videoId}" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                    </iframe>
+                </div>`;
+        }
+        return `<a href="${url}">${url}</a>`;
+    }
+
+    // URLの変換関数を修正
+    function convertUrl(url) {
+        const spreadsheetEmbed = convertSpreadsheetUrl(url);
+        if (spreadsheetEmbed) return spreadsheetEmbed;
+        
+        const youtubeEmbed = convertYoutubeUrl(url);
+        return youtubeEmbed;
+    }
+
+    // iframeタグをレスポンシブ対応にする関数を追加
+    function makeIframeResponsive(iframeHtml) {
+        // すでにコンテナで囲まれているかチェック
+        if (iframeHtml.includes('class="youtube-container"') || 
+            iframeHtml.includes('class="spreadsheet-container"') ||
+            iframeHtml.includes('style="position: relative; width: 100%;')) {
+            return iframeHtml;
+        }
+
+        // iframeタグの属性を取得
+        const iframe = iframeHtml.match(/<iframe[^>]*>/);
+        if (!iframe) return iframeHtml;
+
+        return `
+            <div style="position: relative; width: 100%; padding-bottom: 56.25%;">
+                ${iframeHtml.replace(/<iframe/, '<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"')}
+            </div>`;
+    }
+
     const lines = markdown.split('\n');
     let html = '';
     let inCodeBlock = false;
@@ -51,13 +119,13 @@ export function markdownToHtml(markdown) {
                 // コードブロック開始
                 inCodeBlock = true;
                 const contentAfterStart = line.split('```')[1];
-                html += '<p><pre><code>';
+                html += '<pre><code>';
                 if (matchCount > 1) {
                     // 同じ行に終了タグがある場合
                     const parts = line.split('```');
                     const content = parts[1]; // 開始と終了の間のコンテンツ
                     html += escapeHtml(content);
-                    html += '</code></pre></p>\n';
+                    html += '</code></pre>\n';
                     inCodeBlock = false;
                 } else {
                     // 開始タグのみの場合
@@ -73,7 +141,7 @@ export function markdownToHtml(markdown) {
                 if (contentBeforeEnd) {
                     html += escapeHtml(contentBeforeEnd);
                 }
-                html += '</code></pre></p>\n';
+                html += '</code></pre>\n';
                 continue;
             }
         }
@@ -84,13 +152,18 @@ export function markdownToHtml(markdown) {
             continue;
         }
 
-        // 行全体がHTMLタグの場合はそのまま使用
+        // 行全体がHTMLタグの場合の処理を修正
         if (isHtmlTag(line)) {
             if (inOrderedList) {
                 html += '</ol>\n';
                 inOrderedList = false;
             }
-            html += `${line}\n`;
+            // iframeタグの場合はレスポンシブ対応を適用
+            if (line.includes('<iframe')) {
+                html += `${makeIframeResponsive(line)}\n`;
+            } else {
+                html += `${line}\n`;
+            }
             continue;
         }
 
@@ -154,13 +227,16 @@ export function markdownToHtml(markdown) {
             continue;
         }
 
-        // インライン要素の処理
+        // インライン要素の処理を修正
         line = line
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/~~(.*?)~~/g, '<del>$1</del>')
             .replace(/__(.+?)__/g, '<u>$1</u>')
-            .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
+            .replace(/(https?:\/\/[^\s]+)/g, (match, url) => convertUrl(url))
+            .replace(/<img=([^]+)>/g, (match, fileId) => {
+                return `<img src="https://wallog.seitendan.com/api/drive/file/${fileId}" alt="Image ${fileId}" class="max-w-full h-auto rounded-lg shadow-lg my-4" loading="lazy">`;
+            });
 
         // 空行またはスペースのみの行も段落として処理
         html += `<p>${line}</p>\n`;

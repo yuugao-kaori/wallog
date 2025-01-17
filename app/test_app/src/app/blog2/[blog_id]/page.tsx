@@ -70,12 +70,38 @@ const detectCodeLanguage = (code: string): string => {
   return 'text';
 };
 
+// processCodeBlocks 関数を修正して見出し処理を追加
 const processCodeBlocks = (htmlContent: string) => {
   if (typeof document === 'undefined') return htmlContent;
 
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = htmlContent;
 
+  // 見出し要素にIDを付与
+  const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  headings.forEach((heading) => {
+    const text = heading.textContent || '';
+    // 日本語を含む場合は全体をbase64エンコード
+    if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+      const base64Text = Buffer.from(text).toString('base64');
+      heading.id = `heading-${base64Text.substring(0, 64)}`;
+    } else {
+      // 英数字のみの場合は従来の処理
+      const normalized = text.normalize('NFKD');
+      const baseId = normalized
+        .replace(/[^\w\s\-]/g, '')
+        .replace(/[\s\u3000]+/g, '-')
+        .replace(/[^\w\-]/g, '')
+        .toLowerCase()
+        .replace(/--+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      heading.id = baseId || `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
+    }
+    heading.setAttribute('style', 'scroll-margin-top: 80px');
+  });
+
+  // 既存のコードブロック処理
   const codeBlocks = tempDiv.querySelectorAll('pre code');
   let blockCounter = 0;
   
@@ -115,6 +141,13 @@ interface NotificationItem {
 // コードブロックのルートを管理するMapを追加
 const codeBlockRoots = new Map();
 
+// TableOfContentsItem インターフェースを追加
+interface TableOfContentsItem {
+  id: string;
+  level: number;
+  text: string;
+}
+
 export default function BlogDetail() {
   const params = useParams();
   const [blog, setBlog] = useState<BlogPost | null>(null);
@@ -124,6 +157,7 @@ export default function BlogDetail() {
   const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
   const [editData, setEditData] = useState<BlogPost | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [toc, setToc] = useState<TableOfContentsItem[]>([]); // 目次の状態を追加
 
   const addNotification = useCallback((
     message: string,
@@ -271,6 +305,95 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
+  // generateId 関数を追加
+  const generateId = useCallback((text: string): string => {
+    if (!text) return '';
+    
+    // 日本語を含む場合は全体をbase64エンコード
+    if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+      const base64Text = Buffer.from(text).toString('base64');
+      return `heading-${base64Text.substring(0, 64)}`;
+    }
+
+    // 英数字のみの場合は従来の処理
+    const normalized = text.normalize('NFKD');
+    const baseId = normalized
+      .replace(/[^\w\s\-]/g, '')
+      .replace(/[\s\u3000]+/g, '-')
+      .replace(/[^\w\-]/g, '')
+      .toLowerCase()
+      .replace(/--+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return baseId || `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
+  }, []);
+
+  // 目次を生成する関数を追加
+  // generateToc 関数を修正
+  const generateToc = useCallback((text: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+    const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const newToc: TableOfContentsItem[] = [];
+
+    headings.forEach((heading) => {
+      const text = heading.textContent || '';
+      const level = parseInt(heading.tagName[1]);
+      
+      // 日本語を含む場合は全体をbase64エンコード
+      let baseId;
+      if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+        const base64Text = Buffer.from(text).toString('base64');
+        baseId = `heading-${base64Text.substring(0, 64)}`;
+      } else {
+        // 英数字のみの場合は従来の処理
+        const normalized = text.normalize('NFKD');
+        baseId = normalized
+          .replace(/[^\w\s\-]/g, '')
+          .replace(/[\s\u3000]+/g, '-')
+          .replace(/[^\w\-]/g, '')
+          .toLowerCase()
+          .replace(/--+/g, '-')
+          .replace(/^-+|-+$/g, '');
+
+        if (!baseId || baseId === '-') {
+          const base64Text = Buffer.from(text).toString('base64');
+          baseId = `heading-${base64Text.substring(0, 64)}`;
+        }
+      }
+
+      newToc.push({ id: baseId, level, text });
+    });
+    
+    setToc(newToc);
+  }, []);
+
+  // ブログデータ取得後に目次を生成
+  // ブログデータ取得後の目次生成を修正
+  useEffect(() => {
+    if (blog?.blog_pursed_text) {
+      generateToc(blog.blog_pursed_text);
+    }
+  }, [blog?.blog_pursed_text, generateToc]);
+
+  // 目次クリック時のスクロール処理を追加
+  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    if (!id) return;
+    
+    const element = document.getElementById(id);
+    if (element) {
+      const headerOffset = 80;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   // ポップアップを開く時に編集用データを初期化
   const handleEditClick = () => {
     setEditData(blog ? { ...blog } : null);
@@ -347,8 +470,9 @@ export default function BlogDetail() {
 
   return (
     <CodeBlockProvider>
-      <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen">
-        <article className="max-w-4xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
+      <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
+        {/* 記事本文のコンテナ */}
+        <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
           {blog?.blog_thumbnail && (
             <img
               src={blog.blog_thumbnail}
@@ -404,6 +528,29 @@ export default function BlogDetail() {
             />
           </div>
         </article>
+
+        {/* 目次サイドバーを追加 */}
+        <div className="hidden lg:block fixed right-0 top-0 bottom-0 w-48 bg-white dark:bg-neutral-900 shadow-lg border-l border-gray-200 dark:border-gray-700">
+          <div className="sticky top-1/2 transform -translate-y-1/2 p-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
+            <h2 className="text-xl font-bold mb-4 dark:text-white">目次</h2>
+            <nav className="space-y-2">
+              {toc.map((item, index) => (
+                <a
+                  key={index}
+                  href={`#${item.id}`}
+                  onClick={(e) => handleTocClick(e, item.id)}
+                  className={`
+                    block text-gray-600 dark:text-gray-400 hover:text-blue-500 
+                    transition-colors duration-200 cursor-pointer
+                    ${item.level === 1 ? 'ml-0' : `ml-${(item.level - 1) * 2}`}
+                  `}
+                >
+                  {item.text}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </div>
 
         {isLoggedIn && (
           <button
