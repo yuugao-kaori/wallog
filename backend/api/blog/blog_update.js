@@ -6,7 +6,8 @@ import pkg from 'pg';
 const { Client } = pkg;
 const router = express.Router();
 const app = express();
-
+import { markdownToHtml } from './blog_purse.js';
+import { extractDescriptionFromHtml } from './blog_helper.js';
 
 // Redisクライアント作成
 const redis = new Redis({
@@ -55,30 +56,38 @@ async function updateBlog(blogId, blogData, userId) {
       throw new Error('Unauthorized to update this blog');
     }
 
+    // ブログテキストをパース
+    const parsedText = markdownToHtml(blogData.blog_text);
+    const description = extractDescriptionFromHtml(parsedText);
+
     // ブログ記事の更新
     const updateQuery = `
       UPDATE blog 
       SET 
         blog_title = $1,
         blog_text = $2,
-        blog_tag = $3,
+        blog_pursed_text = $3,
+        blog_tag = $4,
         blog_updateat = CURRENT_TIMESTAMP,
-        blog_file = $4,
-        blog_thumbnail = $5,
-        blog_attitude = $6,
-        blog_fixedurl = $7
-      WHERE blog_id = $8
+        blog_file = $5,
+        blog_thumbnail = $6,
+        blog_attitude = $7,
+        blog_fixedurl = $8,
+        blog_description = $9
+      WHERE blog_id = $10
       RETURNING *;
     `;
 
     const updateValues = [
       blogData.blog_title,
       blogData.blog_text,
+      parsedText,
       blogData.blog_tag,
       blogData.blog_file,
       blogData.blog_thumbnail,
       blogData.blog_attitude || 1,
       blogData.blog_fixedurl,
+      description,
       blogId
     ];
 

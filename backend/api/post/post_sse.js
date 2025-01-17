@@ -24,6 +24,7 @@ client.connect().then(() => {
 const router = express.Router();
 
 const getNewPosts = async () => {
+    console.log('新しいポストを取得しています...');
     const query = `
         WITH base_posts AS (
             SELECT post_id, user_id, post_text, post_createat, post_updateat, 
@@ -39,8 +40,8 @@ const getNewPosts = async () => {
                 'post_id', rp.post_id,
                 'user_id', rp.user_id,
                 'post_text', rp.post_text,
-                'post_createat', rp.post_createat,
-                'post_updateat', rp.post_updateat,
+                'post_createat', rp.post_createat AT TIME ZONE 'UTC',
+                'post_updateat', rp.post_updateat AT TIME ZONE 'UTC',
                 'post_tag', rp.post_tag,
                 'post_file', rp.post_file,
                 'post_attitude', rp.post_attitude
@@ -49,8 +50,8 @@ const getNewPosts = async () => {
                 'post_id', reply.post_id,
                 'user_id', reply.user_id,
                 'post_text', reply.post_text,
-                'post_createat', reply.post_createat,
-                'post_updateat', reply.post_updateat,
+                'post_createat', reply.post_createat AT TIME ZONE 'UTC',
+                'post_updateat', reply.post_updateat AT TIME ZONE 'UTC',
                 'post_tag', reply.post_tag,
                 'post_file', reply.post_file,
                 'post_attitude', reply.post_attitude
@@ -60,6 +61,7 @@ const getNewPosts = async () => {
         LEFT JOIN post reply ON bp.reply_grant_id = reply.post_id;
     `;
     const res = await client.query(query);
+    console.log(`${res.rows.length}件の新しいポストをDBから取得しました`);
     return res.rows.map(post => {
         if (post.post_file === '{""}') {
             delete post.post_file;
@@ -91,7 +93,7 @@ router.get('/post_sse', async (req, res) => {
     await client.query('LISTEN post_updates');
 
     req.on('close', () => {
-        console.log('SSE接��が閉じられました');
+        console.log('SSE接続が閉じられました');
         clearInterval(keepAliveInterval);
         client.removeListener('notification', listener);
         res.end();

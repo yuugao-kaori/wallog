@@ -1,25 +1,28 @@
 'use client';
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'; // useCallback を追加
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
 import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
-import remarkBreaks from 'remark-breaks';
-import { parse } from 'papaparse';
-import { visit } from 'unist-util-visit';
-import rehypeRaw from 'rehype-raw'; // 追加
-import remarkGfm from 'remark-gfm'; // 追加
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import ReactDOMServer from 'react-dom/server';
+import ReactDOM from 'react-dom/client';
+import NotificationComponent from '@/components/Notification';
+import { CodeBlock } from '@/components/CodeBlock';
+import { CodeBlockProvider } from '@/contexts/CodeBlockContext';
 
 interface BlogPost {
   blog_id: number;
   blog_title: string;
   blog_text: string;
+  blog_pursed_text: string;  // 追加
   blog_thumbnail: string;
   blog_createat: string;
   blog_updateat: string;
   blog_count: number;
   blog_file: string;
   blog_fixedurl: string;
+  blog_description?: string;  // Optional description field
 }
 
 interface ErrorResponse {
@@ -27,6 +30,116 @@ interface ErrorResponse {
   message: string;
   status: number;
 }
+
+const detectCodeLanguage = (code: string): string => {
+  // Python の特徴的なパターン
+  if (code.includes('print(') || 
+      code.includes('def ') || 
+      code.includes('import ') || 
+      code.match(/:\s*$/m)) {
+    console.log('コードパターン検出: Python');
+    return 'python';
+  }
+  
+  // JavaScript の特徴的なパターン
+  if (code.includes('function ') || 
+      code.includes('const ') || 
+      code.includes('let ') || 
+      code.includes('var ') ||
+      code.includes('=>') ||
+      code.includes('console.log(')) {
+    console.log('コードパターン検出: JavaScript');
+    return 'javascript';
+  }
+
+  if (code.includes('services:') || 
+      code.includes('environment:') || 
+      code.includes('volumes:') || 
+      code.includes('ports:') ){
+      console.log('コードパターン検出: Docker');
+      return 'docker';
+  }
+
+  if (code.includes('sudo ') || 
+      code.includes(' && ') ){
+      console.log('コードパターン検出: bash');
+      return 'bash';
+    }
+  
+  console.log('コードパターン検出: 不明なため text として処理');
+  return 'text';
+};
+
+// processCodeBlocks 関数を修正して見出し処理を追加
+const processCodeBlocks = (htmlContent: string) => {
+  if (typeof document === 'undefined') return htmlContent;
+
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+
+  // 見出し要素にIDを付与
+  const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  headings.forEach((heading) => {
+    const text = heading.textContent || '';
+    // 日本語を含む場合は全体をbase64エンコード
+    if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+      const base64Text = Buffer.from(text).toString('base64');
+      heading.id = `heading-${base64Text.substring(0, 64)}`;
+    } else {
+      // 英数字のみの場合は従来の処理
+      const normalized = text.normalize('NFKD');
+      const baseId = normalized
+        .replace(/[^\w\s\-]/g, '')
+        .replace(/[\s\u3000]+/g, '-')
+        .replace(/[^\w\-]/g, '')
+        .toLowerCase()
+        .replace(/--+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      heading.id = baseId || `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
+    }
+    heading.setAttribute('style', 'scroll-margin-top: 80px');
+  });
+
+  // 既存のコードブロック処理
+  const codeBlocks = tempDiv.querySelectorAll('pre code');
+  let blockCounter = 0;
+  
+  codeBlocks.forEach((block) => {
+    const language = block.className;
+    const decodedCode = block.innerHTML
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    const container = document.createElement('div');
+    const containerId = `code-block-${Date.now()}-${blockCounter++}`;
+    container.setAttribute('data-code-block', 'true');
+    container.setAttribute('data-code-block-id', containerId);
+    container.setAttribute('data-code', decodedCode.trim());
+    container.setAttribute('data-language', language);
+    container.className = 'code-block-container';
+
+    const preElement = block.parentElement;
+    if (preElement?.parentElement) {
+      preElement.parentElement.replaceChild(container, preElement);
+    }
+  });
+
+  return tempDiv.innerHTML;
+};
+
+// ������������定義に NotificationItem を追加
+interface NotificationItem {
+  id: string;
+  message: string;
+  action?: { label: string; onClick: () => void }; // 追加
+}
+
+// コードブロックのルートを管理するMapを追加
+const codeBlockRoots = new Map();
 
 // TableOfContentsItem インターフェースを追加
 interface TableOfContentsItem {
@@ -43,8 +156,29 @@ export default function BlogDetail() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
   const [editData, setEditData] = useState<BlogPost | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toc, setToc] = useState<TableOfContentsItem[]>([]); // 目次の状態を追加
 
+  const addNotification = useCallback((
+    message: string,
+    action?: { label: string; onClick: () => void },
+    id?: string,
+    autoDismiss: boolean = true
+  ) => {
+    const notificationId = id || Date.now().toString();
+    setNotifications(prev => [...prev, { id: notificationId, message, action }]);
+    
+    if (autoDismiss) {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      }, 5000);
+    }
+  }, []);
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
+  
   const api = useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',
     headers: {
@@ -109,6 +243,24 @@ export default function BlogDetail() {
   };
 
   useEffect(() => {
+    // Chrome拡張機能のエラーを抑制
+    const suppressChromeError = () => {
+      const originalOnError = window.onerror;
+      window.onerror = (message, source, lineno, colno, error) => {
+        if (typeof message === 'string' && message.includes('runtime.lastError')) {
+          return true; // エラーを抑制
+        } else if (typeof message === 'string' && (
+          message.includes('Uncaught TypeError: Cannot read property \'then\' of undefined') ||
+          message.includes('Internal React error: Expected static flag was missing')
+        )) {
+          return true; // エラーを抑制
+        }
+        return originalOnError ? originalOnError(message, source, lineno, colno, error) : false;
+      };
+    };
+
+    suppressChromeError();
+    
     const fetchBlog = async () => {
       if (!params.blog_id || Array.isArray(params.blog_id)) {
         setError('無効なブログIDです');
@@ -153,167 +305,19 @@ export default function BlogDetail() {
     fetchBlog();
   }, [params.blog_id]);
 
-  // ポップアップを開く時に編集用データを初期化
-  const handleEditClick = () => {
-    setEditData(blog ? { ...blog } : null);
-    setIsEditPopupOpen(true);
-  };
-
-  function remarkCsv() {
-    return (tree: any) => {
-      visit(tree, 'paragraph', (node: any) => {
-        if (!node.children?.length) return;
-
-        const fullText = node.children
-          .map((child: any) => child.value || '')
-          .join('\n'); // 改行を追加
-
-        const regex = /<csv=([\s\S]*?)>/;
-        const match = fullText.match(regex);
-
-        if (match) {
-          const csvContent = match[1].trim();
-          
-          try {
-            // 改行を統一し、末尾の改行を確実に追加
-            const normalizedContent = csvContent
-              .replace(/\r\n/g, '\n')
-              .replace(/\r/g, '\n')
-              .trim();
-
-            console.log('Normalized CSV:', normalizedContent);
-
-            const results = parse(normalizedContent, { 
-              header: true,
-              skipEmptyLines: true,
-              delimiter: ',',
-              transformHeader: (header) => header.trim()
-            });
-
-            if (!results.meta || !results.data) {
-              throw new Error('パースに失敗しました');
-            }
-
-            const parsed = results;
-
-            // より詳細なデバッグ情報
-            console.log('Parse Details:', {
-              fields: parsed.meta.fields,
-              dataLength: parsed.data.length,
-              firstRow: parsed.data[0],
-            });
-
-            // デバッグ用ログを追加
-            console.log('Parsed Fields:', parsed.meta.fields);
-            console.log('Parsed Data:', parsed.data);
-
-            if (!parsed.meta.fields || parsed.meta.fields.length === 0) {
-              throw new Error('ヘッダーが見つかりません');
-            }
-
-            // フィルタリングを緩和
-            const validData = parsed.data; // フィルタを削除
-
-            if (validData.length === 0) {
-              throw new Error('有効なデータが見つかりません');
-            }
-
-            const tableHtml = generateTableHtml(parsed.meta.fields, validData as Record<string, string>[]);
-            node.type = 'html';
-            node.value = tableHtml;
-
-          } catch (error) {
-            console.error('CSV parsing details:', {
-              originalContent: csvContent,
-              error: error
-            });
-            
-            node.type = 'paragraph';
-            node.children = [{
-              type: 'text',
-              value: `CSV Parse Error: ${error instanceof Error ? error.message : 'パース失敗'}`
-            }];
-          }
-        }
-      });
-    };
-  }
-
-  // カスタム画像タグを検出してHTMLノードとして挿入するremarkプラグインに修正
-  function remarkCustomImg() {
-    return (tree: any) => {
-      visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
-        const regex = /<img=([\w.-]+)>/g;
-        let match;
-        let lastIndex = 0;
-        const newNodes: any[] = [];
-
-        while ((match = regex.exec(node.value)) !== null) {
-          const [fullMatch, filename] = match;
-          const imageUrl = `/api/drive/file/${filename}`;
-
-          // テキストの前半部分を追加
-          if (match.index > lastIndex) {
-            newNodes.push({
-              type: 'text',
-              value: node.value.substring(lastIndex, match.index),
-            });
-          }
-
-          // HTMLノードとして<img>タグを追加
-          newNodes.push({
-            type: 'html',
-            value: `<img src="${imageUrl}" alt="${filename}" />`,
-          });
-
-          lastIndex = regex.lastIndex;
-        }
-
-        // テキストの後半部分を追加
-        if (lastIndex < node.value.length) {
-          newNodes.push({
-            type: 'text',
-            value: node.value.substring(lastIndex),
-          });
-        }
-
-        // 新しいノードを親に挿入
-        if (newNodes.length > 0) {
-          parent.children.splice(index, 1, ...newNodes);
-        }
-      });
-    };
-  }
-
-  function generateTableHtml(headers: string[], rows: Record<string, string>[]) {
-    const headerHtml = headers.map(header => `<th class="border border-gray-300 px-4 py-2 bg-gray-100 dark:bg-gray-700">${header}</th>`).join('');
-    const rowsHtml = rows
-      .map(row => 
-        `<tr>${headers.map(header => 
-          `<td class="border border-gray-300 px-4 py-2">${row[header] || ''}</td>`
-        ).join('')}</tr>`
-      )
-      .join('');
-
-    return `
-      <div class="overflow-x-auto my-4">
-        <table class="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr>${headerHtml}</tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
   // generateId 関数を追加
   const generateId = useCallback((text: string): string => {
     if (!text) return '';
+    
+    // 日本語を含む場合は全体をbase64エンコード
+    if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+      const base64Text = Buffer.from(text).toString('base64');
+      return `heading-${base64Text.substring(0, 64)}`;
+    }
+
+    // 英数字のみの場合は従来の処理
     const normalized = text.normalize('NFKD');
-    let baseId = normalized
+    const baseId = normalized
       .replace(/[^\w\s\-]/g, '')
       .replace(/[\s\u3000]+/g, '-')
       .replace(/[^\w\-]/g, '')
@@ -321,110 +325,56 @@ export default function BlogDetail() {
       .replace(/--+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    if (!baseId || baseId === '-') {
-      baseId = `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
-    }
-
-    return baseId;
+    return baseId || `heading-${Buffer.from(text).toString('base64').substring(0, 64)}`;
   }, []);
 
   // 目次を生成する関数を追加
-  const generateToc = useCallback((markdownText: string) => {
-    const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+  // generateToc 関数を修正
+  const generateToc = useCallback((text: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+    const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const newToc: TableOfContentsItem[] = [];
-    let match;
 
-    while ((match = headingRegex.exec(markdownText)) !== null) {
-      const level = match[1].length;
-      const text = match[2].trim();
-      const id = generateId(text);
-      newToc.push({ id, level, text });
-    }
+    headings.forEach((heading) => {
+      const text = heading.textContent || '';
+      const level = parseInt(heading.tagName[1]);
+      
+      // 日本語を含む場合は全体をbase64エンコード
+      let baseId;
+      if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text)) {
+        const base64Text = Buffer.from(text).toString('base64');
+        baseId = `heading-${base64Text.substring(0, 64)}`;
+      } else {
+        // 英数字のみの場合は従来の処理
+        const normalized = text.normalize('NFKD');
+        baseId = normalized
+          .replace(/[^\w\s\-]/g, '')
+          .replace(/[\s\u3000]+/g, '-')
+          .replace(/[^\w\-]/g, '')
+          .toLowerCase()
+          .replace(/--+/g, '-')
+          .replace(/^-+|-+$/g, '');
+
+        if (!baseId || baseId === '-') {
+          const base64Text = Buffer.from(text).toString('base64');
+          baseId = `heading-${base64Text.substring(0, 64)}`;
+        }
+      }
+
+      newToc.push({ id: baseId, level, text });
+    });
     
     setToc(newToc);
-  }, [generateId]);
-
-  // ReactMarkdown のコンポーネント設定を更新
-  const markdownComponents = useMemo(() => ({
-    h1: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h1 id={id} style={{ scrollMarginTop: '80px' }} className="text-3xl font-bold mt-6 mb-4" {...props}>{children}</h1>;
-    },
-    h2: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h2 id={id} style={{ scrollMarginTop: '80px' }} className="text-2xl font-bold mt-5 mb-3" {...props}>{children}</h2>;
-    },
-    h3: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h3 id={id} style={{ scrollMarginTop: '80px' }} className="text-xl font-bold mt-4 mb-2" {...props}>{children}</h3>;
-    },
-    h4: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h4 id={id} style={{ scrollMarginTop: '80px' }} className="text-lg font-bold mt-3 mb-2" {...props}>{children}</h4>;
-    },
-    h5: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h5 id={id} style={{ scrollMarginTop: '80px' }} className="text-base font-bold mt-2 mb-1" {...props}>{children}</h5>;
-    },
-    h6: ({children, ...props}: React.HTMLProps<HTMLHeadingElement>) => {
-      const id = generateId(String(children));
-      return <h6 id={id} style={{ scrollMarginTop: '80px' }} className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h6>;
-    },
-    // リスト関連のコンポーネントを修正
-    ul: ({children, ...props}: React.DetailedHTMLProps<React.HTMLAttributes<HTMLUListElement>, HTMLUListElement>) => (
-      <ul className="list-disc list-inside my-4" {...props}>{children}</ul>
-    ),
-    ol: ({children, ...props}: React.DetailedHTMLProps<React.OlHTMLAttributes<HTMLOListElement>, HTMLOListElement>) => (
-      <ol className="list-decimal list-inside my-4" {...props}>{children}</ol>
-    ),
-    // 引用のコンポーネントを追加
-    blockquote: ({children, ...props}: React.HTMLProps<HTMLQuoteElement>) => (
-      <blockquote className="border-l-4 border-gray-300 pl-4 my-4 italic" {...props}>{children}</blockquote>
-    ),
-    // インラインコードのコンポーネントを追加
-    code: ({inline, className, children, ...props}: any) => {
-      const match = /language-(\w+)/.exec(className || '');
-      return !inline && match ? (
-        // コードブロック用
-        <div className="not-prose">
-          <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded">
-            <code className={className} {...props}>
-              {children}
-            </code>
-          </pre>
-        </div>
-      ) : (
-        // インラインコード用
-        <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded" {...props}>
-          {children}
-        </code>
-      );
-    },
-    // preタグをカスタマイズ
-    pre: ({children, ...props}: React.HTMLProps<HTMLPreElement>) => (
-      <div className="not-prose">
-        <pre {...props}>{children}</pre>
-      </div>
-    ),
-    // 水平線のコンポーネントを追加
-    hr: () => <hr className="my-8 border-t border-gray-300 dark:border-gray-700" />,
-    strong: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => <strong {...props}>{children}</strong>, // strong を太字に戻す
-    a: ({children, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <a
-        {...props}
-        className="text-blue-500 underline"
-      >
-        {children}
-      </a>
-    ),
-  }), [generateId]);
+  }, []);
 
   // ブログデータ取得後に目次を生成
+  // ブログデータ取得後の目次生成を修正
   useEffect(() => {
-    if (blog?.blog_text) {
-      generateToc(blog.blog_text);
+    if (blog?.blog_pursed_text) {
+      generateToc(blog.blog_pursed_text);
     }
-  }, [blog?.blog_text, generateToc]);
+  }, [blog?.blog_pursed_text, generateToc]);
 
   // 目次クリック時のスクロール処理を追加
   const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -433,7 +383,7 @@ export default function BlogDetail() {
     
     const element = document.getElementById(id);
     if (element) {
-      const headerOffset = 80; // ヘッダーの高さに応じて調整
+      const headerOffset = 80;
       const elementPosition = element.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
 
@@ -444,126 +394,192 @@ export default function BlogDetail() {
     }
   };
 
-  // remarkUnderline 関数を修正して、++テキスト++ を下線に変換
-  function remarkUnderline() {
-    return (tree: any) => {
-      visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
-        const regex = /\+\+(.*?)\+\+/g; // __ から ++ に変更
-        let match;
-        let lastIndex = 0;
-        const newNodes: any[] = [];
+  // ポップアップを開く時に編集用データを初期化
+  const handleEditClick = () => {
+    setEditData(blog ? { ...blog } : null);
+    setIsEditPopupOpen(true);
+  };
 
-        while ((match = regex.exec(node.value)) !== null) {
-          if (match.index > lastIndex) {
-            newNodes.push({
-              type: 'text',
-              value: node.value.substring(lastIndex, match.index),
+  // blog_pursed_text の処理を最適化
+  useEffect(() => {
+    let isUnmounting = false;
+
+    if (typeof window !== 'undefined' && blog?.blog_pursed_text) {
+      const processedHtml = processCodeBlocks(blog.blog_pursed_text);
+      
+      // 状態更新後にコードブロックをレンダリング
+      setBlog(prev => {
+        if (prev) {
+          const updatedBlog = { ...prev, blog_pursed_text: processedHtml };
+          
+          // DOM更新後にコードブロックを処理
+          setTimeout(() => {
+            if (isUnmounting) return;
+
+            document.querySelectorAll('.code-block-container').forEach((container) => {
+              const code = container.getAttribute('data-code') || '';
+              const language = container.getAttribute('data-language') || '';
+              const containerId = container.getAttribute('data-code-block-id');
+
+              if (!containerId) return;
+
+              if (container.childNodes.length === 0) {
+                let root = codeBlockRoots.get(containerId);
+                if (!root) {
+                  root = ReactDOM.createRoot(container);
+                  codeBlockRoots.set(containerId, root);
+                }
+
+                root.render(
+                  <CodeBlockProvider>
+                    <CodeBlock 
+                      language={language} 
+                      code={code}
+                    />
+                  </CodeBlockProvider>
+                );
+              }
             });
+          }, 100); // DOMの更新を待つため少し遅延
+
+          return updatedBlog;
+        }
+        return prev;
+      });
+    }
+
+    return () => {
+      isUnmounting = true;
+      // アンマウント時のクリーンアップ
+      requestAnimationFrame(() => {
+        codeBlockRoots.forEach((root) => {
+          try {
+            root.unmount();
+          } catch (error) {
+            console.error('Error unmounting root:', error);
           }
-          newNodes.push({
-            type: 'html',
-            value: `<u>${match[1]}</u>`,
-          });
-          lastIndex = match.index + match[0].length;
-        }
-
-        if (lastIndex < node.value.length) {
-          newNodes.push({
-            type: 'text',
-            value: node.value.substring(lastIndex),
-          });
-        }
-
-        if (newNodes.length > 0) {
-          parent.children.splice(index, 1, ...newNodes);
-        }
+        });
+        codeBlockRoots.clear();
       });
     };
-  }
+  }, [blog?.blog_pursed_text]);
 
   if (loading) return <div className="ml-48 p-4">Loading...</div>;
   if (error) return <div className="ml-48 p-4 text-red-500">{error}</div>;
   if (!blog) return <div className="ml-48 p-4">ブログが見つかりません</div>;
 
   return (
-    <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
-      {/* 記事本文のコンテナ */}
-      <article className="max-w-4xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
-        {blog.blog_thumbnail && (
-          <img
-            src={blog.blog_thumbnail}
-            alt={blog.blog_title}
-            className="w-full h-96 object-cover mb-8 rounded-lg"
-          />
-        )}
-        <h1 className="text-4xl font-bold mb-6 dark:text-white">{blog.blog_title}</h1>
-        <div className="flex justify-between items-center text-gray-600 dark:text-gray-400 mb-8">
-          <div>
-            <p>作成日: {new Date(blog.blog_createat).toLocaleDateString()}</p>
-            <p>更新日: {new Date(blog.blog_updateat).toLocaleDateString()}</p>
+    <CodeBlockProvider>
+      <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
+        {/* 記事本文のコンテナ */}
+        <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
+          {blog?.blog_thumbnail && (
+            <img
+              src={blog.blog_thumbnail}
+              alt={blog.blog_title}
+              className="w-full h-96 object-cover mb-8 rounded-lg"
+            />
+          )}
+          <h1 className="text-4xl font-bold mb-6 dark:text-white">{blog?.blog_title}</h1>
+          <div className="flex justify-between items-center text-gray-600 dark:text-gray-400 mb-8">
+            <div>
+              <p>作成日: {blog && new Date(blog.blog_createat).toLocaleDateString()}</p>
+              <p>更新日: {blog && new Date(blog.blog_updateat).toLocaleDateString()}</p>
+            </div>
           </div>
-          <p>閲覧数: {blog.blog_count}</p>
+          <hr className="border-2 border-gray-200 dark:border-gray-700 mb-8" />
+          <div className="prose dark:prose-invert max-w-none mb-20">
+            <div 
+              dangerouslySetInnerHTML={{ __html: blog?.blog_pursed_text || '' }}
+              className="markdown-body 
+                [&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mt-6 [&>h1]:mb-4 [&>h1]:pb-3 [&>h1]:border-b [&>h1]:border-gray-200 dark:[&>h1]:border-gray-700
+                [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-5 [&>h2]:mb-4 [&>h2]:pb-2 [&>h2]:border-b [&>h2]:border-gray-200 dark:[&>h2]:border-gray-700
+                [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-3
+                [&>ol]:list-decimal [&>ol]:pl-10 [&>ol]:my-4
+                [&>ol>li]:my-2
+                [&>p]:min-h-[1.3em] [&>p:empty]:block [&>p]:mb-1 [&>p]:leading-relaxed
+                [&>p:empty]:h-[1.3em]
+                [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 dark:[&>blockquote]:border-gray-700
+                [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4
+                [&>blockquote]:bg-gray-200 dark:[&>blockquote]:bg-gray-800
+                [&>blockquote]:italic
+                [&>hr]:border-2
+                [&>hr]:border-gray-200 dark:[&>hr]:border-gray-700 [&>hr]:my-8
+                [&>a]:text-blue-500 [&>a]:underline hover:[&>a]:text-blue-700
+                [&_a]:text-blue-500 [&_a]:underline hover:[&_a]:text-blue-700
+                [&_.syntax-highlighter]:bg-[#1E1E1E] 
+                [&_.syntax-highlighter]:rounded-lg 
+                [&_.syntax-highlighter]:p-4 
+                [&_.syntax-highlighter]:my-4 
+                [&_.syntax-highlighter]:overflow-x-auto
+                [&_.syntax-highlighter_pre]:m-0
+                [&_.syntax-highlighter_code]:font-mono
+                [&_.syntax-highlighter_code]:text-base
+                [&_.code-block-wrapper]:my-4
+                [&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
+                [&_.code-block-wrapper_code]:!text-white
+                [&_.code-block-wrapper_code]:!text-base
+                dark:[&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
+                [&_.code-block-wrapper]:rounded-lg
+                [&_.code-block-wrapper]:overflow-hidden
+                [&_.code-block-wrapper_div]:!bg-[#1E1E1E]
+                [&_.code-block-wrapper]:whitespace-pre-wrap"
+              style={{ position: 'relative' }}
+            />
+          </div>
+        </article>
+
+        {/* 目次サイドバーを追加 */}
+        <div className="hidden lg:block fixed right-0 top-0 bottom-0 w-48 bg-white dark:bg-neutral-900 shadow-lg border-l border-gray-200 dark:border-gray-700">
+          <div className="sticky top-1/2 transform -translate-y-1/2 p-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
+            <h2 className="text-xl font-bold mb-4 dark:text-white">目次</h2>
+            <nav className="space-y-2">
+              {toc.map((item, index) => (
+                <a
+                  key={index}
+                  href={`#${item.id}`}
+                  onClick={(e) => handleTocClick(e, item.id)}
+                  className={`
+                    block text-gray-600 dark:text-gray-400 hover:text-blue-500 
+                    transition-colors duration-200 cursor-pointer
+                    ${item.level === 1 ? 'ml-0' : `ml-${(item.level - 1) * 2}`}
+                  `}
+                >
+                  {item.text}
+                </a>
+              ))}
+            </nav>
+          </div>
         </div>
-        <hr className="border-t border-gray-200 dark:border-gray-700 mb-8" />
-        <div className="prose dark:prose-invert max-w-none mb-20 whitespace-pre-line leading-none"> {/* leading-tight を追加 */}
-          <ReactMarkdown
-            remarkPlugins={[remarkBreaks, remarkUnderline, remarkGfm, remarkCsv, remarkCustomImg]} // remarkBreaks を最初に移動
-            rehypePlugins={[rehypeRaw]}
-            components={markdownComponents}
+
+        {isLoggedIn && (
+          <button
+            onClick={handleEditClick}
+            className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg"
           >
-            {blog.blog_text}
-          </ReactMarkdown>
-        </div>
-      </article>
+            編集
+          </button>
+        )}
+        <BlogFormPopup
+          isOpen={isEditPopupOpen}
+          onClose={() => setIsEditPopupOpen(false)}
+          blogData={editData ? {
 
-      {/* 目次サイドバーを追加 */}
-      <div className="hidden lg:block fixed right-0 top-0 bottom-0 w-48 bg-white dark:bg-neutral-900 shadow-lg border-l border-gray-200 dark:border-gray-700">
-        <div className="sticky top-1/2 transform -translate-y-1/2 p-4 max-h-[60vh] overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4 dark:text-white">目次</h2>
-          <nav className="space-y-2">
-            {toc.map((item, index) => (
-              <a
-                key={index}
-                href={`#${item.id}`}
-                onClick={(e) => handleTocClick(e, item.id)}
-                className={`
-                  block text-gray-600 dark:text-gray-400 hover:text-blue-500 
-                  transition-colors duration-200 cursor-pointer
-                  ${item.level === 1 ? 'ml-0' : `ml-${(item.level - 1) * 2}`}
-                `}
-              >
-                {item.text}
-              </a>
-            ))}
-          </nav>
-        </div>
+            ...editData, 
+            blog_id: String(editData.blog_id)
+          } : {
+            blog_title: '',
+            blog_text: '',
+            blog_file: '',
+            blog_thumbnail: '',
+            blog_id: ''
+          }}
+          onInputChange={handleInputChange}
+          onSubmit={handleSubmit}
+          mode="edit"
+        />
       </div>
-
-      {isLoggedIn && (
-        <button
-          onClick={handleEditClick}
-          className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg"
-        >
-          編集
-        </button>
-      )}
-      <BlogFormPopup
-        isOpen={isEditPopupOpen}
-        onClose={() => setIsEditPopupOpen(false)}
-        blogData={editData ? {
-          ...editData, 
-          blog_id: String(editData.blog_id)
-        } : {
-          blog_title: '',
-          blog_text: '',
-          blog_file: '',
-          blog_thumbnail: '',
-          blog_id: ''
-        }}
-        onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        mode="edit"
-      />
-    </div>
+    </CodeBlockProvider>
   );
 }
+

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import SiteSettings from '@/components/site_settings';
 import UserSettings from '@/components/user_settings';
 import StickyNote from '@/components/sticky_note';
+import LogView from '@/components/log_view';
 
 interface Setting {
     settings_key: string;
@@ -31,7 +32,13 @@ export default function SettingsPage() {
     // 設定を読み込む
     const fetchSettings = async () => {
         try {
-            const response = await fetch('/api/settings/settings_read');
+            const response = await fetch('/api/settings/settings_read', {
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                },
+                cache: 'no-store'
+            });
             if (!response.ok) throw new Error('設定の読み込みに失敗しました');
             const data = await response.json();
             setSettings(data);
@@ -106,24 +113,50 @@ export default function SettingsPage() {
     // 全ての設定を一括更新する
     const updateAllSettings = async () => {
         try {
-            for (const setting of settings) {
-                await updateSetting(setting.settings_key, setting.settings_value);
+            // null値を空文字列に変換しながらオブジェクトを生成
+            const settingsObject = settings.reduce((acc, setting) => ({
+                ...acc,
+                [setting.settings_key]: setting.settings_value ?? ''  // null/undefinedの場合は空文字列
+            }), {});
+
+            const response = await fetch('/api/settings/settings_write', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                },
+                body: JSON.stringify(settingsObject),
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || errorData.error || '設定の更新に失敗しました');
             }
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
+            
+            // 強制的にキャッシュを無視して再取得
+            await new Promise(resolve => setTimeout(resolve, 100)); // 少し待機
+            await fetchSettings();
         } catch (err) {
-            setError('設定の更新に失敗しました');
+            setError(err instanceof Error ? err.message : 'An unknown error occurred');
+            throw err;
         }
     };
 
     // 設定値の変更を処理
-    const handleSettingChange = (index: number, newValue: string) => {
+    const handleSettingChange = (key: string, newValue: string) => {
         const newSettings = [...settings];
-        newSettings[index] = {
-            ...newSettings[index],
-            settings_value: newValue
-        };
-        setSettings(newSettings);
+        const index = newSettings.findIndex(s => s.settings_key === key);
+        if (index !== -1) {
+            newSettings[index] = {
+                settings_key: key,
+                settings_value: newValue
+            };
+            setSettings(newSettings);
+        }
     };
 
     useEffect(() => {
@@ -174,6 +207,14 @@ export default function SettingsPage() {
                                     >
                                         ユーザー設定
                                     </button>
+                                    <button
+                                        className={`py-2 px-4 ${activeTab === 'logs' ? 
+                                        'border-b-2 border-blue-500 text-blue-600' : 
+                                        'text-gray-500 hover:text-gray-700'}`}
+                                        onClick={() => setActiveTab('logs')}
+                                    >
+                                        システムログ
+                                    </button>
                                 </nav>
                             </div>
                         </div>
@@ -194,15 +235,17 @@ export default function SettingsPage() {
                         ) : activeTab === 'system' ? (
                         <SiteSettings
                             settings={settings}
-                            onSettingChange={(index: number, newValue: string) => handleSettingChange(index, newValue)}
+                            onSettingChange={(key: string, newValue: string) => handleSettingChange(key, newValue)}
                             onUpdateAll={updateAllSettings}
                         />
-                        ) : (
+                        ) : activeTab === 'user' ? (
                         <UserSettings
                             userInfo={userInfo}
                             onUserInfoChange={(info: UserInfo) => setUserInfo(info)}
                             onUpdate={updateUserInfo}
                         />
+                        ) : (
+                        <LogView />
                         )}
                     </div>
                 </div>

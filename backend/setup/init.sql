@@ -1,7 +1,8 @@
 -- settingsテーブルの作成
 CREATE TABLE IF NOT EXISTS "settings" (
     settings_key TEXT PRIMARY KEY,
-    settings_value TEXT NOT NULL
+    settings_value TEXT NOT NULL,
+    is_public BOOLEAN DEFAULT true NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -11,6 +12,17 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "logs" (
+    log_id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    level VARCHAR(10) NOT NULL,  -- INFO, WARNING, ERROR, DEBUG など
+    source VARCHAR(255),         -- アプリケーション名やモジュール名
+    message TEXT NOT NULL,       -- ログメッセージ本体
+    user_id TEXT,               -- 関連するユーザーID
+    metadata TEXT,             -- 追加のメタデータ（JSON形式）
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX sessions_session_key_idx ON sessions(session_key);
@@ -46,21 +58,28 @@ CREATE TABLE IF NOT EXISTS "post" (
     misskey_attitude NUMERIC DEFAULT 1,
 );
 
+CREATE INDEX post_post_id_idx ON post(post_id);
+
+
 -- blogテーブルの作成
 CREATE TABLE IF NOT EXISTS "blog" (
     blog_id TEXT NOT NULL PRIMARY KEY,
     user_id TEXT NOT NULL,
     blog_title TEXT,
     blog_text TEXT,
+    blog_pursed_text TEXT,
     blog_tag TEXT, -- リスト形式でそのまま収容
     blog_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     blog_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     blog_file TEXT, -- 半角コンマで区切るfile_id
     blog_thumbnail TEXT,
     blog_attitude NUMERIC DEFAULT 1,
-    blog_fixedurl TEXT
-    blog_count NUMERIC DEFAULT 0
+    blog_fixedurl TEXT,
+    blog_count NUMERIC DEFAULT 0,
+    blog_description TEXT
 );
+
+
 
 -- site-cardテーブルの作成
 CREATE TABLE IF NOT EXISTS "site-card" (

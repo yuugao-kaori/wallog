@@ -7,6 +7,8 @@ import fs from "fs";
 import pkg from 'pg';
 const { Client } = pkg;
 import { Client as ESClient } from '@elastic/elasticsearch';
+import { markdownToHtml } from './blog_purse.js';
+import { extractDescriptionFromHtml } from './blog_helper.js';
 
 const router = express.Router();
 const app = express();
@@ -92,12 +94,16 @@ async function insertBlogAndTags(blogId, blogTitle, blogText, fileId, tags, pars
     await client.connect();
     await client.query('BEGIN');
 
+    // ブログテキストをパース
+    const parsedText = markdownToHtml(blogText);
+    const description = extractDescriptionFromHtml(parsedText);
+
     const insertBlogQuery = `
       INSERT INTO blog (
-        blog_id, user_id, blog_title, blog_text, blog_tag, 
-        blog_file, blog_thumbnail, blog_attitude, blog_fixedurl
+        blog_id, user_id, blog_title, blog_text, blog_pursed_text, blog_tag, 
+        blog_file, blog_thumbnail, blog_attitude, blog_fixedurl, blog_description
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $10)
       RETURNING *;
     `;
     
@@ -106,10 +112,12 @@ async function insertBlogAndTags(blogId, blogTitle, blogText, fileId, tags, pars
       parsedSession.username,
       blogTitle,
       blogText,
+      parsedText,
       tags.length > 0 ? tags.join(' ') : 'none_data',
       fileId,
       thumbnail,
-      fixedUrl
+      fixedUrl,
+      description
     ];
 
     const blogResult = await client.query(insertBlogQuery, blogValues);

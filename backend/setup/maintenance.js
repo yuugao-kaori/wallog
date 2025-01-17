@@ -1,99 +1,25 @@
-// maintenance.js
-
 import fs from 'fs';
 import dotenv from 'dotenv';
 import path from 'path';
 import { Client as ESClient } from '@elastic/elasticsearch';
 import pkg from 'pg';
 const { Client } = pkg;
-
 import { fileURLToPath } from 'url';
 
-console.log('\n############################\nメンテナンススクリプトを開始します\n############################\n');
-
-const envFilePath = './.env';
-if (!fs.existsSync(envFilePath)) {
-  console.error('.envファイルが見つかりませんでした。');
-  process.exit(1);
-}
-
-dotenv.config();
-console.log('.envファイルを読み込みました。\n');
-
 // 環境変数の読み込み
-const { 
-  POSTGRES_USER, 
-  POSTGRES_PASSWORD, 
-  POSTGRES_DB, 
-  POSTGRES_NAME,
-  ELASTICSEARCH_HOST,
-  ELASTICSEARCH_PORT,
-  ELASTICSEARCH_USER,
-  ELASTICSEARCH_PASSWORD,
-} = process.env;
-const ELASTICSEARCH_INDEX = 'post'
-const ELASTICSEARCH_INDEX2 = 'blog'  // blogインデックスを追加
+dotenv.config();
 
-console.log(`host:${ELASTICSEARCH_HOST}`);
+// グローバル変数の定義
+const ELASTICSEARCH_INDEX = 'post';
+const ELASTICSEARCH_INDEX2 = 'blog';
+export let esClient;
+export let pgClient;
 
-// PostgreSQLクライアントの設定
-const pgClient = new Client({
-  user: POSTGRES_USER,
-  host: POSTGRES_NAME,
-  database: POSTGRES_DB,
-  password: POSTGRES_PASSWORD,
-  port: 5432,
-});
-
-// ElasticSearchクライアントの設定
-const esClient = new ESClient({
-  node: `http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}`,
-  auth: {
-    username: ELASTICSEARCH_USER,
-    password: ELASTICSEARCH_PASSWORD
-  },
-  maxRetries: 5,
-  requestTimeout: 60000,
-  sniffOnStart: true,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-console.log(`Elasticsearch host: ${ELASTICSEARCH_HOST}`); // デバッグ用にログを追加
-
-async function rerouteElasticSearchShards() {
-  try {
-    await esClient.cluster.reroute();
-    console.log('ElasticSearchクラスタの再ルーティングを実行しました。');
-  } catch (error) {
-    console.error('ElasticSearchクラスタの再ルーティング中にエラーが発生しました:', error);
-    throw error;
-  }
-}
-async function recreateIndex() {
-  try {
-    await esClient.indices.delete({ index: ELASTICSEARCH_INDEX });
-    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' を削除しました。`);
-    await setupElasticSearchWithRetry(5);
-  } catch (error) {
-    console.error(`インデックス '${ELASTICSEARCH_INDEX}' の再作成中にエラーが発生しました:`, error);
-    throw error;
-  }
-}
-/**
- * 一定時間待機する関数（ミリ秒単位）
- * @param {number} ms - 待機時間（ミリ秒）
- * @returns {Promise}
- */
+// ヘルパー関数の定義
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * ElasticSearchの接続を確認する関数
- * @returns {Promise<boolean>}
- */
 async function checkElasticsearchConnection() {
   try {
     const health = await esClient.cluster.health();
@@ -104,10 +30,7 @@ async function checkElasticsearchConnection() {
     return false;
   }
 }
-/**
- * ElasticSearchのセットアップを再試行付きで実行する関数
- * @param {number} retries - 残りの再試行回数
- */
+
 async function setupElasticSearchWithRetry(retries) {
   try {
     const isConnected = await checkElasticsearchConnection();
@@ -178,9 +101,6 @@ async function setupElasticSearchWithRetry(retries) {
   }
 }
 
-/**
- * ElasticSearchの未割り当てシャードを解消するためにレプリカ数を0に設定する関数
- */
 async function setReplicaCountToZero(index) {
   try {
     await esClient.indices.putSettings({
@@ -197,9 +117,27 @@ async function setReplicaCountToZero(index) {
   }
 }
 
-/**
- * ElasticSearchのPostインデックスのデータを削除する関数
- */
+async function rerouteElasticSearchShards() {
+  try {
+    await esClient.cluster.reroute();
+    console.log('ElasticSearchクラスタの再ルーティングを実行しました。');
+  } catch (error) {
+    console.error('ElasticSearchクラスタの再ルーティング中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+async function recreateIndex() {
+  try {
+    await esClient.indices.delete({ index: ELASTICSEARCH_INDEX });
+    console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' を削除しました。`);
+    await setupElasticSearchWithRetry(5);
+  } catch (error) {
+    console.error(`インデックス '${ELASTICSEARCH_INDEX}' の再作成中にエラーが発生しました:`, error);
+    throw error;
+  }
+}
+
 async function deleteElasticSearchData() {
   try {
 
@@ -253,10 +191,7 @@ async function deleteElasticSearchData() {
     }
   }
 }
-/**
- * PostgreSQLのPostテーブルからデータを取得する関数
- * @returns {Promise<Array>}
- */
+
 async function fetchPostgresData() {
   try {
     const res = await pgClient.query('SELECT * FROM post;');
@@ -268,7 +203,6 @@ async function fetchPostgresData() {
   }
 }
 
-// blogテーブルからデータを取得する関数を追加
 async function fetchBlogPostgresData() {
   try {
     const res = await pgClient.query('SELECT * FROM blog;');
@@ -280,7 +214,6 @@ async function fetchBlogPostgresData() {
   }
 }
 
-// blogインデックスのデータを削除する関数
 async function deleteBlogElasticSearchData() {
   try {
     const deleteResponse = await esClient.deleteByQuery({
@@ -300,7 +233,6 @@ async function deleteBlogElasticSearchData() {
   }
 }
 
-// blogデータをElasticSearchに書き込む関数
 async function bulkInsertBlogToElasticSearch(data) {
   if (!Array.isArray(data) || data.length === 0) {
     console.log('書き込むblogデータがありません。');
@@ -330,10 +262,6 @@ async function bulkInsertBlogToElasticSearch(data) {
   }
 }
 
-/**
- * データをElasticSearchにバルク書き込みする関数
- * @param {Array} data - 書き込むデータの配列
- */
 async function bulkInsertToElasticSearch(data) {
   if (!Array.isArray(data) || data.length === 0) {
     console.log('書き込むデータがありません。');
@@ -381,9 +309,6 @@ async function bulkInsertToElasticSearch(data) {
   }
 }
 
-/**
- * ElasticSearchから一部のデータを取得してコンソールに出力する関数
- */
 async function verifyElasticSearchData() {
   try {
     const response = await esClient.search({
@@ -420,14 +345,79 @@ async function verifyElasticSearchData() {
     throw error;
   }
 }
-/**
- * メインのメンテナンス処理を実行する関数
- */
-async function main() {
+
+export const initializeClients = () => {
+  const { 
+    POSTGRES_USER, 
+    POSTGRES_PASSWORD, 
+    POSTGRES_DB, 
+    POSTGRES_NAME,
+    ELASTICSEARCH_HOST,
+    ELASTICSEARCH_PORT,
+    ELASTICSEARCH_USER,
+    ELASTICSEARCH_PASSWORD,
+  } = process.env;
+
+  // PostgreSQLクライアントの初期化
+  pgClient = new Client({
+    user: POSTGRES_USER,
+    host: POSTGRES_NAME,
+    database: POSTGRES_DB,
+    password: POSTGRES_PASSWORD,
+    port: 5432,
+  });
+
+  // ElasticSearchクライアントの初期化
+  esClient = new ESClient({
+    node: `http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}`,
+    auth: {
+      username: ELASTICSEARCH_USER,
+      password: ELASTICSEARCH_PASSWORD
+    },
+    maxRetries: 5,
+    requestTimeout: 60000,
+    sniffOnStart: true,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+};
+
+// ログ記録関数を追加
+async function logMaintenanceAction(client, level, message, metadata = {}) {
+  try {
+    const query = `
+      INSERT INTO logs (level, source, message, metadata)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await client.query(query, [
+      level,
+      'maintenance',
+      message,
+      JSON.stringify(metadata)
+    ]);
+  } catch (error) {
+    console.error('ログの記録に失敗しました:', error);
+  }
+}
+
+export const runMaintenance = async () => {
+  console.log('\n############################\nメンテナンススクリプトを開始します\n############################\n');
+
+  const envFilePath = './.env';
+  if (!fs.existsSync(envFilePath)) {
+    console.error('.envファイルが見つかりませんでした。');
+    process.exit(1);
+  }
+
+  // クライアントの初期化
+  initializeClients();
+
   try {
     // PostgreSQLに接続
     await pgClient.connect();
     console.log('PostgreSQLに接続しました。');
+    await logMaintenanceAction(pgClient, 'INFO', 'メンテナンス処理を開始します');
 
     // ElasticSearchのセットアップ
     await setupElasticSearchWithRetry(5);
@@ -457,16 +447,17 @@ async function main() {
     await bulkInsertBlogToElasticSearch(blogData);
     console.log('blogデータの同期が完了しました。\n');
 
+    await logMaintenanceAction(pgClient, 'INFO', 'メンテナンス処理が完了しました');
     console.log('\n############################\nメンテナンス処理が完了しました\n############################\n');
   } catch (error) {
+    await logMaintenanceAction(pgClient, 'ERROR', 'メンテナンス処理中にエラーが発生しました', {
+      error: error.message
+    });
     console.error('メンテナンス処理中に予期せぬエラーが発生しました:', error);
   } finally {
     // クライアントを終了
-    await pgClient.end();
-    await esClient.close();
+    if (pgClient) await pgClient.end();
+    if (esClient) await esClient.close();
     console.log('PostgreSQLおよびElasticSearchのクライアントを終了しました。');
   }
-}
-
-// メイン関数を実行
-main();
+};

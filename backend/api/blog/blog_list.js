@@ -21,7 +21,7 @@ async function getBlogList(offset = 0, limit = 20) {
       SELECT 
         blog_id, user_id, blog_title, blog_text, blog_tag,
         blog_createat, blog_updateat, blog_file, blog_thumbnail,
-        blog_attitude, blog_fixedurl, blog_count
+        blog_attitude, blog_fixedurl, blog_count, blog_description
       FROM blog
       ORDER BY blog_createat DESC
       LIMIT $1 OFFSET $2;

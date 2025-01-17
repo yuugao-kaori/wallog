@@ -4,7 +4,7 @@
     "description": "backend",
     "main": "index.js",
     "scripts": {
-      "start": "node ./setup/setup.js && node ./setup/maintenance.js && node ./setup/minio_maintenance.js && nodemon index.js"
+      "start": "nodemon index.js"
     },
     "dependencies": {
       "express": "^4.18.2",
@@ -25,7 +25,8 @@
       "sharp": "^0.33.5",
       "minio": "^7.0.0",
       "aws-sdk": "^2.1692.0",
-      "@aws-sdk/client-s3":"^3.705.0"
+      "@aws-sdk/client-s3":"^3.705.0",
+      "node-schedule":"^2.1.1"
     },
     "devDependencies": {
       "nodemon": "^3.1.7"

@@ -14,6 +14,9 @@ services:
     command: sh -c "npm install && npm run dev"
     environment:
       - NODE_ENV=production
+    restart: unless-stopped
+    depends_on:
+      - nginx
     networks:
       - wallog_default2
 
@@ -27,12 +30,14 @@ services:
       - ./.env:/usr/src/backend/.env
       - ./app_data:/usr/src/app_data
     command: sh -c "npm install && npm run start"
+    restart: unless-stopped
     ports:
       - "15000:5000"
     environment:
       - NODE_ENV=development
       - KAFKA_BROKER=kafka:9092
     depends_on:
+      - nginx
       - ${POSTGRES_NAME}
       - redis
       - ${ELASTICSEARCH_HOST}
@@ -52,21 +57,9 @@ services:
     volumes:
       - ./postgres/postgres-init/check-and-init.sh:/docker-entrypoint-initdb.d/check-and-init.sh
       - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
     ports:
       - "15432:5432"
-    networks:
-      - wallog_default2
-
-  pgadmin:
-    container_name: pgadmin_unique
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    ports:
-      - "15050:80"
-    depends_on:
-      - ${POSTGRES_NAME}
     networks:
       - wallog_default2
 
@@ -76,6 +69,7 @@ services:
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    restart: unless-stopped
     ports:
       - '16379:6379'
     volumes:
@@ -94,6 +88,7 @@ services:
       - redis
     environment:
       - REDIS_HOSTS=local:redis:6379
+    restart: unless-stopped
     networks:
       - wallog_default2
 
@@ -106,6 +101,7 @@ services:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - xpack.security.enabled=false
+    restart: unless-stopped
     ports:
       - "19200:9200"
       - "19300:9300"
@@ -132,6 +128,7 @@ services:
       - "15601:5601"
     depends_on:
       - ${ELASTICSEARCH_HOST}
+    restart: unless-stopped
     networks:
       - wallog_default2
     volumes:
@@ -150,6 +147,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    restart: unless-stopped
     volumes:
       - ./minio/data:/data
     entrypoint: >
@@ -175,9 +173,8 @@ services:
       - "20000:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - app
-      - backend
+      - ./50x.html:/usr/share/nginx/html/50x.html  # 汎用エラーページをマウント
+    restart: unless-stopped
     networks:
       - wallog_default2
 

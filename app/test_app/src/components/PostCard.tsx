@@ -14,18 +14,17 @@ const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
 // 既存のPostインターフェースを削除し、PostFeedのものを使用
 interface Props {
-  post: PostFeedPost;  // 変更
+  post: PostFeedPost;
   isLoggedIn: boolean;
   handleDeleteClick: (event: React.MouseEvent, postId: string) => void;
   formatDate: (date: string) => string;
-  formatHashtags?: (text: string) => string;
-  renderHashtagsContainer?: (text: string) => React.ReactNode;
   className?: string;
   onDelete: (event: React.MouseEvent, post_id: string) => Promise<boolean>;
-  onRepost?: (post: PostFeedPost) => Promise<void>;  // 変更
+  onRepost?: (post: PostFeedPost) => Promise<void>;
   onQuote?: (post: PostFeedPost) => void;
   onReply?: (post: PostFeedPost) => void;
   onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
+  handleDelete?: (postId: string) => Promise<boolean>;
 }
 
 interface ImageData {
@@ -36,7 +35,49 @@ interface ImageData {
   status: 'idle' | 'loading' | 'error';
 }
 
-const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHashtags, renderHashtagsContainer, className, onDelete, onRepost, onQuote, onReply, onQuoteSubmit }: Props) => {
+// YouTube URLからビデオIDを抽出する関数を修正
+const extractYoutubeVideoId = (url: string): string | null => {
+
+  const patterns = [
+    /((?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:shorts|live|embed|watch\?.*v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[2]) { // [1]から[2]に変更
+      return match[2];
+    }
+  }
+  return null;
+};
+
+// YouTube埋め込みプレイヤーコンポーネント
+const YouTubeEmbed: React.FC<{ videoId: string }> = ({ videoId }) => {
+  return (
+    <div className="relative pb-[56.25%] h-0 mt-2 rounded-lg overflow-hidden">
+      <iframe
+        className="absolute top-0 left-0 w-full h-full"
+        src={`https://www.youtube.com/embed/${videoId}`}
+        title="YouTube video player"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
+  );
+};
+
+const Card = memo(({ 
+  post, 
+  isLoggedIn, 
+  handleDeleteClick, 
+  formatDate, 
+  onDelete, 
+  onRepost, 
+  onQuote, 
+  onReply, 
+  onQuoteSubmit, 
+  handleDelete 
+}: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const { ref, inView } = useInView({
@@ -69,6 +110,15 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct'
   });
 
+  // 追加: テキストの展開状態を管理
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // 追加: テキストを制限する関数
+  const truncateText = (text: string, limit: number = 60): string => {
+    if (!text || text.length <= limit) return text;
+    return text.slice(0, limit);
+  };
+
   const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -76,50 +126,100 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   }, [router]);
 
+  // renderText関数を更新
   const renderText = (text: string | null): React.ReactNode => {
     if (!text) return null;
     
-    if (renderHashtagsContainer) {
-      return renderHashtagsContainer(text);
-    }
+    const maxLength = 140;
+    const shouldTruncate = !isExpanded && text.length > maxLength;
+    const displayText = shouldTruncate ? `${text.slice(0, 60)}...` : text;
     
-    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)/;
-    const parts = text.split(pattern);
-    
+    // パターンを修正して、スペースの前後のルックアラウンドを改善
+    const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?:^)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?<=\s)(#[^\s]+|https?:\/\/[^\s]+)(?:$)/g;
+    const segments = displayText.split(pattern);
+    const combined: React.ReactNode[] = [];
+    const youtubeVideos: string[] = [];
+
+    segments.forEach((segment, index) => {
+      if (!segment) return;
+
+      if (segment.startsWith('#')) {
+        // ハッシュタグの処理
+        combined.push(
+          <a
+            key={`tag-${index}`}
+            href={`/search?searchText=${encodeURIComponent(segment.slice(1))}&searchType=hashtag`}
+            className="text-blue-500 font-bold cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/search?searchText=${encodeURIComponent(segment.slice(1))}&searchType=hashtag`);
+            }}
+          >
+            {segment}
+          </a>
+        );
+      } else if (segment.match(/^https?:\/\//)) {
+        // URLの処理
+        const videoId = extractYoutubeVideoId(segment);
+        if (videoId) {
+          youtubeVideos.push(videoId);
+        }
+        combined.push(
+          <a
+            key={`link-${index}`}
+            href={segment}
+            className="text-blue-500 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {segment}
+          </a>
+        );
+      } else {
+        // 通常のテキストの処理
+        combined.push(<span key={`text-${index}`}>{segment}</span>);
+      }
+    });
+
     return (
-      <div className="whitespace-pre-wrap break-words text-base">
-        {parts.map((part, index) => {
-          if (part.match(/^#[^\s]+$/)) {
-            const tag = part.slice(1); // # を除去
-            return (
-              <a
-                key={index}
-                href={`/search?searchText=${encodeURIComponent(tag)}&searchType=hashtag`}
-                className="text-blue-500 font-bold hover:underline"
+      <div>
+        <div className="whitespace-pre-wrap break-words text-base">
+          {combined}
+        </div>
+        {youtubeVideos.map((videoId, index) => (
+          <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
+        ))}
+        {shouldTruncate ? (
+          <div className="flex justify-center mt-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsExpanded(true);
+              }}
+              className="bg-blue-100 dark:bg-gray-600 dark:text-white text-blue-600 px-4 py-2 rounded-full hover:bg-blue-200 transition duration-200 text-sm"
+            >
+              続きを読む
+            </button>
+          </div>
+        ) : (
+          isExpanded && (
+            <div className="flex justify-center mt-2">
+              <button
                 onClick={(e) => {
                   e.preventDefault();
-                  handleHashtagClick(part, e);
+                  e.stopPropagation();
+                  setIsExpanded(false);
                 }}
+                className="bg-gray-100 dark:bg-gray-600 dark:text-white text-gray-600 px-4 py-2 rounded-full hover:bg-gray-200 transition duration-200 text-sm"
               >
-                {part}
-              </a>
-            );
-          } else if (part.match(/^https?:\/\/[^\s]+$/)) {
-            return (
-              <a
-                key={index}
-                href={part}
-                className="text-blue-500 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {part}
-              </a>
-            );
-          }
-          return <span key={index}>{part}</span>;
-        })}
+                収納する
+              </button>
+            </div>
+          )
+        )}
       </div>
     );
   };
@@ -266,7 +366,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
 
   const copyLink = (): void => {
     const domain = process.env.NEXT_PUBLIC_SITE_DOMAIN || window.location.origin;
-    const url = `${domain}/post/${post.post_id}`;
+    const url = `${domain}/diary/${post.post_id}`;
     
     navigator.clipboard.writeText(url)
       .then(() => {
@@ -294,12 +394,12 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
     };
   }, []);
 
-  const formatText = (text: string | null): React.ReactNode => {
-    if (!text) return null;
-    return formatHashtags ? formatHashtags(text) : text;
+  const formatText = (text: string | null): string => {
+    if (!text) return '';
+    return text;
   };
 
-  const handleDelete = async (event: React.MouseEvent, postId: string) => {
+  const handleInternalDelete = async (event: React.MouseEvent, postId: string) => {
     event.stopPropagation();
     setUiState(prev => ({
       ...prev,
@@ -424,41 +524,42 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400">
           {formatDate(post.reply_body.post_createat)}
+          
         </div>
       </div>
     );
   }, [post.reply_body, formatDate]);
 
-  // 引用元投稿のレンダリング関数を修正
-  const renderRepostBody = useCallback(() => {
-    // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
-    if (!post.repost_body || !post.repost_body.post_id) return null;
+  // renderRepostBodyを修正
+const renderRepostBody = useCallback(() => {
+  // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
+  if (!post.repost_body || !post.repost_body.post_id) return null;
 
-    return (
-      <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
-        <div className="text-sm">
-          {renderText(post.repost_body.post_text)}
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {formatDate(post.repost_body.post_createat)}
-        </div>
+  return (
+    <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
+      <div className="text-sm">
+        {renderText(post.repost_body.post_text)}
       </div>
-    );
-  }, [post.repost_body, formatDate]);
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
+      </div>
+    </div>
+  );
+}, [post.repost_body, formatDate]);
 
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
   return (
     <>
-      <div ref={ref} className="w-full px-2 sm:px-4">
-        <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-3xl mx-auto break-words text-[color:rgb(var(--foreground))] ${className}`}>
+      <div ref={ref} className="w-full">
+        <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]`}>
           <Notification 
             notifications={notifications} 
             onClose={removeNotification}
           />
 
           <div className="absolute top-1 right-4 z-10">
-            <button onClick={toggleMenu} className="p-2 text-gray-700 dark:text-gray-300">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <button onClick={toggleMenu} className="p-1 text-gray-700 dark:text-gray-300"> {/* p-2 を p-1 に変更 */}
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"> {/* w-8 h-8 を w-6 h-6 に変更 */}
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
               </svg>
             </button>
@@ -511,7 +612,13 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
               ...prev,
               deleteModalOpen: false
             }))}
-            onDelete={(e) => handleDelete(e, post.post_id)}
+            onDelete={() => { // 修正: 引数を1つに変更
+              if (handleDelete) {
+                handleDelete(post.post_id).catch(error => {
+                  console.error('Error handling delete:', error);
+                });
+              }
+            }}
           />
 
           <DeleteConfirmModal
@@ -534,13 +641,13 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
           />
 
           <div>
-            {renderReplyBody()} {/* 返信元投稿を表示 */}
+            {renderReplyBody()} {/* 返信元投稿を表示、「Create at:」の表示*/}
             <div className="text-gray-500 text-sm break-words">
-              Created at: {formatDate(post.post_createat)}
+              {formatDate(post.post_createat)}
             </div>
 
             <div className="mt-2 break-words">
-              {renderHashtagsContainer ? renderHashtagsContainer(post.post_text) : renderText(post.post_text)}
+              {renderText(post.post_text)}
             </div>
 
             {inView && renderImages()}
@@ -556,8 +663,6 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         isLoggedIn={isLoggedIn}
         handleDeleteClick={handleDeleteClick}
         formatDate={formatDate}
-        formatHashtags={formatHashtags}
-        renderHashtagsContainer={renderHashtagsContainer}
         onDelete={onDelete}
         onRepost={onRepost}
         onQuote={onQuote}
@@ -572,6 +677,7 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         }))}
         postText={formState.postText}
         setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
+        setFiles={() => {}} // Add empty function as placeholder
         handleSubmit={async (e, finalText) => {
           e.preventDefault();
           try {
@@ -623,10 +729,11 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         }}
         mode={formState.mode}
         targetPost={post}
+        handleDelete={handleDelete} // 追加
         isLoggedIn={isLoggedIn}
         files={[]}
         handleFiles={() => {}}
-        handleDelete={async (fileId) => {
+        handlePostDelete={async (fileId) => {
           // Assuming fileId is a number, we create a dummy event
           const dummyEvent = new MouseEvent('click') as unknown as React.MouseEvent;
           return await onDelete(dummyEvent, fileId.toString());
@@ -637,6 +744,8 @@ const Card = memo(({ post, isLoggedIn, handleDeleteClick, formatDate, formatHash
         setFixedHashtags={() => {}}
         autoAppendTags={false}
         setAutoAppendTags={() => {}}
+        handleCancelAttach={() => {}} // 追加: ファイル添付のキャンセル処理
+        handleDeletePermanently={() => {}} // 追加: ファイルの完全削除処理
       />
     </>
   );

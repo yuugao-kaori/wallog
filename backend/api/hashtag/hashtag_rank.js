@@ -8,7 +8,7 @@ const router = express.Router();
 dotenv.config();
 
 router.get('/hashtag_rank', async (req, res) => {
-    const { limit = 10 } = req.query;
+    const { limit = 20 } = req.query;
     const numericLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
 
     const client = new Client({
