@@ -1,4 +1,6 @@
-'use client';
+"use client";
+
+import { Metadata } from 'next';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import BlogFormPopup from '@/components/Blogformpopup';
@@ -12,7 +14,7 @@ import { CodeBlock } from '@/components/CodeBlock';
 import { CodeBlockProvider } from '@/contexts/CodeBlockContext';
 
 interface BlogPost {
-  blog_id: number;
+  blog_id: string;
   blog_title: string;
   blog_text: string;
   blog_pursed_text: string;  // 追加
@@ -147,6 +149,7 @@ interface TableOfContentsItem {
   level: number;
   text: string;
 }
+
 
 export default function BlogDetail() {
   const params = useParams();

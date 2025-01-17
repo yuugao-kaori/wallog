@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 
 async function getBlogData(blog_id: string) {
   const response = await fetch(`https://wallog.seitendan.com/api/blog/blog_read/${blog_id}`, {
-    cache: 'no-store'  // 常に最新のデータを取得
+    cache: 'no-store', // 常に最新のデータを取得
   });
   
   if (!response.ok) {
@@ -12,8 +12,14 @@ async function getBlogData(blog_id: string) {
   return await response.json();
 }
 
-export async function generateMetadata({ params }: { params: { blog_id: string } }): Promise<Metadata> {
-  const blog = await getBlogData(params.blog_id);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ blog_id: string }>; // Promise<any> 型を許容
+}): Promise<Metadata> {
+  // 非同期に params を解決
+  const resolvedParams = await params;
+  const blog = await getBlogData(resolvedParams.blog_id);
 
   return {
     title: `${blog.blog_title} | Wallog`,
