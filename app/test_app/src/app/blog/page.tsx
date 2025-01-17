@@ -151,7 +151,7 @@ const BlogPage: React.FC = () => {
                   )}
                   <div className="p-4">
                     <h2 className="text-xl font-bold mb-2 dark:text-white">{blog.blog_title}</h2>
-                    <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3">{blog.blog_text}</p>
+                    <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3">{blog.blog_description}</p>
                     <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{new Date(blog.blog_createat).toLocaleDateString()}</span>
                     </div>

@@ -74,8 +74,9 @@ CREATE TABLE IF NOT EXISTS "blog" (
     blog_file TEXT, -- 半角コンマで区切るfile_id
     blog_thumbnail TEXT,
     blog_attitude NUMERIC DEFAULT 1,
-    blog_fixedurl TEXT
-    blog_count NUMERIC DEFAULT 0
+    blog_fixedurl TEXT,
+    blog_count NUMERIC DEFAULT 0,
+    blog_description TEXT
 );
 
 

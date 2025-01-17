@@ -65,13 +65,7 @@ import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
 
-// blog2のtest
-import blog_createRoute2 from './api/blog2/blog_create.js';
-import blog_readRoute2 from './api/blog2/blog_read.js';
-import blog_updateRoute2 from './api/blog2/blog_update.js';
-import blog_deleteRoute2 from './api/blog2/blog_delete.js';
-import blog_listRoute2 from './api/blog2/blog_list.js';
-app.use('/api/blog2', blog_createRoute2, blog_readRoute2, blog_updateRoute2, blog_deleteRoute2, blog_listRoute2);
+
 
 // blog2のtest
 // スケジューラーを実際に起動
