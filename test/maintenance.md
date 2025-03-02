@@ -3,6 +3,7 @@ tar ztf app.tar.gz
 
 # appだけ再起動
 docker-compose stop app && docker-compose rm -f app && docker-compose up -d app
+docker-compose stop backend && docker-compose rm -f backend && docker-compose up -d backend
 
 # コンテナでコード実行
 docker exec -i app-afm sh -c "node import_note_menu.js"
