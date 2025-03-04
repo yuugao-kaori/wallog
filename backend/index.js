@@ -64,6 +64,7 @@ import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
+import sitemapRoute from './api/sitemap/sitemap_create.js';
 
 
 
@@ -81,6 +82,7 @@ app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, stic
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
+app.use('/api/sitemap', sitemapRoute);
 
 // 404エラーハンドリング
 app.use((req, res, next) => {

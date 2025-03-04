@@ -26,7 +26,8 @@
       "minio": "^7.0.0",
       "aws-sdk": "^2.1692.0",
       "@aws-sdk/client-s3":"^3.705.0",
-      "node-schedule":"^2.1.1"
+      "node-schedule":"^2.1.1",
+      "xmlbuilder2":"^3.1.1"
     },
     "devDependencies": {
       "nodemon": "^3.1.7"

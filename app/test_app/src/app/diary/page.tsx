@@ -8,8 +8,9 @@ import { FaTimes } from 'react-icons/fa';
 import PostFormPopup from '@/components/PostFormPopup';
 import NotificationComponent from '@/components/Notification';
 import Tagcloud from '@/components/Tagcloud';
-import { getTags, type TagData } from '@/lib/api';  // 追加
-import { FileItem } from '@/types';  // 追加
+import { getTags, type TagData } from '@/lib/api';
+// FileItemのインポートを変更
+import type { FileItem } from '@/components/PostFormCommon';  // PostFormCommonから直接インポート
 
 // 型定義
 interface Post {
@@ -35,6 +36,11 @@ interface NotificationItem {
   action?: { label: string; onClick: () => void }; // 追加
 }
 
+// FileItemを拡張した型を作成
+interface ExtendedFileItem extends FileItem {
+  isExisting?: boolean;
+}
+
 const api = axios.create({
   baseURL: 'https://wallog.seitendan.com',
   headers: { 
@@ -52,7 +58,7 @@ function Diary() {
   const [status, setStatus] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const [files, setFiles] = useState<FileItem[]>([]);
+  const [files, setFiles] = useState<ExtendedFileItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -286,10 +292,10 @@ function Diary() {
           url, 
           isImage,
           contentType: fileFormat,
-          isExisting: false  // 追加: 新規アップロードファイルとしてマー��
-        }]);
+          isExisting: false  // 追加: 新規アップロードファイルとしてマーク
+        } as ExtendedFileItem]);
       } catch (error) {
-        setStatus('ファイルのアップロードに失敗��ました。');
+        setStatus('ファイルのアップロードに失敗しました。');
       }
     }
   };
@@ -567,6 +573,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
                     setPostText={setPostText}
                     handleSubmit={handleSubmit}
                     files={files}
+                    setFiles={setFiles}
                     handleFiles={handleFiles}
                     handleDelete={handleDeleteFile}
                     onSelectExistingFiles={handleSelectExistingFiles}
@@ -600,13 +607,13 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       </button>
       )}
 
-      {/* ��バイル用モーダルをPostFormPopupに置き換え */}
+      {/* モバイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
       onClose={closeModal}
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
-      setFiles={(files: FileItem[]) => setFiles(files)}
+      setFiles={setFiles} // anyキャストを削除
       handleSubmit={async (e, finalText) => {
         e.preventDefault();
         try {
