@@ -64,7 +64,6 @@ import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
-import sitemapRoute from './api/sitemap/sitemap_create.js';
 
 
 
@@ -82,7 +81,42 @@ app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, stic
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
-app.use('/api/sitemap', sitemapRoute);
+
+// サイトマップへのアクセスを処理
+app.get('/sitemap.xml', (req, res) => {
+    // サイトマップファイルのパスを指定
+    const sitemapPath = './public/sitemap/sitemap.xml';
+    
+    // ファイルが存在するか確認
+    fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.error(`[${new Date().toISOString()}] Sitemap file not found:`, err);
+        return res.status(404).send('Sitemap not found');
+      }
+      
+      // Content-Typeを設定してファイルを送信
+      res.setHeader('Content-Type', 'application/xml');
+      res.sendFile(sitemapPath, { root: process.cwd() });
+    });
+  });
+
+// robots.txtへのアクセスを処理
+app.get('/robots.txt', (req, res) => {
+    // robots.txtファイルのパスを指定
+    const robotsPath = './public/robots/robots.txt';
+    
+    // ファイルが存在するか確認
+    fs.access(robotsPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.error(`[${new Date().toISOString()}] robots.txt file not found:`, err);
+        return res.status(404).send('robots.txt not found');
+      }
+      
+      // Content-Typeを設定してファイルを送信
+      res.setHeader('Content-Type', 'text/plain');
+      res.sendFile(robotsPath, { root: process.cwd() });
+    });
+});
 
 // 404エラーハンドリング
 app.use((req, res, next) => {

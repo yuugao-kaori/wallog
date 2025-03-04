@@ -136,7 +136,7 @@ export async function generateAndSaveSitemap() {
     const sitemapXml = sitemap.end({ prettyPrint: true });
     
     // サイトマップファイルのパスを設定
-    const sitemapPath = path.join(process.cwd(), 'api', 'sitemap', 'sitemap.xml');
+    const sitemapPath = path.join(process.cwd(), 'public', 'sitemap', 'sitemap.xml');
     
     // XMLをファイルに保存
     await fs.writeFile(sitemapPath, sitemapXml);

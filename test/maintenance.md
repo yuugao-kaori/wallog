@@ -1,6 +1,6 @@
 # Gitであれこれ
 git add .
-git commit -m "初期コミット"
+git commit -m ""
 git push -u origin nextjs_test
 
 # tar.gzの中身を見る

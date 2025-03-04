@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wallog.seitendan.com/sitemap.xml
