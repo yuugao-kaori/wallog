@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Wallog Blog</title>
+    <link>https://wallog.seitendan.com/blog</link>
+    <description>Wallog Blog Feed</description>
+    <language>ja-jp</language>
+    <lastBuildDate>2025-03-05T09:15:14.184Z</lastBuildDate>
+    <item>
+      <title>【作業手順書】NodeJSインストール（nvmの導入方法）</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738164216443330875</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738164216443330875</guid>
+      <pubDate>Wed, 29 Jan 2025 15:23:36 GMT</pubDate>
+      <description>最近はもっぱらDockerで管理しているので滅多にやることじゃないですが、それでもたまーにあるので、作業手順書を載せておきます。 1. 依存関係を導入する ```sudo apt install build-essential libssl-dev``` 2. nvmのインストールスクリプトをダウンロードして実行する ```curl -o- https://raw.githubuserconten...</description>
+    </item>
+    <item>
+      <title>【作業手順書】Misskeyのアップデート（通常）</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738163306432125343</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738163306432125343</guid>
+      <pubDate>Wed, 29 Jan 2025 15:08:26 GMT</pubDate>
+      <description>サーバ管理者が絶対に失敗したくないことの一つがMisskeyのアップデートなことは有名です。 そして、最も時間を掛けたくない作業もMisskeyのアップデートだと思います。 ということで作業手順書を欠きました。 （通常）と付けているのは、例えばNodeJSのアップデートをしなきゃ行けないときは別の作業が入るためです。 ## 前提条件 関連する全て(Misskey、Postgres、Redis)をD...</description>
+    </item>
+    <item>
+      <title>【作業手順書】GitHubに新規ブランチを作成して、アップロードする。</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738162539856614505</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738162539856614505</guid>
+      <pubDate>Wed, 29 Jan 2025 14:55:39 GMT</pubDate>
+      <description>おひとり開発しかしたことないので、あんまり使わないですが、だからこそ使う時に困る。 ということで、手順を書きました。忘れちゃうので。 ## ブランチの作成 1. 対象のディレクトリに移動する 2. ブランチを作成する ```git branch 【ブランチの名前】``` 3. ブランチに移動する ```git checkout 【ブランチの名前】``` ## ブランチにアップロードする 1. 普通...</description>
+    </item>
+    <item>
+      <title>【作業手順書】GitHubに作業内容をアップロードする</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738162358210038638</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738162358210038638</guid>
+      <pubDate>Wed, 29 Jan 2025 14:52:38 GMT</pubDate>
+      <description>普通に暗記とかしてないので、簡単なことも手順書を見ながらやっています（隙あらば自分語り） ということで、短いですが、一応。 1. レポジトリに現在のディレクトリを追加する（いらない気もする） ```git add ./*``` 2. コミットメッセージを書く。書き換え方知らないので、コピペが推奨。 ```git commit -m "変更内容の説明"``` 3. プルする。 ```git pull...</description>
+    </item>
+    <item>
+      <title>【作業手順書】GitHub新規レポジトリ作成</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738162196774894433</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738162196774894433</guid>
+      <pubDate>Wed, 29 Jan 2025 14:49:56 GMT</pubDate>
+      <description>間違って、上位ディレクトリ以下すべてをGitHubに上げてしまう事件を起こしたのでちゃんと手順書に則って作業することにしました。 VSCode-Serverのログにトークンが入ってることもあるので、ちゃんと必要なディレクトリだけを上げましょうね。。。（1敗） ## GitHub新規レポジトリ作成 1. 対象のディレクトリに移動する 2. リポジトリを作成する ```git init``` 3. G...</description>
+    </item>
+    <item>
+      <title>【作業手順書】Dockerのサーバ間移動</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738161502742884903</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738161502742884903</guid>
+      <pubDate>Wed, 29 Jan 2025 14:38:22 GMT</pubDate>
+      <description>Docekrのサーバ間移動を行う際の作業手順書を作成したので掲載しておきます。 コンテナのエクスポートは不要な気がしています。 たしかに、ホストのOSが異なるとdokcer-compose.ymlから作成しても構成が異なり動作が変わる恐れがあるため、エクスポートするべきである、という意見はもっともです。 が、移行した後もメンテナンスや再起動などで再構成する場面は多々あり、結局そこで調整するハメにな...</description>
+    </item>
+    <item>
+      <title>【小説】『サキュバス』</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1738160366271242569</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1738160366271242569</guid>
+      <pubDate>Wed, 29 Jan 2025 14:19:26 GMT</pubDate>
+      <description>## この記事は何？ むかし、Blogに掲載していた小説を再掲します。 VRChat上で活動していた時のアバターをベースとした小説です。 以下、本編です。 --- ## サキュバス 放課後、修道会が運営している小学校ということもあり、非常に静かな空気が教室を包んでいた。 もちろん、シスター服に身を包んでいるとはいえ、児童であることに変わりはなく、形容しがたい浮ついた表情を見せる者ばかりだった。 「...</description>
+    </item>
+    <item>
+      <title>Wallog【Build 2025.01.17.0000】</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1737109185244634118</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1737109185244634118</guid>
+      <pubDate>Fri, 17 Jan 2025 10:19:45 GMT</pubDate>
+      <description>全体で言えば、任意の記事をナビゲーションバーに設置できるようになりました。 それから、Blogを作り直したので、少しは人に見せられるようなものになったと思います。コードブロックは難産でした。 SNS共有用のogタグを設定したり、共有できるようにDiaryのページを新設したりと、外を意識した変更が色々と入っています。ogタグについては引き続き、という感じです。 Blogについても、タグの設定やサムネ...</description>
+    </item>
+    <item>
+      <title>2024年12月30日時点の視聴済みアニメリスト</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1735567227749115881</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1735567227749115881</guid>
+      <pubDate>Mon, 30 Dec 2024 14:00:27 GMT</pubDate>
+      <description>視聴済みのアニメリストをGoogleスプレッドシートの力を借りて表示しておきます。</description>
+    </item>
+    <item>
+      <title>2024年に見たアニメの総括</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1735567177233763395</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1735567177233763395</guid>
+      <pubDate>Mon, 30 Dec 2024 13:59:37 GMT</pubDate>
+      <description>2024年に見たアニメの総括 ## 統計的なデータ まずは数字でご紹介します。 私が2024年に見たアニメは合計で91作品でした。 話数で捉えると、24分枠で1049話、5分枠、12分枠は84話見ています。 映画は10作品を見ていました。 比較で捉えると、2023年に見たアニメは94作品のため微減。 見たアニメの総数は446作品で、20%を今年見た計算になります。 昨年に引き続きDアニメストアの力...</description>
+    </item>
+    <item>
+      <title>Wallog【Build 2024.12.23.0000】</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1734964588964390023</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1734964588964390023</guid>
+      <pubDate>Mon, 23 Dec 2024 14:36:28 GMT</pubDate>
+      <description>既知の問題、いつまでも残りそうな気がしてなりません。 コンソールログの出力失敗と、解析の失敗、どちらもありえる問題で、地道な検討が必要なやつです。一番辛いやつ。 コードを読んだ限り、正規表現は問題がなくて、解析にすら至っていない感じです。 シャープでハッシュタグ認識、httpでリンク認識、という既存の処理があるので、ここと新しい実装が上手くかみ合っていないような印象。とはいえ、これらの処理が機能不...</description>
+    </item>
+    <item>
+      <title>Wallog【Build 2024.12.15.0000】</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1734256018913350396</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1734256018913350396</guid>
+      <pubDate>Sun, 15 Dec 2024 09:46:58 GMT</pubDate>
+      <description>目玉の変更はやはり、Diaryに引用と返信を追加したことです。 引用と返信、BlogのUndo機能を修正すること、この辺はある程度、大変なのが覚悟できていました。 が、Blogの目次機能は予想に反して機能の追加に骨が折れる展開が続いてしまいました。その代わり、それなりにモダンなものが出来たのではないかと思います。 以下、変更内容です。 既知の重大な問題はありません。 # NavBar - 【変更】...</description>
+    </item>
+    <item>
+      <title>Wallog【Build 2024.12.09.0000】</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1733673011805110214</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1733673011805110214</guid>
+      <pubDate>Sun, 08 Dec 2024 15:50:11 GMT</pubDate>
+      <description>## 修正・機能追加の一覧 ### Diaryページ（一般） - タグクラウドを実装（追加） - SSE切断時にリロード通知を送出するように（追加） ※表示時間については更に修正する予定 - 投稿取得APIの開始判定を調整して必要量だけ読み込むように（修正） - 画像を拡大表示した時にNavBarに隠れないように（修正） ### Diaryページ（ログインユーザ） - 頻出タグをドロップダウンで付...</description>
+    </item>
+    <item>
+      <title>WallogのVer2に入れたい機能</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1733239919624438348</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1733239919624438348</guid>
+      <pubDate>Tue, 03 Dec 2024 15:31:59 GMT</pubDate>
+      <description>逆にいうと、Ver1まではこれらの機能は開発されない、ということです。 SSE切断時の表示くらいは対応しても、、と思うけど、まずは。 ## 【Diary】 ~~- SSE切断時の表示（エラーにしない）~~ ~~- タグクラウド（Searchページに飛ばすとしても）~~ ~~- 新規投稿でタグクラウドに基づくドロップダウン付与~~ ~~- 引用機能~~ ~~- 返信機能~~ - 長すぎる投稿の収納 ...</description>
+    </item>
+    <item>
+      <title>ブログ機能の実装機能一覧</title>
+      <link>https://wallog.seitendan.com/blog/bl_bl_1732958453940010752</link>
+      <guid>https://wallog.seitendan.com/blog/bl_bl_1732958453940010752</guid>
+      <pubDate>Sat, 30 Nov 2024 09:20:53 GMT</pubDate>
+      <description># マークダウンの基本構文 # H1 ## H2 ### H3 **太字** *斜体* ~~打ち消し~~ __下線__ 1. 番号リスト1 2. 番号リスト2 - 箇条書き1 - 箇条書き2 &gt; 引用 --- 区切り線 コードブロック（Python、Bash、JavaScript、Docker） ``` print("test") ``` コードブロック間テキスト ```sudo btop``` ...</description>
+    </item>
+  </channel>
+</rss>

@@ -3,10 +3,12 @@ import { runSetup } from '../setup/setup.js';
 import { runMaintenance } from '../setup/maintenance.js';
 import { runMinioMaintenance } from '../setup/minio_maintenance.js';
 import { generateAndSaveSitemap } from '../setup/sitemap_generator.js';
+import { generateAndSaveRssFeeds } from '../setup/rss_generator.js';
 
 // グローバル変数としてフラグを定義
 let isMaintenanceRunning = false;
 let isSitemapGenerationRunning = false;
+let isRssGenerationRunning = false;
 
 // メンテナンスジョブの実行関数
 const executeMaintenanceJobs = async () => {
@@ -33,6 +35,10 @@ const executeMaintenanceJobs = async () => {
     // サイトマップの更新もメインメンテナンスの一部として実行
     await generateAndSaveSitemap();
     console.log('Sitemap updated as part of maintenance');
+
+    // RSSフィードの更新もメインメンテナンスの一部として実行
+    await generateAndSaveRssFeeds();
+    console.log('RSS feeds updated as part of maintenance');
 
     console.log('All maintenance jobs completed successfully', new Date().toISOString());
   } catch (error) {
@@ -62,6 +68,26 @@ const executeSitemapGeneration = async () => {
   }
 };
 
+// RSS生成ジョブの実行関数
+const executeRssGeneration = async () => {
+  if (isRssGenerationRunning) {
+    console.log('RSS generation already in progress, skipping...');
+    return;
+  }
+  
+  isRssGenerationRunning = true;
+  console.log('Starting RSS generation...', new Date().toISOString());
+  
+  try {
+    await generateAndSaveRssFeeds();
+    console.log('RSS generation completed', new Date().toISOString());
+  } catch (error) {
+    console.error('Error generating RSS feeds:', error);
+  } finally {
+    isRssGenerationRunning = false;
+  }
+};
+
 export function startMaintenanceScheduler() {
   console.log('Starting maintenance scheduler...');
   
@@ -73,10 +99,16 @@ export function startMaintenanceScheduler() {
   const sitemapJob = schedule.scheduleJob('0 * * * *', executeSitemapGeneration);
   console.log('Sitemap generation scheduled for every hour at 0 minutes');
   
+  // RSS更新の定期実行（4時間ごと）
+  const rssJob = schedule.scheduleJob('0 */4 * * *', executeRssGeneration);
+  console.log('RSS generation scheduled for every 4 hours');
+  
   // 初回実行（5秒後）
   setTimeout(executeMaintenanceJobs, 5000);
   // サイトマップも初回実行（10秒後）
   setTimeout(executeSitemapGeneration, 10000);
+  // RSSも初回実行（15秒後）
+  setTimeout(executeRssGeneration, 15000);
 
   // エラーハンドリング
   process.on('uncaughtException', (err) => {

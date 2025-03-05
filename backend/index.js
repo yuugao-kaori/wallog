@@ -100,6 +100,45 @@ app.get('/sitemap.xml', (req, res) => {
     });
   });
 
+// DiaryのRSSへのアクセスを処理
+app.get('/diary/feed.xml', (req, res) => {
+  // サイトマップファイルのパスを指定
+  const sitemapPath = './public/rss/diary/feed.xml';
+  
+  // ファイルが存在するか確認
+  fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] feed file not found:`, err);
+      return res.status(404).send('diary_feed not found');
+    }
+    
+    // Content-Typeを設定してファイルを送信
+    res.setHeader('Content-Type', 'application/xml');
+    res.sendFile(sitemapPath, { root: process.cwd() });
+  });
+});
+
+
+// BlogのRSSへのアクセスを処理
+app.get('/blog/feed.xml', (req, res) => {
+  // サイトマップファイルのパスを指定
+  const sitemapPath = './public/rss/blog/feed.xml';
+  
+  // ファイルが存在するか確認
+  fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] feed file not found:`, err);
+      return res.status(404).send('blog_feed not found');
+    }
+    
+    // Content-Typeを設定してファイルを送信
+    res.setHeader('Content-Type', 'application/xml');
+    res.sendFile(sitemapPath, { root: process.cwd() });
+  });
+});
+
+
+
 // robots.txtへのアクセスを処理
 app.get('/robots.txt', (req, res) => {
     // robots.txtファイルのパスを指定
