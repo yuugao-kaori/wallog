@@ -1,9 +1,8 @@
 # Gitであれこれ
-git add .
-git commit -m "
-'Dev 2025.03.04.0003'
-ｰ 等角フォントを優先するように"
-git push -u origin nextjs_test
+git add . && git commit -m "
+'Dev 2025.03.04.0004'
+ｰ DiaryとBlogについてRSSを配信できるように
+ｰ 【課題】自動検出に引っかからない問題" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

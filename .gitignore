@@ -2,6 +2,7 @@
 **/db_data/**
 **/minio/**
 sitemap.xml
+feed.xml
 
 *.gz
 # Logs
