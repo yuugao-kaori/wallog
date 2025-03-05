@@ -1,7 +1,8 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0004a'
-ｰ feed.xmlが誤ってGitHubの追跡対象となった問題を修正" && git push -u origin nextjs_test
+'Dev 2025.03.04.0005'
+ｰ ルート・Diary・Blog・Searchの主要なページがOGタグを完備するように
+ｰ OGタグについては検証済み" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

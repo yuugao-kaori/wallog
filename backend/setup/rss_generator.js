@@ -106,9 +106,9 @@ async function generateAndSaveBlogFeed() {
       .ele('channel');
     
     // フィードの基本情報を設定
-    feed.ele('title').txt('Wallog Blog');
+    feed.ele('title').txt('星天想記 Blog');
     feed.ele('link').txt(`${baseUrl}/blog`);
-    feed.ele('description').txt('Wallog Blog Feed');
+    feed.ele('description').txt('星天想記 Blog Feed');
     feed.ele('language').txt('ja-jp');
     feed.ele('lastBuildDate').txt(currentDate);
     
@@ -165,9 +165,9 @@ async function generateAndSaveDiaryFeed() {
       .ele('channel');
     
     // フィードの基本情報を設定
-    feed.ele('title').txt('Wallog Diary');
+    feed.ele('title').txt('星天想記 Diary');
     feed.ele('link').txt(`${baseUrl}/diary`);
-    feed.ele('description').txt('Wallog Diary Feed');
+    feed.ele('description').txt('星天想記 Diary Feed');
     feed.ele('language').txt('ja-jp');
     feed.ele('lastBuildDate').txt(currentDate);
     

@@ -15,11 +15,17 @@ async function getBlogData(blog_id: string) {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ blog_id: string }>; // Promise<any> 型を許容
+  params: { blog_id: string }; // Promiseではなく直接オブジェクトとして受け取る
 }): Promise<Metadata> {
-  // 非同期に params を解決
-  const resolvedParams = await params;
-  const blog = await getBlogData(resolvedParams.blog_id);
+  // blogデータを取得
+  const blog = await getBlogData(params.blog_id);
+  
+  // サイトのURL設定（実際のドメインに置き換えてください）
+  const baseUrl = 'https://wallog.seitendan.com';
+  const currentUrl = `${baseUrl}/blog/${params.blog_id}`;
+  
+  // ブログ記事のサムネイル画像URL（APIから取得できる場合）
+  const imageUrl = blog.thumbnail_url || `${baseUrl}/default-og-image.jpg`;
 
   return {
     title: `${blog.blog_title} | Wallog`,
@@ -28,11 +34,21 @@ export async function generateMetadata({
       title: blog.blog_title,
       description: blog.blog_description,
       type: 'article',
+      url: currentUrl,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: blog.blog_title,
+        }
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: blog.blog_title,
       description: blog.blog_description,
+      images: [imageUrl],
     },
   };
 }
