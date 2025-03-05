@@ -23,7 +23,7 @@
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
-  font-family: "Noto Sans JP", "Noto Sans JP Fallback" , "Hiragino Maru Gothic Pro", "BIZ UDGothic", "Roboto", "HelveticaNeue", "Arial", sans-serif;
+  font-family: "BIZ UDGothic", "Noto Sans JP", "Noto Sans JP Fallback" , "Hiragino Maru Gothic Pro", "Roboto", "HelveticaNeue", "Arial", sans-serif;
 }
 
 /* 文字色の即時切り替えのために追加 */

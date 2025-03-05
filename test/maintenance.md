@@ -1,6 +1,9 @@
 # Gitであれこれ
 git add .
-git commit -m ""
+git commit -m "
+'Dev 2025.03.04.0002'
+ｰ robots.txtとsitemap.xmlをクローラに提供するように
+ｰ クローラへの提供に向けたnginx.conf設定を追加"
 git push -u origin nextjs_test
 
 # tar.gzの中身を見る
