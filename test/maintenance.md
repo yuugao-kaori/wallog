@@ -1,7 +1,8 @@
 # Gitであれこれ
 git add . && git commit -m "
 'Dev 2025.03.04.0009'
-ｰ 不要なディレクトリの整理整頓" && git push -u origin nextjs_test
+ｰ 不要なディレクトリの整理整頓
+ｰ Blogに関連する検索のAPI整備を完了" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
@@ -10,9 +11,7 @@ tar ztf app.tar.gz
 docker compose stop app && docker compose rm -f app && docker compose up -d app
 docker compose stop backend && docker compose rm -f backend && docker compose up -d backend
 docker compose stop nginx && docker compose rm -f nginx && docker compose up -d nginx
-docker logs --tail 500 backend
-
-
+docker logs --tail 500 backend_unique
 
 
 # コンテナでコード実行
