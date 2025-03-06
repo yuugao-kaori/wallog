@@ -61,19 +61,19 @@ router.get('/all_search', async (req, res) => {
         let elasticSearchType;
         switch (searchType) {
             case 'post_full_text':
-                elasticSearchType = 'full_text';
+                elasticSearchType = 'diary_full_text';
                 break;
             case 'post_hashtag':
-                elasticSearchType = 'tag';
+                elasticSearchType = 'diary_hashtag';
                 break;
             case 'blog_title':
-                elasticSearchType = 'title';
+                elasticSearchType = 'blog_title';
                 break;
             case 'blog_full_text':
-                elasticSearchType = 'full_text'; // 適切なindexを指定する必要があります
+                elasticSearchType = 'blog_full_text'; // 適切なindexを指定する必要があります
                 break;
             case 'blog_hashtag':
-                elasticSearchType = 'tag'; // 適切なindexを指定する必要があります
+                elasticSearchType = 'blog_hashtag'; // 適切なindexを指定する必要があります
                 break;
             default:
                 elasticSearchType = 'full_text';

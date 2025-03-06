@@ -37,7 +37,7 @@ const esClient = new Client({
 });
 
 /**
- * コンテンツを検索する
+ * 投稿を検索する
  * 
  * テキスト検索、タイトル検索、タグ検索など様々な検索タイプに対応し、
  * ページネーション機能をサポートする。検索結果はソート順に取得される。
@@ -46,15 +46,30 @@ const esClient = new Client({
  * @param {string} searchType - 検索タイプ (title, full_text, tag)
  * @param {number} limit - 返す結果の最大数
  * @param {Array} searchAfter - search_afterのための値（ページネーション用）
- * @param {string} indexName - 検索対象のインデックス名 ('post' または 'blog')
  * @returns {Object} 検索結果の投稿リスト、次ページ用のsearch_after値、総件数を含むオブジェクト
  * @throws {Error} Elasticsearch検索中にエラーが発生した場合
  */
-export async function searchContent(searchText, searchType, limit = 10, searchAfter = null, indexName = 'post') {
+export async function searchPosts(searchText, searchType, limit = 10, searchAfter = null) {
   try {
-    logger.info(`Searching for content in ${indexName} with text: ${searchText}, type: ${searchType}`);
+    logger.info(`Searching for posts with text: ${searchText}, type: ${searchType}`);
 
     let query;
+
+    // インデックス名を検索タイプに基づいて決定
+    let indexName = 'post';
+
+    let sort_value = [
+      { post_createat: { order: 'desc' } },
+      { post_id: { order: 'desc' } } // 完全なユニーク性を保証するために追加
+    ]
+    // ブログ関連の検索タイプの場合はblogインデックスを使用
+    if (searchType === 'blog_full_text' || searchType === 'blog_hashtag' || searchType === 'blog_title') {
+      indexName = 'blog';
+      sort_value = [
+        { blog_createat: { order: 'desc' } },
+      ]
+    }
+
     
     switch (searchType) {
       case 'title':
@@ -89,16 +104,13 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
           }
         };
         break;
-      case 'full_text':
-      default:
-        // インデックスによって検索フィールドを調整
-        const contentField = indexName === 'blog' ? 'blog_text' : 'post_text';
+      case 'diary_full_text':
         query = {
           bool: {
             should: [
               {
                 match: {
-                  [contentField]: {
+                  post_text: {
                     query: searchText,
                     operator: "and"
                   }
@@ -106,7 +118,7 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
               },
               {
                 match: {
-                  [`${contentField}.ngram`]: {
+                  "post_text.ngram": {
                     query: searchText,
                     operator: "and"
                   }
@@ -114,7 +126,7 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
               },
               {
                 match_phrase: {
-                  [contentField]: {
+                  post_text: {
                     query: searchText,
                     boost: 2.0
                   }
@@ -125,23 +137,162 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
           }
         };
         break;
+          break;
+      case 'diary_hashtag':
+        query = {
+          bool: {
+            should: [
+              {
+                term: {
+                  "tags.keyword": searchText  // 完全一致
+                }
+              },
+              {
+                match: {
+                  tags: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+        break;
+      case 'blog_full_text':
+        query = {
+          bool: {
+            should: [
+              {
+                match: {
+                  blog_text: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match: {
+                  "blog_text.ngram": {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match_phrase: {
+                  blog_text: {
+                    query: searchText,
+                    boost: 2.0
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+        break;
+      case 'blog_hashtag':
+        query = {
+          bool: {
+            should: [
+              {
+                term: {
+                  "tags.keyword": searchText  // 完全一致
+                }
+              },
+              {
+                match: {
+                  tags: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+        break;
+      case 'blog_title':
+        query = {
+          bool: {
+            should: [
+              {
+                match: {
+                  blog_title: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match: {
+                  "blog_title.ngram": {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match_phrase: {
+                  blog_title: {
+                    query: searchText,
+                    boost: 2.0
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+        break;
+      case 'full_text':
+      default:
+        query = {
+          bool: {
+            should: [
+              {
+                match: {
+                  post_text: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match: {
+                  "post_text.ngram": {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              },
+              {
+                match_phrase: {
+                  post_text: {
+                    query: searchText,
+                    boost: 2.0
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+        break;
+
     }
     
     // クエリをログに出力
     logger.debug(`Elasticsearch query: ${JSON.stringify(query, null, 2)}`);
     
-    // インデックスによってソートフィールドを調整
-    const sortField = indexName === 'blog' ? 'blog_createat' : 'post_createat';
-    const idField = indexName === 'blog' ? 'blog_id' : 'post_id';
-    
     const searchParams = {
       index: indexName,
       size: limit,
       query: query,
-      sort: [
-        { [sortField]: { order: 'desc' } },
-        { [idField]: { order: 'desc' } } // 完全なユニーク性を保証するために追加
-      ]
+      sort: sort_value
     };
     
     // search_afterパラメータが存在する場合、追加
@@ -160,11 +311,29 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
     const lastHit = response.hits.hits[response.hits.hits.length - 1];
     const nextSearchAfter = lastHit ? lastHit.sort : null;
     
-    // 検索結果を返す（_sourceフィールドをそのまま使用）
-    const items = response.hits.hits.map(hit => hit._source);
+    // 検索結果を指定されたフォーマットに変換
+    let posts;
+    if (searchType === 'blog_full_text' || searchType === 'blog_hashtag' || searchType === 'blog_title') {
+      posts = response.hits.hits.map(hit => ({
+        blog_id: hit._source.blog_id,
+        blog_text: hit._source.blog_text,
+        blog_title: hit._source.blog_title,
+        blog_tag: hit._source.tags,
+        blog_createat: hit._source.blog_createat
+      }));
+    } else {
+      posts = response.hits.hits.map(hit => ({
+        post_id: hit._source.post_id,
+        post_createat: hit._source.post_createat,
+        post_text: hit._source.post_text,
+        post_tag: hit._source.tags,
+        created_at: hit._source.created_at,
+        user_id: hit._source.user_id
+      }));
+    }
     
     return {
-      items,
+      posts,
       next_search_after: nextSearchAfter,
       total: response.hits.total.value
     };
@@ -172,46 +341,6 @@ export async function searchContent(searchText, searchType, limit = 10, searchAf
     logger.error(`Error searching in Elasticsearch: ${error.message}`);
     throw error;
   }
-}
-
-/**
- * 投稿を検索する（後方互換性のため）
- * 
- * @param {string} searchText - 検索するテキスト
- * @param {string} searchType - 検索タイプ (title, full_text, tag)
- * @param {number} limit - 返す結果の最大数
- * @param {Array} searchAfter - search_afterのための値（ページネーション用）
- * @returns {Object} 検索結果の投稿リスト、次ページ用のsearch_after値、総件数を含むオブジェクト
- */
-export async function searchPosts(searchText, searchType, limit = 10, searchAfter = null) {
-  const results = await searchContent(searchText, searchType, limit, searchAfter, 'post');
-  
-  // 後方互換性のために古い形式にマッピング
-  return {
-    posts: results.items.map(item => ({
-      post_id: item.post_id,
-      post_createat: item.post_createat,
-      post_text: item.post_text,
-      post_tag: item.tags,
-      created_at: item.created_at,
-      user_id: item.user_id
-    })),
-    next_search_after: results.next_search_after,
-    total: results.total
-  };
-}
-
-/**
- * ブログを検索する
- * 
- * @param {string} searchText - 検索するテキスト
- * @param {string} searchType - 検索タイプ (title, full_text, tag)
- * @param {number} limit - 返す結果の最大数
- * @param {Array} searchAfter - search_afterのための値（ページネーション用）
- * @returns {Object} 検索結果のブログリスト、次ページ用のsearch_after値、総件数を含むオブジェクト
- */
-export async function searchBlogs(searchText, searchType, limit = 10, searchAfter = null) {
-  return await searchContent(searchText, searchType, limit, searchAfter, 'blog');
 }
 
 /**

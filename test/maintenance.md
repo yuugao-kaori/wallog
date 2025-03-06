@@ -1,12 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0008'
-ｰ 検索APIをall_searchに統合
-ｰ Blogのタイトル・タグ・全文検索を目指した改修
-ｰ 【既知の問題】Blogの検索機能が実質的に未実装
-ｰ 【既知の問題】Diaryにおいて「人気のハッシュタグ」が添付できない
-ｰ 【既知の問題】DiaryにおいてCtrl＋Vで画像の貼り付けができない（APIが走らない）
-ｰ 【既知の問題】Searchページのデザインがダサい" && git push -u origin nextjs_test
+'Dev 2025.03.04.0009'
+ｰ 不要なディレクトリの整理整頓" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

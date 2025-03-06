@@ -28,6 +28,62 @@ interface SearchResponse {
   error?: string;
 }
 
+// メタデータ表示用のコンポーネント
+interface SearchMetadataProps {
+  total: number;
+  currentPage: number;
+  hasMore: boolean;
+  searchTerm: string;
+  searchType: string;
+  sinceDate: string | null;
+  untilDate: string | null;
+}
+
+const SearchMetadata: React.FC<SearchMetadataProps> = ({
+  total,
+  currentPage,
+  hasMore,
+  searchTerm,
+  searchType,
+  sinceDate,
+  untilDate
+}) => {
+  const getSearchTypeLabel = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'post_full_text': 'Diary-全文検索',
+      'post_hashtag': 'Diary-タグ検索',
+      'blog_full_text': 'Blog-全文検索',
+      'blog_hashtag': 'Blog-タグ検索',
+      'blog_title': 'Blog-タイトル検索'
+    };
+    return typeMap[type] || type;
+  };
+
+  return (
+    <div className="p-4 mb-4 rounded-lg shadow">
+      <h3 className="text-s font-semibold mb-2 dark:text-white">検索結果</h3>
+      <div className="text-sm text-gray-600 dark:text-gray-300">
+        <p>総件数: {total}件  現在のページ: {currentPage}</p>
+        {searchTerm && (
+          <p>検索キーワード: 『<span className="font-medium">{searchTerm}</span>』</p>
+        )}
+        {searchTerm && (
+          <p>検索モード： ({getSearchTypeLabel(searchType)})</p>
+        )}
+        {(sinceDate || untilDate) && (
+          <p>
+            期間: 
+            {sinceDate ? <span className="font-medium">{sinceDate}</span> : '指定なし'}
+            {' 〜 '}
+            {untilDate ? <span className="font-medium">{untilDate}</span> : '指定なし'}
+          </p>
+        )}
+        {hasMore && <p className="text-blue-500">※ さらに結果があります</p>}
+      </div>
+    </div>
+  );
+};
+
 export default function SearchPage() {
   // 日付変換用の関数を改善
   const convertPostIdToDateString = (postId: string): string => {
@@ -105,6 +161,9 @@ export default function SearchPage() {
   const [searchHistory, setSearchHistory] = useState<Array<string | null>>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
 
+  // メタデータ用の状態変数
+  const [totalResults, setTotalResults] = useState<number>(0);
+
   const performSearch = useCallback(
     async (searchTerm: string, searchMode: string, initial = true, customSearchAfter?: string | null) => {
       // 検索条件の検証
@@ -124,6 +183,7 @@ export default function SearchPage() {
           setHasMore(false);
           setSearchHistory([]);
           setCurrentSearchIndex(-1);
+          setTotalResults(0); // メタデータをリセット
         }
 
         // APIエンドポイント
@@ -177,6 +237,7 @@ export default function SearchPage() {
         setResults(responseData.data);
         setNextSearchAfter(responseData.meta.next_search_after);
         setHasMore(Boolean(responseData.meta.next_search_after));
+        setTotalResults(responseData.meta.total); // 総件数を保存
         
         // 履歴更新
         if (responseData.meta.next_search_after) {
@@ -346,6 +407,19 @@ export default function SearchPage() {
             <div className="text-center text-red-500">エラー: {error}</div>
           )}
 
+          {/* 検索結果メタデータの表示 */}
+          {!loading && results.length > 0 && (
+            <SearchMetadata 
+              total={totalResults}
+              currentPage={currentSearchIndex + 1}
+              hasMore={hasMore}
+              searchTerm={searchText}
+              searchType={searchType}
+              sinceDate={sinceDate}
+              untilDate={untilDate}
+            />
+          )}
+
           <div className="flex flex-col">
             {results.map((post) => (
               <PostCard
@@ -414,11 +488,11 @@ export default function SearchPage() {
               onChange={(e) => setSearchType(e.target.value)}
               className="w-full border border-gray-300 dark:bg-gray-800 px-4 py-2 rounded-md"
             >
-              <option value="post_full_text">投稿-全文検索</option>
-              <option value="post_hashtag">投稿-タグ検索</option>
-              <option value="blog_full_text">ブログ-全文検索</option>
-              <option value="blog_hashtag">ブログ-タグ検索</option>
-              <option value="blog_title">ブログ-タイトル検索</option>
+              <option value="post_full_text">Diary-全文検索</option>
+              <option value="post_hashtag">Diary-タグ検索</option>
+              <option value="blog_full_text">Blog-全文検索</option>
+              <option value="blog_hashtag">Blog-タグ検索</option>
+              <option value="blog_title">Blog-タイトル検索</option>
             </select>
             <input
               type="date"
