@@ -37,7 +37,7 @@ const esClient = new Client({
 });
 
 /**
- * 投稿を検索する
+ * コンテンツを検索する
  * 
  * テキスト検索、タイトル検索、タグ検索など様々な検索タイプに対応し、
  * ページネーション機能をサポートする。検索結果はソート順に取得される。
@@ -46,12 +46,13 @@ const esClient = new Client({
  * @param {string} searchType - 検索タイプ (title, full_text, tag)
  * @param {number} limit - 返す結果の最大数
  * @param {Array} searchAfter - search_afterのための値（ページネーション用）
+ * @param {string} indexName - 検索対象のインデックス名 ('post' または 'blog')
  * @returns {Object} 検索結果の投稿リスト、次ページ用のsearch_after値、総件数を含むオブジェクト
  * @throws {Error} Elasticsearch検索中にエラーが発生した場合
  */
-export async function searchPosts(searchText, searchType, limit = 10, searchAfter = null) {
+export async function searchContent(searchText, searchType, limit = 10, searchAfter = null, indexName = 'post') {
   try {
-    logger.info(`Searching for posts with text: ${searchText}, type: ${searchType}`);
+    logger.info(`Searching for content in ${indexName} with text: ${searchText}, type: ${searchType}`);
 
     let query;
     
@@ -68,21 +69,36 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
         break;
       case 'tag':
         query = {
-          match: {
-            tags: {
-              query: searchText
-            }
+          bool: {
+            should: [
+              {
+                term: {
+                  "tags.keyword": searchText  // 完全一致
+                }
+              },
+              {
+                match: {
+                  tags: {
+                    query: searchText,
+                    operator: "and"
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
           }
         };
         break;
       case 'full_text':
       default:
+        // インデックスによって検索フィールドを調整
+        const contentField = indexName === 'blog' ? 'blog_text' : 'post_text';
         query = {
           bool: {
             should: [
               {
                 match: {
-                  post_text: {
+                  [contentField]: {
                     query: searchText,
                     operator: "and"
                   }
@@ -90,7 +106,7 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
               },
               {
                 match: {
-                  "post_text.ngram": {
+                  [`${contentField}.ngram`]: {
                     query: searchText,
                     operator: "and"
                   }
@@ -98,7 +114,7 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
               },
               {
                 match_phrase: {
-                  post_text: {
+                  [contentField]: {
                     query: searchText,
                     boost: 2.0
                   }
@@ -114,13 +130,17 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
     // クエリをログに出力
     logger.debug(`Elasticsearch query: ${JSON.stringify(query, null, 2)}`);
     
+    // インデックスによってソートフィールドを調整
+    const sortField = indexName === 'blog' ? 'blog_createat' : 'post_createat';
+    const idField = indexName === 'blog' ? 'blog_id' : 'post_id';
+    
     const searchParams = {
-      index: 'post',
+      index: indexName,
       size: limit,
       query: query,
       sort: [
-        { post_createat: { order: 'desc' } },
-        { post_id: { order: 'desc' } } // 完全なユニーク性を保証するために追加
+        { [sortField]: { order: 'desc' } },
+        { [idField]: { order: 'desc' } } // 完全なユニーク性を保証するために追加
       ]
     };
     
@@ -140,18 +160,11 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
     const lastHit = response.hits.hits[response.hits.hits.length - 1];
     const nextSearchAfter = lastHit ? lastHit.sort : null;
     
-    // 検索結果を指定されたフォーマットに変換
-    const posts = response.hits.hits.map(hit => ({
-      post_id: hit._source.post_id,
-      post_createat: hit._source.post_createat,
-      post_text: hit._source.post_text,
-      post_tag: hit._source.tags,
-      created_at: hit._source.created_at,
-      user_id: hit._source.user_id
-    }));
+    // 検索結果を返す（_sourceフィールドをそのまま使用）
+    const items = response.hits.hits.map(hit => hit._source);
     
     return {
-      posts,
+      items,
       next_search_after: nextSearchAfter,
       total: response.hits.total.value
     };
@@ -159,6 +172,46 @@ export async function searchPosts(searchText, searchType, limit = 10, searchAfte
     logger.error(`Error searching in Elasticsearch: ${error.message}`);
     throw error;
   }
+}
+
+/**
+ * 投稿を検索する（後方互換性のため）
+ * 
+ * @param {string} searchText - 検索するテキスト
+ * @param {string} searchType - 検索タイプ (title, full_text, tag)
+ * @param {number} limit - 返す結果の最大数
+ * @param {Array} searchAfter - search_afterのための値（ページネーション用）
+ * @returns {Object} 検索結果の投稿リスト、次ページ用のsearch_after値、総件数を含むオブジェクト
+ */
+export async function searchPosts(searchText, searchType, limit = 10, searchAfter = null) {
+  const results = await searchContent(searchText, searchType, limit, searchAfter, 'post');
+  
+  // 後方互換性のために古い形式にマッピング
+  return {
+    posts: results.items.map(item => ({
+      post_id: item.post_id,
+      post_createat: item.post_createat,
+      post_text: item.post_text,
+      post_tag: item.tags,
+      created_at: item.created_at,
+      user_id: item.user_id
+    })),
+    next_search_after: results.next_search_after,
+    total: results.total
+  };
+}
+
+/**
+ * ブログを検索する
+ * 
+ * @param {string} searchText - 検索するテキスト
+ * @param {string} searchType - 検索タイプ (title, full_text, tag)
+ * @param {number} limit - 返す結果の最大数
+ * @param {Array} searchAfter - search_afterのための値（ページネーション用）
+ * @returns {Object} 検索結果のブログリスト、次ページ用のsearch_after値、総件数を含むオブジェクト
+ */
+export async function searchBlogs(searchText, searchType, limit = 10, searchAfter = null) {
+  return await searchContent(searchText, searchType, limit, searchAfter, 'blog');
 }
 
 /**

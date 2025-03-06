@@ -36,8 +36,6 @@ import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
 import post_sseRoute from './api/post/post_sse.js';
 import post_listRoute from './api/post/post_list.js';
-import post_searchRoute from './api/search/post_search.js';
-import tag_searchRoute from './api/search/tag_search.js';
 import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
@@ -64,7 +62,7 @@ import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
-
+import all_search from './api/search/all_search.js';
 
 
 // blog2のtest
@@ -81,7 +79,7 @@ app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, stic
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
-app.use('/api/search', post_searchRoute, tag_searchRoute);
+app.use('/api/search', all_search);
 
 // サイトマップへのアクセスを処理
 app.get('/sitemap.xml', (req, res) => {
