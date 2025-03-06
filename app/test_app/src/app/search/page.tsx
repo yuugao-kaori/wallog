@@ -364,7 +364,7 @@ export default function SearchPage() {
             <div className="text-center text-red-500">エラー: {error}</div>
           )}
 
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col">
             {results.map((post) => (
               <PostCard
                 key={post.post_id}

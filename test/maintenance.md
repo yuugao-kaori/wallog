@@ -1,7 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0006'
-ｰ " && git push -u origin nextjs_test
+'Dev 2025.03.04.0007'
+ｰ SearchページにおけるCardの表現をDiaryに準拠したものへと変更（間隔を狭める対応）" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
@@ -13,7 +13,7 @@ docker compose stop nginx && docker compose rm -f nginx && docker compose up -d 
 docker logs --tail 500 backend
 
 
-block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]
+
 
 # コンテナでコード実行
 docker exec -i app-afm sh -c "node import_note_menu.js"
