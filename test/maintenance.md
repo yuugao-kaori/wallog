@@ -1,8 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0005'
-ｰ ルート・Diary・Blog・Searchの主要なページがOGタグを完備するように
-ｰ OGタグについては検証済み" && git push -u origin nextjs_test
+'Dev 2025.03.04.0006'
+ｰ " && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
@@ -11,8 +10,10 @@ tar ztf app.tar.gz
 docker compose stop app && docker compose rm -f app && docker compose up -d app
 docker compose stop backend && docker compose rm -f backend && docker compose up -d backend
 docker compose stop nginx && docker compose rm -f nginx && docker compose up -d nginx
+docker logs --tail 500 backend
 
 
+block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]
 
 # コンテナでコード実行
 docker exec -i app-afm sh -c "node import_note_menu.js"

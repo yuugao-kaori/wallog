@@ -36,8 +36,8 @@ import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
 import post_sseRoute from './api/post/post_sse.js';
 import post_listRoute from './api/post/post_list.js';
-import post_searchRoute from './api/post/post_search.js';
-import tag_searchRoute from './api/post/tag_search.js';
+import post_searchRoute from './api/search/post_search.js';
+import tag_searchRoute from './api/search/tag_search.js';
 import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
@@ -73,7 +73,7 @@ startMaintenanceScheduler();
 
 // ファイルアップロードルートの設定（file_create.js を使用）
 app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
-app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
+app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute,  post_listRoute, post_sseRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute, user_readRoute, user_updateRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 app.use('/api/settings', settings_readRoute, settings_updateRoute, settings_writeRoute);
@@ -81,6 +81,7 @@ app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, stic
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
+app.use('/api/search', post_searchRoute, tag_searchRoute);
 
 // サイトマップへのアクセスを処理
 app.get('/sitemap.xml', (req, res) => {

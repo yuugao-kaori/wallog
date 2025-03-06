@@ -105,25 +105,27 @@ export default function SearchPage() {
       }
 
       try {
-        // 基本のAPIエンドポイントを設定
-        const baseUrl = '/api/post/search';
-        let apiUrl = searchTerm.trim() !== '' 
-          ? `${baseUrl}/${encodeURIComponent(searchTerm)}`
-          : baseUrl;
-
+        // 新しいAPIエンドポイントを設定
+        const apiUrl = '/api/search/post';
+        
         // パラメータの構築を修正
         const params: Record<string, string> = {
-          searchType: searchMode,
           limit: '10'  // limitパラメータを常に含める
         };
         
-        // offset, since, untilの処理を修正
-        if (offset) params.offset = offset;
+        // 検索キーワードがある場合はqパラメータを追加
+        if (searchTerm.trim() !== '') {
+          params.q = searchTerm;
+          params.type = searchMode;
+        }
+        
+        // search_after, since, untilの処理を修正
+        if (offset) params.search_after = offset;
         if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
         if (untilDate) params.until = convertDateToPostId(untilDate, false);
 
         const queryString = new URLSearchParams(params).toString();
-        const fullUrl = `${apiUrl}${queryString ? `?${queryString}` : ''}`;
+        const fullUrl = `${apiUrl}?${queryString}`;
 
         const response = await axios.get(fullUrl, {
           headers: {
@@ -190,18 +192,20 @@ export default function SearchPage() {
   const handleNextPage = useCallback(async () => {
     if (!hasMore || loading) return;
     
-    const baseUrl = '/api/post/search';
-    const apiUrl = searchText.trim() !== ''
-      ? `${baseUrl}/${encodeURIComponent(searchText)}`
-      : baseUrl;
+    const apiUrl = '/api/search/post';
 
     const params: Record<string, string> = {
-      searchType: searchType,
       limit: '10'
     };
 
-    // offset, since, untilの処理を追加
-    if (offset) params.offset = offset;
+    // 検索キーワードがある場合はqパラメータを追加
+    if (searchText.trim() !== '') {
+      params.q = searchText;
+      params.type = searchType;
+    }
+
+    // search_after, since, untilの処理を修正
+    if (offset) params.search_after = offset;
     if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
     if (untilDate) params.until = convertDateToPostId(untilDate, false);
 
