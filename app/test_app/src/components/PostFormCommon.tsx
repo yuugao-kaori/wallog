@@ -213,6 +213,8 @@ export function useFileUpload(
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  // アップロードしたファイルを保持する配列（handleFilesで使用するため）
+  const [uploadedFiles, setUploadedFiles] = useState<FileItem[]>([]);
 
   /**
    * ドラッグオーバーイベントハンドラ
@@ -278,62 +280,108 @@ export function useFileUpload(
   /**
    * ファイル処理とアップロード進捗の管理
    */
-  const handleFilesWithProgress = useCallback((fileList: FileList) => {
+  const handleFilesWithProgress = useCallback(async (fileList: FileList) => {
     setIsUploading(true);
     const newProgress: Record<string, number> = {};
+    const newUploadedFiles: FileItem[] = [];
     
-    Array.from(fileList).forEach(file => {
-      // モックアップロード進捗 - 実際の実装ではここでファイルをアップロードする
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      // 初期状態を設定
       newProgress[file.name] = 0;
+      setUploadProgress(prev => ({
+        ...prev,
+        [file.name]: 0
+      }));
       
-      // ファイル分析とサムネイル生成
-      const isImage = file.type.startsWith('image/');
-      const reader = new FileReader();
-      
-      reader.onload = () => {
-        // プログレスバーのアニメーション
-        let progress = 0;
-        const interval = setInterval(() => {
-          progress += Math.random() * 15;
-          if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            
-            // アップロード完了後の処理
-            setTimeout(() => {
-              setUploadProgress(prev => {
-                const updated = { ...prev };
-                delete updated[file.name];
-                return updated;
-              });
-              
-              if (Object.keys(newProgress).length === 1) {
-                setIsUploading(false);
-              }
-            }, 500);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // カスタムXHRでアップロード進捗を追跡
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${process.env.NEXT_PUBLIC_SITE_DOMAIN || ''}/api/drive/file_create`);
+        
+        // プログレスイベントリスナー
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.name]: percentComplete
+            }));
           }
+        });
+        
+        // レスポンスを待つ
+        const response = await new Promise<any>((resolve, reject) => {
+          xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch (e) {
+                reject(new Error('Invalid JSON response'));
+              }
+            } else {
+              reject(new Error(`HTTP Error: ${xhr.status}`));
+            }
+          };
           
-          setUploadProgress(prev => ({
+          xhr.onerror = () => reject(new Error('Network Error'));
+          xhr.send(formData);
+        });
+        
+        // アップロード完了後、ファイル情報をリストに追加
+        if (response && response.id) {
+          const fileItem = {
+            id: response.id,
+            name: file.name,
+            size: file.size,
+            contentType: file.type,
+            isImage: file.type.startsWith('image/')
+          };
+          
+          newUploadedFiles.push(fileItem);
+          
+          setFiles(prev => [
             ...prev,
-            [file.name]: Math.min(Math.round(progress), 100)
-          }));
-        }, 200);
-      };
-      
-      reader.onerror = () => {
+            fileItem
+          ]);
+          
+          // 進捗表示を削除（成功）
+          setTimeout(() => {
+            setUploadProgress(prev => {
+              const updated = { ...prev };
+              delete updated[file.name];
+              return updated;
+            });
+          }, 500);
+        }
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
         setUploadProgress(prev => ({
           ...prev,
-          [file.name]: -1 // エラー状態
+          [file.name]: -1 // エラー表示
         }));
-      };
-      
-      // 読み込み開始
-      reader.readAsDataURL(file);
-    });
+      }
+    }
     
-    // 初期進捗状態を設定
-    setUploadProgress(prev => ({ ...prev, ...newProgress }));
-  }, []);
+    // アップロードしたファイルを状態に保存
+    setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
+    
+    // すべてのファイルの処理が終わったら、アップロード完了
+    setIsUploading(false);
+    
+    return newUploadedFiles;
+  }, [setFiles]);
+
+  // ファイルをアップロードするたびに親コンポーネントに通知するための効果
+  useEffect(() => {
+    if (uploadedFiles.length > 0) {
+      // このフックは直接呼ばれるわけではないので、外部から提供された
+      // handleFiles関数を呼び出す必要はありません
+    }
+  }, [uploadedFiles]);
 
   return {
     uploadProgress,
@@ -344,6 +392,7 @@ export function useFileUpload(
     handleDragLeave,
     handleDrop,
     handleFilesWithProgress,
-    handlePaste
+    handlePaste,
+    uploadedFiles
   };
 }

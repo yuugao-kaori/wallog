@@ -85,7 +85,7 @@ const PostForm: React.FC<PostFormProps> = ({
     handleDragLeave,
     handleDrop,
     handleFilesWithProgress,
-    handlePaste
+    handlePaste: handlePasteInternal
   } = useFileUpload(files, setFiles);
 
   // 同期を維持するための効果 - fixedHashtagsの更新
@@ -109,6 +109,34 @@ const PostForm: React.FC<PostFormProps> = ({
       if (postText.trim() !== '' || files.length > 0) {
         handleFormSubmit(e as any);
       }
+    }
+  };
+
+  /**
+   * クリップボードからファイルがペーストされた場合の処理
+   */
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    const fileItems: File[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) fileItems.push(file);
+      }
+    }
+    
+    if (fileItems.length > 0) {
+      e.preventDefault();
+      // 内部ペースト処理を呼び出し
+      handlePasteInternal(e);
+      
+      // 親コンポーネントのhandleFilesも呼び出し
+      const fileList = new DataTransfer();
+      fileItems.forEach(file => fileList.items.add(file));
+      handleFiles(fileList.files);
     }
   };
 

@@ -118,7 +118,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     handleDragLeave,
     handleDrop,
     handleFilesWithProgress,
-    handlePaste,
+    handlePaste: handlePasteInternal,
   } = useFileUpload(files, setFiles);
 
   // ハッシュタグの初期読み込み
@@ -175,6 +175,34 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     if (e.target.files && e.target.files.length > 0) {
       handleFilesWithProgress(e.target.files);
       handleFiles(e.target.files); // 親コンポーネントにもファイルを通知
+    }
+  };
+  
+  /**
+   * クリップボードからファイルがペーストされた場合の処理
+   */
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    const fileItems: File[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) fileItems.push(file);
+      }
+    }
+    
+    if (fileItems.length > 0) {
+      e.preventDefault();
+      // 内部ペースト処理を呼び出し
+      handlePasteInternal(e);
+      
+      // 親コンポーネントのhandleFilesも呼び出し
+      const fileList = new DataTransfer();
+      fileItems.forEach(file => fileList.items.add(file));
+      handleFiles(fileList.files);
     }
   };
 

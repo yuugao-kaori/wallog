@@ -1,7 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0012'
-- モバイル環境における検索ボタンをReactIconによるものに変更" && git push -u origin nextjs_test
+'Dev 2025.03.04.0013'
+- Ctrl＋Vで画像の添付ができなくなっていた問題を修正" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
