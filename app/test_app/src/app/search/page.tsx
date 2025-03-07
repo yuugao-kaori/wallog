@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import PostCard from '@/components/PostCard';
+import BlogCard from '@/components/BlogCard'; // Import the BlogCard component
 import axios from 'axios';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
@@ -16,10 +17,23 @@ interface Post {
   user_id: string;
 }
 
+// Blog interface for blog search results
+interface Blog {
+  blog_id: string;
+  blog_text: string;
+  blog_title: string;
+  blog_createat: string;
+  blog_thumbnail?: string;
+  blog_description?: string;
+}
+
+// Union type for search results
+type SearchResultItem = Post | Blog;
+
 // 新しいAPIレスポンス型定義
 interface SearchResponse {
   success: boolean;
-  data: Post[];
+  data: SearchResultItem[];
   meta: {
     total: number;
     limit: number;
@@ -115,6 +129,24 @@ export default function SearchPage() {
     }
   };
 
+
+  // ログイン状態の管理
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const response = await axios.get('/api/user/login_check');
+        setIsLoggedIn(response.status === 200);
+      } catch (err) {
+        setIsLoggedIn(false);
+      }
+    };
+
+    checkLogin();
+  }, []);
+
+
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -125,19 +157,21 @@ export default function SearchPage() {
 
   const [searchText, setSearchText] = useState(urlSearchText);
   const [searchType, setSearchType] = useState(urlSearchType);
-  const [results, setResults] = useState<Post[]>([]);
+  const [results, setResults] = useState<SearchResultItem[]>([]);
   const [nextSearchAfter, setNextSearchAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const isLoggedIn = true;
   // 初期値にURLパラメータを設定
   const [sinceDate, setSinceDate] = useState<string>(convertPostIdToDateString(urlSinceDate));
   const [untilDate, setUntilDate] = useState<string>(convertPostIdToDateString(urlUntilDate));
   // モーダル状態
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const formatDate = (date: Date): string => {
+  const formatDate = (date: Date | string): string => {
+    if (typeof date === 'string') {
+      date = new Date(date);
+    }
     const pad = (n: number): string => String(n).padStart(2, '0');
     return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
@@ -155,6 +189,11 @@ export default function SearchPage() {
       console.error('Date conversion error:', error);
       return '';
     }
+  };
+
+  // Helper function to check if a search result is a blog
+  const isBlog = (item: SearchResultItem): item is Blog => {
+    return 'blog_title' in item;
   };
 
   // 検索履歴を保持（検索後メタデータを使用）
@@ -282,26 +321,51 @@ export default function SearchPage() {
   }, [hasMore, loading, searchText, searchType, performSearch]);
 
   // 投稿削除処理
-  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, post_id: string): Promise<boolean> => {
+  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, id: string): Promise<boolean> => {
     event.stopPropagation();
     if (!window.confirm('本当に削除しますか？')) return false;
 
     try {
-      const response = await axios.delete('/api/post/post_delete', {
-        data: { post_id },
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 200) {
-        setResults((prevResults) => prevResults.filter(post => post.post_id !== post_id));
-        alert('投稿が削除されました。');
-        return true;
+      // Determine if we're deleting a post or blog based on the search type
+      const isBlogSearch = ['blog_full_text', 'blog_hashtag', 'blog_title'].includes(searchType);
+      
+      if (isBlogSearch) {
+        // Blog deletion
+        const response = await axios.post('/api/blog/blog_delete', {
+          file_id: id
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.status === 200) {
+          setResults((prevResults) => prevResults.filter(item => 
+            isBlog(item) ? item.blog_id !== id : true
+          ));
+          alert('ブログが削除されました。');
+          return true;
+        }
       } else {
-        alert('削除に失敗しました。');
-        return false;
+        // Post deletion (diary)
+        const response = await axios.delete('/api/post/post_delete', {
+          data: { post_id: id },
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.status === 200) {
+          setResults((prevResults) => prevResults.filter(item => 
+            !isBlog(item) ? item.post_id !== id : true
+          ));
+          alert('投稿が削除されました。');
+          return true;
+        }
       }
+      
+      alert('削除に失敗しました。');
+      return false;
     } catch (error) {
       console.error('削除エラー:', error);
       alert('エラーが発生しました。');
@@ -394,6 +458,38 @@ export default function SearchPage() {
     };
   }, [isModalOpen]);
 
+  // Check if the search type is for blogs
+  const isBlogSearch = searchType.startsWith('blog_');
+
+  // Render a search result item based on its type
+  const renderSearchResultItem = (item: SearchResultItem, index: number) => {
+    // For blog search types, render BlogCard
+    if (isBlog(item)) {
+      return (
+        <BlogCard
+          key={item.blog_id}
+          blog={item}
+          isLoggedIn={isLoggedIn}
+          onDelete={isLoggedIn ? handleDelete : undefined}
+          formatDate={(date) => formatDate(date)}
+        />
+      );
+    }
+    // For post search types, render PostCard
+    else {
+      return (
+        <PostCard
+          key={item.post_id}
+          post={item as Post}
+          isLoggedIn={isLoggedIn}
+          onDelete={handleDelete}
+          handleDeleteClick={handleDelete}
+          formatDate={(date) => formatDate(date)}
+        />
+      );
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       {/* メインコンテンツ */}
@@ -421,16 +517,7 @@ export default function SearchPage() {
           )}
 
           <div className="flex flex-col">
-            {results.map((post) => (
-              <PostCard
-                key={post.post_id}
-                post={post}
-                isLoggedIn={isLoggedIn}
-                onDelete={handleDelete}
-                handleDeleteClick={handleDelete}
-                formatDate={(date: string) => formatDate(new Date(date))}
-              />
-            ))}
+            {results.map((item, index) => renderSearchResultItem(item, index))}
           </div>
 
           {loading && (

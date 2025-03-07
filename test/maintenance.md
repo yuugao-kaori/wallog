@@ -1,8 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0009'
-ｰ 不要なディレクトリの整理整頓
-ｰ Blogに関連する検索のAPI整備を完了" && git push -u origin nextjs_test
+'Dev 2025.03.04.00010'
+ｰ ブログの検索機能を実装完了" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
