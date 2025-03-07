@@ -105,9 +105,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     setSelectedHashtags,
     isLoading,
     handleHashtagSelect,
-    handleHashtagChange,
-    fetchHashtags,
-    fetchInitialHashtags
+    handleHashtagChange
   } = hashtagsState;
 
   // 共通ファイルアップロードフック
@@ -125,27 +123,32 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
 
   // ハッシュタグの初期読み込み
   useEffect(() => {
-    fetchInitialHashtags();
+    // useHashtags フックは内部で初期化を行うため、ここでの明示的な呼び出しは不要
+    // hashtagRankingはフックの初期化時に自動的に取得される
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ハッシュタグランキングのフェッチ
   useEffect(() => {
-    fetchHashtags();
+    // ハッシュタグのフェッチ処理はuseHashtags内部で処理されるため、このuseEffectは削除するか以下のようにコメントで残す
+    // isDropdownOpen が変更されたときの処理（必要であれば）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDropdownOpen]);
 
   // 同期を維持するための効果
   useEffect(() => {
-    setFixedHashtags(hashtagsState.fixedHashtags);
-  }, [hashtagsState.fixedHashtags, setFixedHashtags]);
+    // fixedHashtags is managed by parent component, no need to sync from hashtagsState
+    // This effect can be removed if hashtagsState doesn't maintain its own fixedHashtags
+  }, [fixedHashtags, setFixedHashtags]);
 
   useEffect(() => {
-    hashtagsState.setFixedHashtags(fixedHashtags);
+    // No need to update hashtagsState directly since fixedHashtags is passed to useHashtags
+    // and handled internally by the hook
   }, [fixedHashtags]);
 
   useEffect(() => {
-    hashtagsState.setAutoAppendTags(autoAppendTags);
+    // No need to update hashtagsState since autoAppendTags is managed by the parent component
+    // The autoAppendTags state is passed to processPostText function directly
   }, [autoAppendTags]);
 
   /**
@@ -312,13 +315,13 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                             type="button"
                             onClick={() => handleHashtagSelect(tag.post_tag_text)}
                             className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                              selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                              selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) ? 'bg-blue-50 dark:bg-blue-900' : ''
                             }`}
                           >
                             <span>{tag.post_tag_text}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-gray-500">({tag.use_count})</span>
-                              {selectedHashtags.has(tag.post_tag_text) && (
+                              {selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) && (
                                 <span className="text-blue-500 text-sm">✓</span>
                               )}
                             </div>
@@ -335,7 +338,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                 <div className="mt-2 flex flex-wrap gap-1">
                   {Array.from(selectedHashtags).map(tag => (
                     <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
-                      {tag}
+                      #{tag}
                       <button
                         type="button"
                         onClick={() => handleHashtagSelect(tag)}

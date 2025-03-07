@@ -6,6 +6,7 @@ import BlogCard from '@/components/BlogCard'; // Import the BlogCard component
 import axios from 'axios';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import { FaSearch } from "react-icons/fa"; // React Iconsからの検索アイコンをインポート
 
 interface Post {
   post_id: string;
@@ -608,7 +609,7 @@ export default function SearchPage() {
         className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50"
         onClick={() => setIsModalOpen(true)}
       >
-        検索
+        <FaSearch />
       </button>
 
       {/* モーダル内検索フォーム */}

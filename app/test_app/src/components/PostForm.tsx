@@ -64,32 +64,18 @@ const PostForm: React.FC<PostFormProps> = ({
   handleDeletePermanently,
 }) => {
   // 共通ハッシュタグフック
-  // @returns {object} ハッシュタグ関連の状態と関数
-  // @property {Array<{post_tag_id: number, post_tag_text: string, use_count: number}>} hashtagRanking - 人気ハッシュタグランキング
-  // @property {boolean} isDropdownOpen - ドロップダウンの開閉状態
-  // @property {function} setIsDropdownOpen - ドロップダウン状態設定関数
-  // @property {Set<string>} selectedHashtags - 選択されたハッシュタグ
-  // @property {boolean} isLoading - ロード中フラグ
-  const hashtagsState = useHashtags(fixedHashtags);
   const {
     hashtagRanking,
     isDropdownOpen,
     setIsDropdownOpen,
     selectedHashtags,
+    setSelectedHashtags,
     isLoading,
     handleHashtagSelect,
     handleHashtagChange,
-    fetchHashtags,
-    fetchInitialHashtags
-  } = hashtagsState;
+  } = useHashtags(fixedHashtags);
 
   // 共通ファイルアップロードフック
-  // @returns {object} ファイルアップロード関連の状態と関数
-  // @property {Record<string, number>} uploadProgress - ファイル名とアップロード進捗率のマップ
-  // @property {boolean} isUploading - アップロード中フラグ
-  // @property {React.RefObject} fileInputRef - ファイル入力要素への参照
-  // @property {React.RefObject} dropRef - ドロップエリアへの参照
-  const fileUploadState = useFileUpload(files, setFiles);
   const {
     uploadProgress,
     isUploading,
@@ -100,33 +86,17 @@ const PostForm: React.FC<PostFormProps> = ({
     handleDrop,
     handleFilesWithProgress,
     handlePaste
-  } = fileUploadState;
+  } = useFileUpload(files, setFiles);
 
-  // ハッシュタグの初期読み込み
+  // 同期を維持するための効果 - fixedHashtagsの更新
   useEffect(() => {
-    fetchInitialHashtags();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // ハッシュタグ入力を変更したら選択されたハッシュタグを更新
+    if (fixedHashtags) {
+      const tags = fixedHashtags.split(',').map(tag => tag.trim()).filter(Boolean);
+      setSelectedHashtags(new Set(tags.map(tag => tag.replace(/^#/, ''))));
+    }
+  }, [fixedHashtags, setSelectedHashtags]);
 
-  // ハッシュタグランキングのフェッチ
-  useEffect(() => {
-    fetchHashtags();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDropdownOpen]);
-
-  // 同期を維持するための効果
-  useEffect(() => {
-    setFixedHashtags(hashtagsState.fixedHashtags);
-  }, [hashtagsState.fixedHashtags, setFixedHashtags]);
-
-  useEffect(() => {
-    hashtagsState.setFixedHashtags(fixedHashtags);
-  }, [fixedHashtags]);
-
-  useEffect(() => {
-    hashtagsState.setAutoAppendTags(autoAppendTags);
-  }, [autoAppendTags]);
-  
   /**
    * テキスト入力時のキーハンドラ
    * Shift + Enterで投稿送信を行う
@@ -158,13 +128,10 @@ const PostForm: React.FC<PostFormProps> = ({
     // @param {string} fixedTags - 常に付与する固定タグ（カンマ区切り）
     // @returns {string} 処理後のテキスト
     const finalText = processPostText(postText, selectedHashtags, autoAppendTags, fixedHashtags);
-
-    if (finalText.trim() || files.length > 0) {
-      handleSubmit(e, finalText);
-      // 投稿後に選択されたタグをクリア
-      hashtagsState.setSelectedHashtags(new Set());
-      setIsDropdownOpen(false);
-    }
+    handleSubmit(e, finalText);
+    // 投稿後に選択されたタグをクリア
+    setSelectedHashtags(new Set());
+    setIsDropdownOpen(false);
   };
 
   return (
@@ -206,27 +173,19 @@ const PostForm: React.FC<PostFormProps> = ({
                     {isLoading ? (
                       <div className="p-4 text-center text-gray-500">読み込み中...</div>
                     ) : (
-                      /* 
-                      * ハッシュタグデータの構造:
-                      * hashtagRanking: Array<{
-                      *   post_tag_id: number,    // タグID
-                      *   post_tag_text: string,  // タグテキスト('#'を含まない)
-                      *   use_count: number       // 使用回数
-                      * }>
-                      */
                       hashtagRanking.map((tag) => (
                         <button
                           key={tag.post_tag_id}
                           type="button"
                           onClick={() => handleHashtagSelect(tag.post_tag_text)}
                           className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                            selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                            selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) ? 'bg-blue-50 dark:bg-blue-900' : ''
                           }`}
                         >
                           <span>{tag.post_tag_text}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500">({tag.use_count})</span>
-                            {selectedHashtags.has(tag.post_tag_text) && (
+                            {selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) && (
                               <span className="text-blue-500 text-sm">✓</span>
                             )}
                           </div>
@@ -243,7 +202,7 @@ const PostForm: React.FC<PostFormProps> = ({
               <div className="mt-2 flex flex-wrap gap-1">
                 {Array.from(selectedHashtags).map(tag => (
                   <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
-                    {tag}
+                    #{tag}
                     <button
                       type="button"
                       onClick={() => handleHashtagSelect(tag)}
@@ -260,12 +219,6 @@ const PostForm: React.FC<PostFormProps> = ({
             {isUploading && Object.keys(uploadProgress).length > 0 && (
               <div className="mt-4 space-y-2">
                 <h3 className="font-medium text-sm">アップロード中...</h3>
-                {/* 
-                * uploadProgress構造:
-                * {
-                *   [fileName: string]: number  // 0-100のアップロード進捗、負の値はエラー
-                * } 
-                */}
                 {Object.entries(uploadProgress).map(([fileName, progress]) => (
                   <div key={fileName} className="flex flex-col">
                     <div className="flex justify-between text-xs">
@@ -307,19 +260,6 @@ const PostForm: React.FC<PostFormProps> = ({
             />
           </div>
 
-          {/* 
-          * ファイル一覧表示
-          * FileItem構造:
-          * {
-          *   id: string | number,    // ファイルID
-          *   name?: string,          // ファイル名
-          *   size?: number,          // ファイルサイズ（バイト）
-          *   contentType?: string,   // MIMEタイプ（例: 'image/jpeg'）
-          *   isImage: boolean,       // 画像ファイルかどうか
-          *   uploadProgress?: number, // アップロード進捗（0-100）
-          *   error?: string          // エラーメッセージ（存在する場合）
-          * } 
-          */}
           {files.length > 0 && (
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {files.map((file) => (

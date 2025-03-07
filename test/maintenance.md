@@ -1,7 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.00011'
-- SearchページでBlogを検索した時に削除ボタンが非ログインユーザにも表示される問題に対応" && git push -u origin nextjs_test
+'Dev 2025.03.04.0012'
+- モバイル環境における検索ボタンをReactIconによるものに変更" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

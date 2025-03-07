@@ -53,8 +53,8 @@ export function processPostText(
     .filter(tag => tag !== '')
     .map(tag => `#${tag.replace(/^#/, '')}`);
   
-  // 自動付与フラグがオンの場合はタグを追加
-  if (autoAppend) {
+  // 選択されたタグまたは固定タグがある場合は、常にテキストに追加する
+  if (selectedTags.size > 0 || fixedTagsArray.length > 0) {
     const allTags = [...new Set([...tagsArray, ...fixedTagsArray])];
     return textWithoutTags 
       ? `${textWithoutTags} ${allTags.join(' ')}`
@@ -79,12 +79,16 @@ export function useHashtags(initialFixedTags: string = '') {
 
   // タグ選択の切り替え
   const handleHashtagSelect = useCallback((tag: string) => {
+    // APIからのレスポンスでは "#タグ" という形式なので、
+    // "#" を取り除いてストアする
+    const cleanTag = tag.replace(/^#/, '');
+    
     setSelectedHashtags(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(tag)) {
-        newSet.delete(tag);
+      if (newSet.has(cleanTag)) {
+        newSet.delete(cleanTag);
       } else {
-        newSet.add(tag);
+        newSet.add(cleanTag);
       }
       return newSet;
     });
@@ -159,6 +163,18 @@ export function useHashtags(initialFixedTags: string = '') {
       setSelectedHashtags(new Set(tags));
     }
   }, [initialFixedTags]);
+
+  // isDropdownOpenが変更されたときにフェッチを実行
+  useEffect(() => {
+    if (isDropdownOpen) {
+      fetchHashtags();
+    }
+  }, [isDropdownOpen, fetchHashtags]);
+
+  // 初期化時にfetchInitialHashtagsを実行
+  useEffect(() => {
+    fetchInitialHashtags();
+  }, [fetchInitialHashtags]);
 
   // コンポーネントがアンマウントされたかを追跡
   const isMounted = useRef(true);
