@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "site-card" (
     site_card_title TEXT,
     site_card_text TEXT,
     site_card_thumbnail TEXT
+    site_card_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 );
 
 -- driveテーブルの作成

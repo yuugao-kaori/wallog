@@ -8,6 +8,7 @@ import PostCardPopup from './PostCardPopup';
 import { useInView } from 'react-intersection-observer';
 import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
 import PostFormPopup from './PostFormPopup';  // PostFormModalの代わりに使用
+import SiteCard from './SiteCard';
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
@@ -34,6 +35,17 @@ interface ImageData {
   loading: boolean;
   status: 'idle' | 'loading' | 'error';
 }
+
+interface SiteCardData {
+  site_card_id: string;
+  url_text: string;
+  site_card_title: string;
+  site_card_text: string;
+  site_card_thumbnail: string | null;
+}
+
+// URL extraction regex
+const urlRegex = /(https?:\/\/[^\s]+)/g;
 
 // YouTube URLからビデオIDを抽出する関数を修正
 const extractYoutubeVideoId = (url: string): string | null => {
@@ -87,6 +99,7 @@ const Card = memo(({
 
   // hydration errorを防ぐため、useEffectで初期化
   const [imageData, setImageData] = useState<Record<string, ImageData>>({});
+  const [siteCards, setSiteCards] = useState<SiteCardData[]>([]);
   const [uiState, setUiState] = useState({
     menuOpen: false,
     deleteModalOpen: false, // 削除モーダル用の状態
@@ -125,6 +138,59 @@ const Card = memo(({
     const searchText = hashtag.slice(1); // # を除去
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   }, [router]);
+
+  // Extract URLs from post text
+  const extractUrls = useCallback((text: string): string[] => {
+    return text.match(urlRegex) || [];
+  }, []);
+
+  // Fetch site card data for a URL
+  const fetchSiteCard = useCallback(async (url: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/sitecard/sitecard_get`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch site card:', response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.site_card;
+    } catch (error) {
+      console.error('Error fetching site card:', error);
+      return null;
+    }
+  }, []);
+
+  // Load site cards when post is visible
+  useEffect(() => {
+    if (!inView || !post.post_text) return;
+
+    const loadSiteCards = async () => {
+      const urls = extractUrls(post.post_text);
+      if (urls.length === 0) return;
+
+      // Only process the first URL to avoid too many requests
+      const firstUrl = urls[0];
+      
+      // Don't fetch for YouTube URLs as they're already handled by the embedded player
+      if (extractYoutubeVideoId(firstUrl)) return;
+      
+      const siteCardData = await fetchSiteCard(firstUrl);
+      if (siteCardData) {
+        setSiteCards([siteCardData]);
+      }
+    };
+
+    loadSiteCards();
+  }, [inView, post.post_text, extractUrls, fetchSiteCard]);
 
   // renderText関数を更新
   const renderText = (text: string | null): React.ReactNode => {
@@ -190,6 +256,16 @@ const Card = memo(({
         </div>
         {youtubeVideos.map((videoId, index) => (
           <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
+        ))}
+        {/* サイトカードを表示 */}
+        {siteCards.map((card, index) => (
+          <SiteCard
+            key={`site-card-${index}`}
+            title={card.site_card_title}
+            description={card.site_card_text}
+            thumbnailId={card.site_card_thumbnail}
+            url={card.url_text}
+          />
         ))}
         {shouldTruncate ? (
           <div className="flex justify-center mt-2">

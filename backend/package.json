@@ -26,6 +26,9 @@
       "minio": "^7.0.0",
       "aws-sdk": "^2.1692.0",
       "@aws-sdk/client-s3":"^3.705.0",
+      "node-fetch": "^3.3.2",
+      "canvas": "^3.1.0",
+      "jsdom": "^26.0.0",
       "node-schedule":"^2.1.1",
       "xmlbuilder2":"^3.1.1"    },
     "devDependencies": {
