@@ -1,5 +1,5 @@
 'use client'
-const version = 'Dev 2025.03.04.0016'
+const version = 'Dev 2025.03.04.0017'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
@@ -276,6 +276,7 @@ const NavBarClient = () => {
           <MenuLink href="/diary">Diary</MenuLink>
           <MenuLink href="/blog">Blog</MenuLink>
           <MenuLink href="/search">Search</MenuLink>
+          <MenuLink href="/todo">ToDo & Done</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
           {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
           {settings.pined_page_name_A && <MenuLink href={settings.pined_page_url_A}>{settings.pined_page_name_A}</MenuLink>}
