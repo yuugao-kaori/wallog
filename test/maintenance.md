@@ -1,8 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0014'
-- サイトカードを取得・提供・表示するように
-- サイトカード取得に際して必要な環境の構築ができるようにDockerfileを修正" && git push -u origin nextjs_test
+'Dev 2025.03.04.0015'
+- 引用と返信ができない問題を修正（なんで修正できたのかわかってない）" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz
@@ -16,6 +15,8 @@ docker logs --tail 500 backend_unique
 
 # コンテナでコード実行
 docker exec -i app-afm sh -c "node import_note_menu.js"
+docker exec -i app_unique sh -c "npm test"
+
 
 # Docker関連のメンテナンス
 ## データベースのバックアップ

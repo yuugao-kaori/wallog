@@ -79,11 +79,22 @@ CREATE TABLE IF NOT EXISTS "blog" (
     blog_description TEXT
 );
 
-
+-- todoテーブルの作成
+CREATE TABLE IF NOT EXISTS "todo" (
+    todo_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    todo_text TEXT,
+    todo_priority INTEGER CHECK (priority BETWEEN 1 AND 5) DEFAULT 3,
+    todo_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_limitat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_category TEXT ,
+    todo_attitude NUMERIC DEFAULT 1
+);
 
 -- site-cardテーブルの作成
 CREATE TABLE IF NOT EXISTS "site-card" (
-    site_card_id NUMERIC PRIMARY KEY,
+    site_card_id TEXT PRIMARY KEY,
     url_text TEXT NOT NULL,
     site_card_title TEXT,
     site_card_text TEXT,
