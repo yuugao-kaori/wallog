@@ -1,7 +1,10 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0015'
-- 引用と返信ができない問題を修正（なんで修正できたのかわかってない）" && git push -u origin nextjs_test
+'Dev 2025.03.04.0018'
+- 公開の可否と完了の有無を扱うように（Boolean）
+- 時刻に関して日本時間を使用するように
+- 期限のデフォルト値を16時間後にするように
+- 優先度として、内部の値が表示されてしまっていた問題を修正" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

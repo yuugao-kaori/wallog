@@ -29,6 +29,8 @@ router.get('/todo_list', async (req, res) => {
       // クエリパラメータからフィルタリング条件を取得
       const category = req.query.category;
       const priority = req.query.priority;
+      const completed = req.query.completed;
+      const isPublic = req.query.public;
       const limit = parseInt(req.query.limit) || 100; // デフォルトは100件
       const offset = parseInt(req.query.offset) || 0;
       
@@ -51,6 +53,20 @@ router.get('/todo_list', async (req, res) => {
       if (priority) {
         whereConditions.push(`todo_priority = $${paramCount}`);
         params.push(parseInt(priority));
+        paramCount++;
+      }
+
+      // 完了状態でフィルタリング
+      if (completed !== undefined) {
+        whereConditions.push(`todo_complete = $${paramCount}`);
+        params.push(completed === 'true');
+        paramCount++;
+      }
+
+      // 公開状態でフィルタリング
+      if (isPublic !== undefined) {
+        whereConditions.push(`todo_public = $${paramCount}`);
+        params.push(isPublic === 'true');
         paramCount++;
       }
 

@@ -67,8 +67,11 @@ async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, t
 
     // todoテーブルに挿入
     const insertTodoQuery = `
-      INSERT INTO todo (todo_id, user_id, todo_text, todo_priority, todo_limitat, todo_category)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO todo (
+        todo_id, user_id, todo_text, todo_priority, todo_limitat, todo_category,
+        todo_public, todo_complete
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
     const todoValues = [
@@ -77,7 +80,9 @@ async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, t
       todoText,
       todoPriority || 3, // デフォルト優先度は3
       todoLimitAt || new Date(),
-      todoCategory || 'default'
+      todoCategory || 'default',
+      true,  // デフォルトでpublic
+      false  // デフォルトで未完了
     ];
 
     const todoResult = await client.query(insertTodoQuery, todoValues);

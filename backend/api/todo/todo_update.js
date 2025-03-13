@@ -94,6 +94,16 @@ async function updateTodo(todoId, userId, updatedData) {
       updateFields.push(`todo_attitude = $${paramCount++}`);
       values.push(updatedData.todo_attitude);
     }
+
+    if (updatedData.todo_public !== undefined) {
+      updateFields.push(`todo_public = $${paramCount++}`);
+      values.push(updatedData.todo_public);
+    }
+    
+    if (updatedData.todo_complete !== undefined) {
+      updateFields.push(`todo_complete = $${paramCount++}`);
+      values.push(updatedData.todo_complete);
+    }
     
     // 更新タイムスタンプを常に更新
     updateFields.push(`todo_updateat = CURRENT_TIMESTAMP`);

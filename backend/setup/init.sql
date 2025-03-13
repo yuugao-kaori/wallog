@@ -89,7 +89,9 @@ CREATE TABLE IF NOT EXISTS "todo" (
     todo_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     todo_limitat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     todo_category TEXT ,
-    todo_attitude NUMERIC DEFAULT 1
+    todo_attitude NUMERIC DEFAULT 1,
+    todo_public BOOLEAN DEFAULT true
+    todo_complete BOOLEAN DEFAULT false
 );
 
 -- site-cardテーブルの作成
