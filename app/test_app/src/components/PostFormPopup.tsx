@@ -25,7 +25,7 @@ interface PostFormPopupProps {
   /** 投稿テキストを設定する関数 */
   setPostText: (text: string) => void;
   /** フォーム送信時の処理 */
-  handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
+  handleSubmit: (e: React.FormEvent, finalPostText: string, targetPostId?: string, mode?: PostMode) => void;
   /** 添付ファイルのリスト */
   files: FileItem[];
   /** ファイル追加時の処理 */
@@ -212,46 +212,53 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
    * 
    * @param e - フォームイベント
    */
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // 修正モードの場合、先に元の投稿を削除
-      if (mode === 'correct') {
-        if (handleDelete && targetPost) {
-          const deleted = await handleDelete(targetPost.post_id);
-          if (!deleted) {
-            return;
-          }
+// filepath: [PostFormPopup.tsx](http://_vscodecontentref_/13)
+const handleFormSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    // 修正モードの場合、先に元の投稿を削除
+    if (mode === 'correct') {
+      if (handleDelete && targetPost) {
+        const deleted = await handleDelete(targetPost.post_id);
+        if (!deleted) {
+          return;
         }
       }
-
-      // 共通関数を使って最終的な投稿テキストを作成
-      const finalPostText = processPostText(
-        postText,
-        selectedHashtags,
-        autoAppendTags,
-        fixedHashtags
-      );
-
-      // フォームの送信を実行
-      handleSubmit(e, finalPostText);
-
-      // 成功時の状態リセット
-      setPostText('');
-      setFiles([]);
-      setSelectedHashtags(new Set());
-      setIsDropdownOpen(false);
-      onClose();
-      
-      // リポストモードの場合はコールバックを実行
-      if (repostMode && onRepostComplete) {
-        onRepostComplete();
-      }
-    } catch (error) {
-      console.error('Error in form submission:', error);
     }
-  };
 
+    // 共通関数を使って最終的な投稿テキストを作成
+    const finalPostText = processPostText(
+      postText,
+      selectedHashtags,
+      autoAppendTags,
+      fixedHashtags
+    );
+
+    // デバッグログ追加
+    console.log('Submitting post with:', {
+      mode,
+      targetPostId: targetPost?.post_id,
+      finalPostText
+    });
+
+    // handleSubmit を呼び出し
+    await handleSubmit(e, finalPostText, targetPost?.post_id, mode);
+
+    // 成功時の状態リセット
+    setPostText('');
+    setFiles([]);
+    setSelectedHashtags(new Set());
+    setIsDropdownOpen(false);
+    onClose();
+    
+    // リポストモードの場合はコールバックを実行
+    if (repostMode && onRepostComplete) {
+      onRepostComplete();
+    }
+  } catch (error) {
+    console.error('Error in form submission:', error);
+  }
+};
   // フォーカス設定（特にリポストモード時）
   useEffect(() => {
     if (isOpen && repostMode) {

@@ -43,6 +43,8 @@ interface PostFeedProps {
   hasMore: boolean;
   loadMorePosts: () => Promise<void>;
   onRepost?: (post: Post) => Promise<void>;  // 追加
+  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
+
 }
 
 const PostFeed: React.FC<PostFeedProps> = ({ 
@@ -52,7 +54,8 @@ const PostFeed: React.FC<PostFeedProps> = ({
   loading, 
   hasMore, 
   loadMorePosts, 
-  onRepost 
+  onRepost,
+  onQuoteSubmit
 }) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -203,6 +206,7 @@ const PostFeed: React.FC<PostFeedProps> = ({
             formatDate={formatDate}
             onRepost={onRepost}
             handleDelete={handleDelete}
+            onQuoteSubmit={onQuoteSubmit}
           />
         </div>
       ))}

@@ -83,6 +83,41 @@ function Diary() {
   const lastRequestTimeRef = useRef<number>(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+
+  // 引用・返信投稿を処理する関数を追加
+  const handleQuoteSubmit = async (text: string, type: 'quote' | 'reply', targetPostId: string) => {
+    try {
+      // 引用投稿または返信投稿用のペイロードを作成
+      const payload = {
+        post_text: text,
+        ...(files.length > 0 && { post_file: files.map(file => file.id) }),
+        // 引用投稿の場合はrepost_idを追加
+        ...(type === 'quote' && { repost_id: targetPostId }),
+        // 返信投稿の場合はreply_idを追加
+        ...(type === 'reply' && { reply_id: targetPostId })
+      };
+
+      console.log(`Submitting ${type} post with payload:`, payload);
+
+      // APIリクエスト
+      const response = await api.post('/api/post/post_create', payload);
+      
+      // 成功メッセージ
+      addNotification(`${type === 'quote' ? '引用' : '返信'}投稿が成功しました！`);
+      
+      // 新しい投稿をリストに追加
+      if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+        setPosts(prevPosts => [response.data, ...prevPosts]);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error in ${type} submission:`, error);
+      addNotification(`${type === 'quote' ? '引用' : '返信'}投稿に失敗しました`);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -320,37 +355,36 @@ function Diary() {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   };
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent, finalText?: string) => {
-      e.preventDefault();
-      try {
-        const payload = {
-          post_text: finalText || postText,
-          ...(files.length > 0 && { post_file: files.map(file => file.id) })
-        };
+  const handleSubmit = useCallback(async (
+    e: React.FormEvent, finalText?: string, targetPostId?: string, mode?: string
+  ) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        post_text: finalText || postText,
+        ...(files.length > 0 && { post_file: files.map(file => file.id) })
+      };
 
-        const response = await api.post('/api/post/post_create', payload);
-        addNotification('投稿が成功しました！');
-        setPostText('');
-        setFiles([]); // 既存のファイル配列をクリア
-        
-        if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
-          setPosts(prevPosts => [response.data, ...prevPosts]);
-        }
-        
-        // モーダルを閉じる
-        setIsModalOpen(false);
-
-        // ファイル選択状態をリセット
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } catch (error) {
-        addNotification('投稿に失敗しました。');
+      const response = await api.post('/api/post/post_create', payload);
+      addNotification('投稿が成功しました！');
+      setPostText('');
+      setFiles([]); // 既存のファイル配列をクリア
+      
+      if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+        setPosts(prevPosts => [response.data, ...prevPosts]);
       }
-    },
-    [postText, files, addNotification]
-  );
+      
+      // モーダルを閉じる
+      setIsModalOpen(false);
+
+      // ファイル選択状態をリセット
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      addNotification('投稿に失敗しました。');
+    }
+  }, [addNotification, files, postText, setFiles, setPosts, setPostText, setIsModalOpen, fileInputRef]);  // Added missing comma and proper dependency array
 
 // ファイル削除用の関数を修正
 const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
@@ -533,6 +567,8 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           hasMore={hasMore}
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
+          onQuoteSubmit={handleQuoteSubmit} // 追加
+
         />
         </div>
       </div>
@@ -614,9 +650,18 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       setFiles={setFiles} // anyキャストを削除
-      handleSubmit={async (e, finalText) => {
+      handleSubmit={async (e, finalText, targetPostId, mode) => {
         e.preventDefault();
+
         try {
+          // Add debugging to see what parameters are being received
+          console.log('Submit called with:', {
+            finalText,
+            targetPostId,
+            mode,
+            hasRepostData: !!repostData
+          });
+          
           if (repostData) {
             // 古い投稿を削除
             const deleteSuccess = await handleDeletePost(
@@ -633,8 +678,14 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           // 新しい投稿を作成
           const payload = {
             post_text: finalText,
-            ...(files.length > 0 && { post_file: files.map(file => file.id) })
+            ...(files.length > 0 && { post_file: files.map(file => file.id) }),
+            // 引用投稿の場合はrepost_idを追加
+            ...(mode === 'quote' && targetPostId && { repost_id: targetPostId }),
+            // 返信投稿の場合はreply_idを追加
+            ...(mode === 'reply' && targetPostId && { reply_id: targetPostId })
           };
+
+          console.log('Sending API request with payload:', payload);
 
           const response = await api.post('/api/post/post_create', payload);
           addNotification('投稿が成功しました！');
@@ -651,7 +702,9 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           console.error('投稿処理でエラーが発生しました:', error);
           addNotification('投稿に失敗しました');
         }
+        
       }}
+
       files={files}
       handleFiles={handleFiles}
       handleDeletePermanently={handleDeletePermanently} // 追加

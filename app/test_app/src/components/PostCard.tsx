@@ -13,7 +13,23 @@ import SiteCard from './SiteCard';
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
-// 既存のPostインターフェースを削除し、PostFeedのものを使用
+
+/**
+ * 投稿カードコンポーネントのプロパティインターフェース
+ * @interface Props
+ * 
+ * @property {PostFeedPost} post - 表示する投稿データ
+ * @property {boolean} isLoggedIn - ユーザーのログイン状態
+ * @property {Function} handleDeleteClick - 削除ボタンクリック時のハンドラー
+ * @property {Function} formatDate - 日付フォーマット関数
+ * @property {string} [className] - 追加のCSSクラス名
+ * @property {Function} onDelete - 投稿削除時のコールバック
+ * @property {Function} [onRepost] - 再投稿時のコールバック
+ * @property {Function} [onQuote] - 引用投稿時のコールバック
+ * @property {Function} [onReply] - 返信投稿時のコールバック
+ * @property {Function} [onQuoteSubmit] - 引用・返信投稿送信時のコールバック
+ * @property {Function} [handleDelete] - 投稿削除のハンドラー
+ */
 interface Props {
   post: PostFeedPost;
   isLoggedIn: boolean;
@@ -28,6 +44,15 @@ interface Props {
   handleDelete?: (postId: string) => Promise<boolean>;
 }
 
+/**
+ * 投稿の画像データを管理するインターフェース
+ * @interface ImageData
+ * 
+ * @property {string} fileId - 画像ファイルの一意識別子
+ * @property {string | null} thumbnailUrl - サムネイル画像のURL
+ * @property {string | null} fullUrl - フル解像度画像のURL
+ * @property {boolean} loading - 画像の読み込み状態
+ */
 interface ImageData {
   fileId: string;
   thumbnailUrl: string | null;
@@ -508,23 +533,29 @@ const Card = memo(({
 
   // 引用投稿ハンドラーの更新
   const handleQuote = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
     event.stopPropagation();
+    console.log('Quote mode triggered');
     setFormState({ postText: '', mode: 'quote' });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
-      postFormModalOpen: true
+      postFormModalOpen: true,
+      postFormType: 'quote'
     }));
   }, []);
 
   // 返信投稿ハンドラーの更新
   const handleReply = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
     event.stopPropagation();
+    console.log('Reply mode triggered');
     setFormState({ postText: '', mode: 'reply' });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
-      postFormModalOpen: true
+      postFormModalOpen: true,
+      postFormType: 'reply'
     }));
   }, []);
 
@@ -607,32 +638,36 @@ const Card = memo(({
   }, [post.reply_body, formatDate]);
 
   // renderRepostBodyを修正
-const renderRepostBody = useCallback(() => {
-  // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
-  if (!post.repost_body || !post.repost_body.post_id) return null;
+  const renderRepostBody = useCallback(() => {
+    // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
+    if (!post.repost_body || !post.repost_body.post_id) return null;
 
-  return (
-    <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
-      <div className="text-sm">
-        {renderText(post.repost_body.post_text)}
+    return (
+      <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
+        <div className="text-sm">
+          {renderText(post.repost_body.post_text)}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
+        </div>
       </div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
-      </div>
-    </div>
-  );
-}, [post.repost_body, formatDate]);
+    );
+  }, [post.repost_body, formatDate]);
 
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
   return (
     <>
+      {/* メインの投稿カードコンテナ - Intersection Observer用のref付与 */}
       <div ref={ref} className="w-full">
+        {/* 投稿カード - ホバー効果とダークモード対応付き */}
         <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]`}>
+          {/* 通知コンポーネント - 一時的なメッセージ表示用 */}
           <Notification 
             notifications={notifications} 
             onClose={removeNotification}
           />
 
+          {/* メニューボタン - 右上に配置 */}
           <div className="absolute top-1 right-4 z-10">
             <button onClick={toggleMenu} className="p-1 text-gray-700 dark:text-gray-300"> {/* p-2 を p-1 に変更 */}
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"> {/* w-8 h-8 を w-6 h-6 に変更 */}
@@ -641,9 +676,11 @@ const renderRepostBody = useCallback(() => {
             </button>
           </div>
 
+          {/* ドロップダウンメニュー - メニューボタンクリック時に表示 */}
           {uiState.menuOpen && (
             <div ref={menuRef} className="absolute top-11 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
               <ul>
+                {/* 共通機能 - すべてのユーザーが利用可能 */}
                 <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
                     onClick={copyLink}>
                   リンクをコピー
@@ -652,6 +689,7 @@ const renderRepostBody = useCallback(() => {
                     onClick={navigateToDetail}>
                   詳細
                 </li>
+                {/* ログインユーザー専用機能 */}
                 {isLoggedIn && (
                   <>
                     <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
@@ -682,13 +720,14 @@ const renderRepostBody = useCallback(() => {
             </div>
           )}
 
+          {/* モーダルコンポーネント群 - 各種操作用のポップアップ */}
           <DeleteConfirmModal
             isOpen={uiState.deleteModalOpen}
             onClose={() => setUiState(prev => ({
               ...prev,
               deleteModalOpen: false
             }))}
-            onDelete={() => { // 修正: 引数を1つに変更
+            onDelete={() => {
               if (handleDelete) {
                 handleDelete(post.post_id).catch(error => {
                   console.error('Error handling delete:', error);
@@ -697,6 +736,7 @@ const renderRepostBody = useCallback(() => {
             }}
           />
 
+          {/* 再投稿確認モーダル */}
           <DeleteConfirmModal
             isOpen={uiState.repostModalOpen}
             onClose={() => setUiState(prev => ({
@@ -709,29 +749,37 @@ const renderRepostBody = useCallback(() => {
             confirmText="再投稿"
           />
 
+          {/* 画像表示モーダル - z-indexを高めに設定して最前面表示 */}
           <ImageModal
             isOpen={uiState.imageModalOpen}
             imageUrl={uiState.selectedImage}
             onClose={handleCloseModal}
-            className="z-[10000]"  // z-indexを10000に変更
+            className="z-[10000]"
           />
 
+          {/* 投稿本文エリア */}
           <div>
-            {renderReplyBody()} {/* 返信元投稿を表示、「Create at:」の表示*/}
+            {/* 返信元投稿の表示 */}
+            {renderReplyBody()}
+            {/* 投稿日時の表示 */}
             <div className="text-gray-500 text-sm break-words">
               {formatDate(post.post_createat)}
             </div>
 
+            {/* メイン投稿テキストの表示 */}
             <div className="mt-2 break-words">
               {renderText(post.post_text)}
             </div>
 
+            {/* 画像の表示 - Intersection Observerと連動 */}
             {inView && renderImages()}
-            {renderRepostBody()} {/* 引用元投稿を表示 */}
+            {/* 引用元投稿の表示 */}
+            {renderRepostBody()}
           </div>
         </div>
       </div>
       
+      {/* 投稿詳細ポップアップ */}
       <PostCardPopup
         isOpen={uiState.detailModalOpen}
         onClose={() => setUiState(prev => ({ ...prev, detailModalOpen: false }))}
@@ -745,83 +793,40 @@ const renderRepostBody = useCallback(() => {
         onReply={onReply}
       />
 
+      {/* 投稿フォームポップアップ - 引用・返信投稿用 */}
       <PostFormPopup
         isOpen={uiState.postFormModalOpen}
-        onClose={() => setUiState(prev => ({ 
-          ...prev, 
-          postFormModalOpen: false
-        }))}
+        onClose={() => setUiState(prev => ({ ...prev, postFormModalOpen: false }))}
         postText={formState.postText}
         setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
-        setFiles={() => {}} // Add empty function as placeholder
-        handleSubmit={async (e, finalText) => {
+        handleSubmit={async (e, finalText, targetPostId, mode) => {
           e.preventDefault();
+          console.log('PostCard: handleSubmit called with:', { finalText, targetPostId, mode });
           try {
-            // correct モードの場合、まず投稿を削除
-            if (formState.mode === 'correct') {
-              // 削除処理を post_delete エンドポイントを使用するように修正
-              const deleteResponse = await fetch('/api/post/post_delete', {
-                method: 'DELETE',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ post_id: post.post_id }),
-              });
-
-              if (!deleteResponse.ok) {
-                addNotification('削除に失敗しました');
-                return;
-              }
-
-              // 投稿一覧からも削除
-              setPosts(prevPosts => prevPosts.filter(p => p.post_id !== post.post_id));
-
-              // 新規投稿を作成
-              const createResponse = await fetch('/api/post/post_create', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  post_text: finalText
-                })
-              });
-
-              if (!createResponse.ok) {
-                throw new Error('新規投稿の作成に失敗しました');
-              }
-
-              addNotification('投稿を修正しました');
-              setUiState(prev => ({ ...prev, postFormModalOpen: false }));
-            } else if (onQuoteSubmit && (formState.mode === 'quote' || formState.mode === 'reply')) {
-              // 引用と返信の処理
-              await onQuoteSubmit(finalText, formState.mode, post.post_id);
+            if (onQuoteSubmit && (mode === 'quote' || mode === 'reply') && post.post_id) {
+              await onQuoteSubmit(finalText, mode, post.post_id);
+              addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿を作成しました`);
               setUiState(prev => ({ ...prev, postFormModalOpen: false }));
             }
           } catch (error) {
             console.error('Error in form submission:', error);
-            addNotification('処理に失敗しました');
+            addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿の作成に失敗しました`);
           }
         }}
         mode={formState.mode}
         targetPost={post}
-        handleDelete={handleDelete} // 追加
-        isLoggedIn={isLoggedIn}
         files={[]}
         handleFiles={() => {}}
-        handlePostDelete={async (fileId) => {
-          // Assuming fileId is a number, we create a dummy event
-          const dummyEvent = new MouseEvent('click') as unknown as React.MouseEvent;
-          return await onDelete(dummyEvent, fileId.toString());
-        }}
+        isLoggedIn={isLoggedIn}
         status=""
         onSelectExistingFiles={() => {}}
         fixedHashtags=""
         setFixedHashtags={() => {}}
         autoAppendTags={false}
         setAutoAppendTags={() => {}}
-        handleCancelAttach={() => {}} // 追加: ファイル添付のキャンセル処理
-        handleDeletePermanently={() => {}} // 追加: ファイルの完全削除処理
+        handleCancelAttach={() => {}}
+        handleDeletePermanently={() => {}}
+        setFiles={() => {}}
       />
     </>
   );

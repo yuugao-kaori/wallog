@@ -31,9 +31,17 @@ const PostFormModal: React.FC<PostFormModalProps> = ({
     e.preventDefault();
     if (isUploading) return; // アップロード中は投稿を防止
 
-    await onSubmit(postText, type, post.post_id);
-    setPostText('');
-    onClose();
+    try {
+      // API呼び出しを行う
+      await onSubmit(postText, type, post.post_id);
+      
+      // 投稿成功時にテキストをクリアしてモーダルを閉じる
+      setPostText('');
+      onClose();
+    } catch (error) {
+      console.error('Error submitting post:', error);
+      // エラーハンドリング - 実際のアプリケーションではエラーメッセージの表示などを行うべき
+    }
   };
 
   // ファイルアップロード機能を追加する場合は以下のようなハンドラを実装

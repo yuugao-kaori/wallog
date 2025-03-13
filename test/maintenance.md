@@ -1,7 +1,8 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0013'
-- Ctrl＋Vで画像の添付ができなくなっていた問題を修正" && git push -u origin nextjs_test
+'Dev 2025.03.04.0014'
+- サイトカードを取得・提供・表示するように
+- サイトカード取得に際して必要な環境の構築ができるようにDockerfileを修正" && git push -u origin nextjs_test
 
 # tar.gzの中身を見る
 tar ztf app.tar.gz

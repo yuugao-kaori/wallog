@@ -10,7 +10,7 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "${APP_PORT}:3000"
-     # command: sh -c "npm install --force && npm run build && npm run start"
+    # command: sh -c "npm install --force && npm run build && npm run start"
     command: sh -c "npm install && npm run dev"
     environment:
       - NODE_ENV=production
