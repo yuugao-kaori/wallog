@@ -116,7 +116,11 @@ export default function TodoPage() {
   const createTodo = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await api.post('/api/todo/todo_create', newTodo)
+      const todoToCreate = {...newTodo};
+      console.log('送信データ:', todoToCreate); // デバッグ用
+      await api.post('/api/todo/todo_create', todoToCreate)
+      // 成功後に状態をリセット
+
       setNewTodo({
         todo_text: '',
         todo_priority: 3,
@@ -128,6 +132,7 @@ export default function TodoPage() {
       })
       fetchTodos()
     } catch (err) {
+      console.error('エラー詳細:', err); // エラー詳細を確認
       setError('TODOの作成に失敗しました')
     }
   }
@@ -211,7 +216,7 @@ export default function TodoPage() {
               className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
             />
           </div>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4 space-x-4">
             <label className="flex items-center">
               <input
                 type="checkbox"
@@ -220,6 +225,15 @@ export default function TodoPage() {
                 className="mr-2"
               />
               公開
+            </label>
+            <label className="flex items-center mr-4">
+              <input
+                type="checkbox"
+                checked={newTodo.todo_complete}
+                onChange={(e) => setNewTodo({...newTodo, todo_complete: e.target.checked})}
+                className="mr-2"
+              />
+              完了
             </label>
           </div>
           <button

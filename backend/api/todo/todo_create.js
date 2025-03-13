@@ -48,7 +48,7 @@ function formattedDateTime(date) {
 }
 
 // TODOを挿入する関数
-async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, todoCategory) {
+async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, todoCategory, todoPublic, todoComplete) {
   const client = new Client({
     user: process.env.POSTGRES_USER,
     host: process.env.POSTGRES_NAME,
@@ -81,8 +81,8 @@ async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, t
       todoPriority || 3, // デフォルト優先度は3
       todoLimitAt || new Date(),
       todoCategory || 'default',
-      true,  // デフォルトでpublic
-      false  // デフォルトで未完了
+      todoPublic !== undefined ? todoPublic : true,  // 指定がなければデフォルトでpublic
+      todoComplete !== undefined ? todoComplete : false  // 指定がなければデフォルトで未完了
     ];
 
     const todoResult = await client.query(insertTodoQuery, todoValues);
@@ -154,8 +154,10 @@ router.post('/todo_create', async (req, res) => {
       console.log(`Generated TODO ID: ${todo_id}`);
 
       // リクエストボディから必要なデータを取得
-      const { todo_text, todo_priority, todo_limitat, todo_category } = req.body;
+      const { todo_text, todo_priority, todo_limitat, todo_category, todo_public, todo_complete } = req.body;
       console.log(`TODO Text: ${todo_text}`);
+      console.log(`TODO Public: ${todo_public !== undefined ? todo_public : true}`);
+      console.log(`TODO Complete: ${todo_complete !== undefined ? todo_complete : false}`);
 
       // TODOをデータベースに挿入
       try {
@@ -166,7 +168,9 @@ router.post('/todo_create', async (req, res) => {
           todo_text,
           todo_priority,
           todo_limitat ? new Date(todo_limitat) : null,
-          todo_category
+          todo_category,
+          todo_public,
+          todo_complete
         );
         
         console.log('New TODO:', newTodo);
