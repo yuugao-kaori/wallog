@@ -3,6 +3,7 @@
 **/minio/**
 sitemap.xml
 feed.xml
+.vscode/**
 
 *.gz
 # Logs
