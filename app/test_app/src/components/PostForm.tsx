@@ -75,6 +75,30 @@ const PostForm: React.FC<PostFormProps> = ({
     handleHashtagChange,
   } = useHashtags(fixedHashtags);
 
+  // ファイルアップロード完了時のコールバック
+  const onFileUploadComplete = React.useCallback((uploadedFiles: FileItem[]) => {
+    console.log('File upload completed in PostForm with files:', uploadedFiles);
+    
+    // FileListを作成して親のhandleFilesを呼び出す
+    if (uploadedFiles.length > 0 && handleFiles) {
+      // DataTransferを使用してFileListを作成
+      const dataTransfer = new DataTransfer();
+      // ダミーファイルを作成
+      uploadedFiles.forEach(fileItem => {
+        const dummyFile = new File([""], fileItem.name || "file", { 
+          type: fileItem.contentType || "application/octet-stream" 
+        });
+        dataTransfer.items.add(dummyFile);
+      });
+      
+      // 親コンポーネントにファイル選択を通知
+      handleFiles(dataTransfer.files);
+      console.log('Notified parent component about files in PostForm:', dataTransfer.files);
+    } else {
+      console.log('No files to notify parent about or handleFiles is undefined');
+    }
+  }, [handleFiles]);
+
   // 共通ファイルアップロードフック
   const {
     uploadProgress,
@@ -86,7 +110,7 @@ const PostForm: React.FC<PostFormProps> = ({
     handleDrop,
     handleFilesWithProgress,
     handlePaste: handlePasteInternal
-  } = useFileUpload(files, setFiles);
+  } = useFileUpload(files, setFiles, onFileUploadComplete);
 
   // 同期を維持するための効果 - fixedHashtagsの更新
   useEffect(() => {
@@ -130,13 +154,38 @@ const PostForm: React.FC<PostFormProps> = ({
     
     if (fileItems.length > 0) {
       e.preventDefault();
-      // 内部ペースト処理を呼び出し
-      handlePasteInternal(e);
+      console.log('Files pasted in PostForm:', fileItems);
       
-      // 親コンポーネントのhandleFilesも呼び出し
-      const fileList = new DataTransfer();
-      fileItems.forEach(file => fileList.items.add(file));
-      handleFiles(fileList.files);
+      // DataTransferオブジェクトを作成してFileListを生成
+      const dataTransfer = new DataTransfer();
+      fileItems.forEach(file => dataTransfer.items.add(file));
+      const fileList = dataTransfer.files;
+      
+      // アップロード処理を行う
+      handleFilesWithProgress(fileList)
+        .then(uploadedFiles => {
+          console.log('Pasted files processed in PostForm:', uploadedFiles);
+          // コールバックはuseFileUpload内で呼ばれるので、ここでの追加処理は不要
+        })
+        .catch(error => {
+          console.error('Error processing pasted files in PostForm:', error);
+        });
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      console.log('Files selected in PostForm input:', e.target.files);
+      
+      // アップロード処理を行う
+      handleFilesWithProgress(e.target.files)
+        .then(uploadedFiles => {
+          console.log('Files processed after upload in PostForm:', uploadedFiles);
+          // コールバックはuseFileUpload内で呼ばれるので、ここでの追加処理は不要
+        })
+        .catch(error => {
+          console.error('Error during file upload in PostForm:', error);
+        });
     }
   };
 
@@ -279,12 +328,7 @@ const PostForm: React.FC<PostFormProps> = ({
               multiple
               ref={fileInputRef}
               className="hidden"
-              onChange={(e) => {
-                if (e.target.files) {
-                  handleFilesWithProgress(e.target.files);
-                  handleFiles(e.target.files); // 親コンポーネントにもファイルを通知
-                }
-              }}
+              onChange={handleInputChange}
             />
           </div>
 

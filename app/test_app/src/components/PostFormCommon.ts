@@ -79,7 +79,7 @@ export function useHashtags(initialTags: string) {
    */
   const handleHashtagChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const tags = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean);
-    setSelectedHashtags(new Set(tags));
+    setSelectedHashtags(new Set(tags.map(tag => tag.replace(/^#/, ''))));
   }, []);
 
   // タグのランキングを取得する副作用
@@ -115,11 +115,13 @@ export function useHashtags(initialTags: string) {
  * 
  * @param files - 現在のファイル一覧
  * @param setFiles - ファイル一覧を更新する関数
+ * @param onFileUploadComplete - ファイルアップロード完了時のコールバック関数（オプション）
  * @returns ファイルアップロード関連の状態と操作関数
  */
 export function useFileUpload(
   files: FileItem[],
-  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>
+  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>,
+  onFileUploadComplete?: (uploadedFiles: FileItem[]) => void
 ) {
   // アップロード進捗を記録するオブジェクト
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -196,74 +198,117 @@ export function useFileUpload(
    * @param fileList - アップロードするファイルのリスト
    */
   const handleFilesWithProgress = useCallback(async (fileList: FileList | File[]) => {
+    if (!fileList || fileList.length === 0) return [];
+    
     setIsUploading(true);
     const newProgress: { [key: string]: number } = {};
+    const uploadedFiles: FileItem[] = [];
     
-    // 各ファイルについて処理
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      newProgress[file.name] = 0;
-      
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
+    try {
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        newProgress[file.name] = 0;
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 0
+        }));
         
-        // プログレスを監視するためのカスタムXHRを作成
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/drive/file_create');
-        
-        // アップロード進捗イベント
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.name]: percentComplete
-            }));
-          }
-        });
-        
-        // 完了イベント
-        const response = await new Promise<any>((resolve, reject) => {
-          xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                resolve(JSON.parse(xhr.responseText));
-              } catch (e) {
-                reject(new Error('Invalid JSON response'));
-              }
-            } else {
-              reject(new Error(`HTTP Error: ${xhr.status}`));
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/drive/file_create');
+          
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100);
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: percentComplete
+              }));
             }
-          };
-          xhr.onerror = () => reject(new Error('Network Error'));
-          xhr.send(formData);
-        });
-        
-        // レスポンスからファイル情報を取得
-        if (response && response.id) {
-          setFiles(prev => [
-            ...prev, 
-            {
+          });
+          
+          const response = await new Promise<any>((resolve, reject) => {
+            xhr.onload = function() {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  resolve(JSON.parse(xhr.responseText));
+                } catch (e) {
+                  reject(new Error('Invalid JSON response'));
+                }
+              } else {
+                reject(new Error(`HTTP Error: ${xhr.status}`));
+              }
+            };
+            xhr.onerror = () => reject(new Error('Network Error'));
+            xhr.send(formData);
+          });
+          
+          if (response && response.id) {
+            const newFile = {
               id: response.id,
               name: file.name,
               size: file.size,
               contentType: file.type,
-              isImage: file.type.startsWith('image/')
-            }
-          ]);
+              isImage: file.type.startsWith('image/'),
+              isExisting: false
+            };
+            
+            uploadedFiles.push(newFile);
+            
+            // ファイルをstateに追加
+            setFiles(prev => {
+              // 既存のIDを確認して重複を防止
+              if (!prev.some(f => f.id === newFile.id)) {
+                return [...prev, newFile];
+              }
+              return prev;
+            });
+            
+            console.log(`File uploaded successfully: ${file.name}, ID: ${response.id}`);
+            
+            setTimeout(() => {
+              setUploadProgress(prev => {
+                const updated = { ...prev };
+                delete updated[file.name];
+                return updated;
+              });
+            }, 500);
+          }
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: -1
+          }));
         }
-      } catch (error) {
-        console.error(`Error uploading file ${file.name}:`, error);
-        setUploadProgress(prev => ({
-          ...prev,
-          [file.name]: -1 // エラーを示す値
-        }));
       }
+      
+      // すべてのファイルのアップロードが完了したら、コールバックを呼び出す
+      if (uploadedFiles.length > 0) {
+        console.log(`All files uploaded successfully, total: ${uploadedFiles.length}`);
+        
+        // コールバック関数が提供されている場合は呼び出す
+        if (onFileUploadComplete) {
+          console.log('Calling onFileUploadComplete with files:', uploadedFiles);
+          onFileUploadComplete(uploadedFiles);
+        }
+      }
+      
+      return uploadedFiles;
+    } finally {
+      setIsUploading(false);
     }
-    
-    setIsUploading(false);
-  }, [setFiles]);
+  }, [setFiles, onFileUploadComplete]);
+
+  // FileListをDataTransferに変換するユーティリティ関数を追加
+  const createFileListFromFiles = useCallback((files: File[]): FileList => {
+    const dataTransfer = new DataTransfer();
+    files.forEach(file => dataTransfer.items.add(file));
+    return dataTransfer.files;
+  }, []);
 
   return {
     uploadProgress,
@@ -275,6 +320,7 @@ export function useFileUpload(
     handleDrop,
     handleFilesWithProgress,
     handlePaste,
+    createFileListFromFiles
   };
 }
 

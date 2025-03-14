@@ -207,7 +207,8 @@ export function useHashtags(initialFixedTags: string = '') {
  */
 export function useFileUpload(
   files: FileItem[], 
-  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>
+  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>,
+  onFileUploadComplete?: (files: FileItem[]) => void
 ) {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [isUploading, setIsUploading] = useState(false);
@@ -331,10 +332,12 @@ export function useFileUpload(
           xhr.send(formData);
         });
         
-        // アップロード完了後、ファイル情報をリストに追加
-        if (response && response.id) {
+        console.log('File upload response:', response);
+        
+        // 修正: response.id ではなく response.file_id を使用する
+        if (response && response.file_id) {
           const fileItem = {
-            id: response.id,
+            id: response.file_id,  // file_id を正しく使用
             name: file.name,
             size: file.size,
             contentType: file.type,
@@ -356,6 +359,12 @@ export function useFileUpload(
               return updated;
             });
           }, 500);
+        } else {
+          console.error('Missing file_id in response:', response);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: -1 // エラー表示
+          }));
         }
       } catch (error) {
         console.error(`Error uploading file ${file.name}:`, error);
@@ -369,19 +378,16 @@ export function useFileUpload(
     // アップロードしたファイルを状態に保存
     setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
     
+    // コールバックがあれば呼び出す
+    if (onFileUploadComplete && newUploadedFiles.length > 0) {
+      onFileUploadComplete(newUploadedFiles);
+    }
+    
     // すべてのファイルの処理が終わったら、アップロード完了
     setIsUploading(false);
     
     return newUploadedFiles;
-  }, [setFiles]);
-
-  // ファイルをアップロードするたびに親コンポーネントに通知するための効果
-  useEffect(() => {
-    if (uploadedFiles.length > 0) {
-      // このフックは直接呼ばれるわけではないので、外部から提供された
-      // handleFiles関数を呼び出す必要はありません
-    }
-  }, [uploadedFiles]);
+  }, [setFiles, onFileUploadComplete]);
 
   return {
     uploadProgress,

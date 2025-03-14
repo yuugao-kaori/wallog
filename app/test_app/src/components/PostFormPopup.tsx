@@ -108,6 +108,33 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     handleHashtagChange
   } = hashtagsState;
 
+  // ファイルアップロード完了時のコールバック
+  const onFileUploadComplete = React.useCallback((uploadedFiles: FileItem[]) => {
+    console.log('File upload completed in PostFormPopup with files:', uploadedFiles);
+    
+    // FileListを作成して親のhandleFilesを呼び出す
+    if (uploadedFiles.length > 0 && handleFiles) {
+      // DataTransferを使用してFileListを作成（実際のファイルではなく、IDのみを保持）
+      const dataTransfer = new DataTransfer();
+      // ダミーファイルを作成（実際のファイル情報はすでにuploadedFilesにある）
+      uploadedFiles.forEach(fileItem => {
+        // 空のBlobからファイルを作成（サイズ0）
+        const dummyFile = new File([""], fileItem.name || "file", { 
+          type: fileItem.contentType || "application/octet-stream" 
+        });
+        dataTransfer.items.add(dummyFile);
+      });
+      
+      // 親コンポーネントにファイル選択を通知
+      handleFiles(dataTransfer.files);
+      
+      // コンソールにログを出力してデバッグを容易にする
+      console.log('Notified parent component with FileList:', dataTransfer.files, 'File IDs:', uploadedFiles.map(f => f.id));
+    } else {
+      console.log('No files to notify parent component about or handleFiles is not defined');
+    }
+  }, [handleFiles]);
+
   // 共通ファイルアップロードフック
   const {
     uploadProgress,
@@ -119,7 +146,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     handleDrop,
     handleFilesWithProgress,
     handlePaste: handlePasteInternal,
-  } = useFileUpload(files, setFiles);
+  } = useFileUpload(files, setFiles, onFileUploadComplete);
 
   // ハッシュタグの初期読み込み
   useEffect(() => {
@@ -173,8 +200,17 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
    */
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFilesWithProgress(e.target.files);
-      handleFiles(e.target.files); // 親コンポーネントにもファイルを通知
+      console.log('Files selected via input in PostFormPopup:', e.target.files);
+      
+      // まずアップロード自体を行う - これはuseFileUpload内で実装
+      handleFilesWithProgress(e.target.files)
+        .then(uploadedFiles => {
+          console.log('Files processed after upload in PostFormPopup:', uploadedFiles, 'with IDs:', uploadedFiles.map(f => f.id));
+          // 既にuseFileUpload内のコールバックでhandleFilesを呼び出しているため、ここでは何もしない
+        })
+        .catch(error => {
+          console.error('Error during file upload:', error);
+        });
     }
   };
   
@@ -196,13 +232,22 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     
     if (fileItems.length > 0) {
       e.preventDefault();
-      // 内部ペースト処理を呼び出し
-      handlePasteInternal(e);
+      console.log('Files pasted in PostFormPopup:', fileItems);
       
-      // 親コンポーネントのhandleFilesも呼び出し
-      const fileList = new DataTransfer();
-      fileItems.forEach(file => fileList.items.add(file));
-      handleFiles(fileList.files);
+      // DataTransferを使用してFileListを作成
+      const dataTransfer = new DataTransfer();
+      fileItems.forEach(file => dataTransfer.items.add(file));
+      const fileList = dataTransfer.files;
+      
+      // useFileUploadフックを使ってアップロード処理を行う
+      handleFilesWithProgress(fileList)
+        .then(uploadedFiles => {
+          console.log('Pasted files processed after upload:', uploadedFiles, 'with IDs:', uploadedFiles.map(f => f.id));
+          // コールバックがあれば追加呼び出しは不要（useFileUpload内で実行される）
+        })
+        .catch(error => {
+          console.error('Error processing pasted files:', error);
+        });
     }
   };
 
@@ -212,7 +257,6 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
    * 
    * @param e - フォームイベント
    */
-// filepath: [PostFormPopup.tsx](http://_vscodecontentref_/13)
 const handleFormSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   try {
@@ -503,7 +547,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* 既存ファイル選択ボタン */}
+                {/* 既存ファイル選択ボタン */}
               <div className="mt-4">
                 <button
                   type="button"

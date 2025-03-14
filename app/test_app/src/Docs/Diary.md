@@ -50,10 +50,9 @@ Diaryシステムは、投稿の作成、表示、管理を行うコンポーネ
 ```typescript
 // ファイルアップロード管理
 useFileUpload({
-  files,       // 現在の添付ファイル
-  setFiles,    // ファイル更新関数
-  onProgress,  // アップロード進捗
-  onComplete   // 完了コールバック
+  files,               // 現在の添付ファイル
+  setFiles,            // ファイル更新関数
+  onFileUploadComplete // 完了時コールバック
 })
 
 // ハッシュタグ管理
@@ -79,7 +78,7 @@ processPostText({
 
 1. ユーザー入力
    - テキスト入力 → `PostForm`/`PostFormPopup`
-   - ファイル添付 → `useFileUpload`
+   - ファイル添付 → `useFileUpload` → `onFileUploadComplete` → 親コンポーネントの `handleFiles`
    - タグ選択 → `useHashtags`
 
 2. 投稿処理
@@ -154,3 +153,19 @@ try {
 3. テスト coverage の向上
    - ユニットテストの追加
    - E2E テストの実装
+
+## 9. ファイルアップロードフロー
+
+1. ファイルの選択
+   - ドラッグ＆ドロップ
+   - ファイル選択ダイアログ
+   - クリップボードからペースト
+
+2. アップロード処理
+   - `handleFilesWithProgress`で進捗表示付きでアップロード
+   - 各ファイルに対して`/api/drive/file_create`にリクエスト
+
+3. 完了後の処理
+   - `onFileUploadComplete`コールバックで親コンポーネントに通知
+   - UIのアップロード状態を更新
+   - 親コンポーネントの`handleFiles`を呼び出し

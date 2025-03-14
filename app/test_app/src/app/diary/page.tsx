@@ -300,41 +300,6 @@ function Diary() {
     };
   }, []); // 依存配列を空に
 
-  const handleFiles = async (selectedFiles: FileList | null) => {
-    if (!selectedFiles) return;
-    const fileArray = Array.from(selectedFiles);
-    for (const file of fileArray) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const uploadResponse = await api.post('/api/drive/file_create', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        const metadataResponse = await api.get('/api/drive/file_list');
-        const fileMetadata = metadataResponse.data.files.find(
-          (f: DriveFile) => f.file_id === uploadResponse.data.file_id
-        );
-        
-        const fileId = uploadResponse.data.file_id;
-        const fileFormat = fileMetadata?.file_format?.toLowerCase() || '';
-        const isImage = !NON_IMAGE_TYPES.includes(fileFormat);
-        const url = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
-        
-        setFiles(prev => [...prev, { 
-          id: fileId, 
-          url, 
-          isImage,
-          contentType: fileFormat,
-          isExisting: false  // 追加: 新規アップロードファイルとしてマーク
-        } as ExtendedFileItem]);
-      } catch (error) {
-        setStatus('ファイルのアップロードに失敗しました。');
-      }
-    }
-  };
-
   const addNotification = useCallback((
     message: string,
     action?: { label: string; onClick: () => void },
@@ -350,6 +315,60 @@ function Diary() {
       }, 5000);
     }
   }, []);
+
+  // handleFiles関数を強化して、ファイルの処理を確実に行う
+  const handleFiles = useCallback((selectedFiles: FileList | null) => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    console.log('Files were handed to the parent component:', selectedFiles);
+    
+    // 既にアップロードされたファイルデータを持っている可能性があるので
+    // APIから詳細情報を取得
+    const checkExistingFiles = async () => {
+      // 現在files状態にあるIDのリスト
+      const existingIds = files.map(f => f.id);
+      
+      try {
+        // 最新のファイルリストを取得
+        const response = await api.get('/api/drive/file_list');
+        const apiFiles = response.data.files || [];
+        
+        console.log('API file_list response:', apiFiles);
+        
+        // 新しいファイルのみ追加
+        for (let i = 0; i < selectedFiles.length; i++) {
+          // ファイル名から対応するAPIレスポンスのファイルを検索
+          // ここでは新しくアップロードされたファイルを検出するためにタイムスタンプで並び替え
+          const apiFile = apiFiles
+            .sort((a: any, b: any) => new Date(b.file_createat).getTime() - new Date(a.file_createat).getTime())
+            .find((f: any) => f.file_name === selectedFiles[i].name);
+          
+          if (apiFile && !existingIds.includes(apiFile.file_id)) {
+            // 新しいファイルを追加
+            const fileType = selectedFiles[i].type;
+            const isImage = fileType.startsWith('image/');
+            
+            const newFile = {
+              id: apiFile.file_id,
+              name: selectedFiles[i].name,
+              size: selectedFiles[i].size,
+              contentType: fileType,
+              isImage,
+              isExisting: false
+            };
+            
+            setFiles(prev => [...prev, newFile]);
+            console.log(`Added new file: ${newFile.name} with ID: ${newFile.id}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking file list:', error);
+      }
+    };
+    
+    // 非同期処理の実行
+    checkExistingFiles();
+  }, [api, files, setFiles]);
 
   const removeNotification = (id: string) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
