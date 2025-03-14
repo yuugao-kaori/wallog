@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS "post" (
     misskey_create_at  TIMESTAMP,
     misskey_hashtag TEXT[],
     misskey_file_name TEXT[],
-    misskey_attitude NUMERIC DEFAULT 1,
+    misskey_attitude NUMERIC DEFAULT 1
 );
 
 CREATE INDEX post_post_id_idx ON post(post_id);
@@ -84,13 +84,13 @@ CREATE TABLE IF NOT EXISTS "todo" (
     todo_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     todo_text TEXT,
-    todo_priority INTEGER CHECK (priority BETWEEN 1 AND 5) DEFAULT 3,
+    todo_priority INTEGER CHECK (todo_priority BETWEEN 1 AND 5) DEFAULT 3,
     todo_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     todo_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     todo_limitat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    todo_category TEXT ,
+    todo_category TEXT,
     todo_attitude NUMERIC DEFAULT 1,
-    todo_public BOOLEAN DEFAULT true
+    todo_public BOOLEAN DEFAULT true,
     todo_complete BOOLEAN DEFAULT false
 );
 
@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS "site-card" (
     url_text TEXT NOT NULL,
     site_card_title TEXT,
     site_card_text TEXT,
-    site_card_thumbnail TEXT
-    site_card_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    site_card_thumbnail TEXT,
+    site_card_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- driveテーブルの作成
