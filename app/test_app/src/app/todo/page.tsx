@@ -15,21 +15,24 @@ interface Todo {
   todo_public: boolean
   todo_complete: boolean
 }
-
-// 日付フォーマット用のヘルパー関数を追加
+// 日付フォーマット用のヘルパー関数を追加（UTC→日本時間への変換対応）
 const formatDateTime = (dateTimeString: string) => {
   if (!dateTimeString) return '';
-  // UTCの日時文字列をDateオブジェクトに変換
-  const date = new Date(dateTimeString);
   
-  // タイムゾーンを考慮せずに、そのままの値を使用
-  return date.toLocaleString('ja-JP', {
+  // UTCの日時文字列をDateオブジェクトに変換
+  const dateUTC = new Date(dateTimeString);
+  
+  // 日本時間のオフセットを適用（+9時間）
+  const japanOffset = 9 * 60; // 日本時間は+9時間（分単位）
+  const dateJST = new Date(dateUTC.getTime() + japanOffset * 60000);
+  
+  // 日本時間として表示
+  return dateJST.toLocaleString('ja-JP', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC'  // UTCとして解釈
+    minute: '2-digit'
   });
 };
 
@@ -47,23 +50,47 @@ const getPriorityText = (priority: number) => {
   }
 };
 
+// 期限切れかどうかを判定する関数（日本時間で適切に扱う）
+const isOverdue = (limitDateString: string): boolean => {
+  if (!limitDateString) return false;
+  
+  // 現在の日本時間を取得
+  const now = new Date();
+  
+  // 末尾がZのUTC表記を解釈して日本時間に変換（+9時間）
+  const limitDateUTC = new Date(limitDateString);
+  const japanOffset = 9 * 60; // 日本時間は+9時間（分単位）
+  const limitDateJST = new Date(limitDateUTC.getTime() + japanOffset * 60000);
+  
+  // 日本時間同士で比較
+  return now.getTime() > limitDateJST.getTime();
+};
+
 export default function TodoPage() {
-    const getDefaultDateTime = () => {
-        const date = new Date();
-        date.setHours(date.getHours() + 24); // 24時間後
-        return date.toISOString().slice(0, 16); // YYYY-MM-DDThh:mm 形式に変換
-        };
-    const [todos, setTodos] = useState<Todo[]>([])
-    const [isLoggedIn, setIsLoggedIn] = useState(false)
-    const [newTodo, setNewTodo] = useState({
-        todo_text: '',
-        todo_priority: 3,
-        todo_limitat: getDefaultDateTime(), // デフォルト値を設定
-        todo_category: '',
-        todo_attitude: 'normal',
-        todo_public: true,
-        todo_complete: false
-    })
+  const getDefaultDateTime = () => {
+    const date = new Date();
+    date.setHours(date.getHours() + 24); // 24時間後
+    
+    // 日本時間をベースにISO文字列に変換
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [newTodo, setNewTodo] = useState({
+      todo_text: '',
+      todo_priority: 3,
+      todo_limitat: getDefaultDateTime(), // デフォルト値を設定
+      todo_category: '',
+      todo_attitude: 'normal',
+      todo_public: true,
+      todo_complete: false
+  })
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [error, setError] = useState('')
   const { theme } = useTheme()
@@ -71,6 +98,8 @@ export default function TodoPage() {
     category: '',
     priority: ''
   })
+  // タブ状態を管理する状態変数を追加
+  const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo')
 
   const api = axios.create({
     baseURL: 'https://wallog.seitendan.com',
@@ -108,9 +137,10 @@ export default function TodoPage() {
     }
   }
 
+  // タブ切替時にもフェッチを行うように依存配列を修正
   useEffect(() => {
     fetchTodos()
-  }, [filter])
+  }, [filter, activeTab])
 
   // TODOの作成
   const createTodo = async (e: React.FormEvent) => {
@@ -148,6 +178,11 @@ export default function TodoPage() {
     }
   }
 
+  // タブに応じたToDo表示用の関数
+  const filteredTodos = todos.filter(todo => 
+    activeTab === 'todo' ? !todo.todo_complete : todo.todo_complete
+  );
+
   return (
     <div className="p-4 md:ml-48">
       <h1 className="text-2xl font-bold mb-4">ToDo & Doneリスト</h1>
@@ -179,7 +214,7 @@ export default function TodoPage() {
         </select>
       </div>
 
-      {/* TODO作成フォーム - モバイル用にレスポンシブ対応 */}
+      {/* TODO作成フォーム */}
       {isLoggedIn && (
         <form onSubmit={createTodo} className="mb-8 p-4 bg-gray-100 dark:bg-gray-800 rounded">
           <div className="mb-4">
@@ -226,15 +261,6 @@ export default function TodoPage() {
               />
               公開
             </label>
-            <label className="flex items-center mr-4">
-              <input
-                type="checkbox"
-                checked={newTodo.todo_complete}
-                onChange={(e) => setNewTodo({...newTodo, todo_complete: e.target.checked})}
-                className="mr-2"
-              />
-              完了
-            </label>
           </div>
           <button
             type="submit"
@@ -245,105 +271,136 @@ export default function TodoPage() {
         </form>
       )}
 
-      {/* TODOリスト */}
+      {/* タブナビゲーション - タスク作成UIの下に移動 */}
+      <div className="flex mb-4 border-b">
+        <button
+          className={`py-2 px-4 ${
+            activeTab === 'todo'
+              ? 'border-b-2 border-blue-500 text-blue-500 font-medium'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('todo')}
+        >
+          TODO
+        </button>
+        <button
+          className={`py-2 px-4 ${
+            activeTab === 'done'
+              ? 'border-b-2 border-blue-500 text-blue-500 font-medium'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('done')}
+        >
+          DONE
+        </button>
+      </div>
+
+      {/* TODOリスト - タブに応じてフィルタリングされたリストを表示 */}
       <div className="grid gap-4">
-        {todos.map(todo => (
-          <div
-            key={todo.todo_id}
-            className={`p-4 bg-white dark:bg-gray-800 rounded shadow ${
-              todo.todo_complete ? 'opacity-50' : ''
-            }`}
-          >
-            {editingTodo?.todo_id === todo.todo_id ? (
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  value={editingTodo.todo_text}
-                  onChange={(e) => setEditingTodo({...editingTodo, todo_text: e.target.value})}
-                  className="w-full p-2 border rounded dark:bg-gray-700"
-                />
-                <div className="flex flex-wrap gap-4">
-                  <select
-                    value={editingTodo.todo_priority}
-                    onChange={(e) => setEditingTodo({...editingTodo, todo_priority: Number(e.target.value)})}
-                    className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
-                  >
-                    <option value={1}>優先度: 高</option>
-                    <option value={2}>優先度: 中</option>
-                    <option value={3}>優先度: 低</option>
-                  </select>
-                  <input
-                    type="datetime-local"
-                    value={editingTodo.todo_limitat.slice(0, 16)}
-                    onChange={(e) => setEditingTodo({...editingTodo, todo_limitat: e.target.value})}
-                    className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
-                  />
+        {filteredTodos.length > 0 ? (
+          filteredTodos.map(todo => (
+            <div
+              key={todo.todo_id}
+              className={`p-4 bg-white dark:bg-gray-800 rounded shadow ${
+                activeTab === 'todo' && isOverdue(todo.todo_limitat) 
+                  ? 'border-2 border-red-500' 
+                  : ''
+              }`}
+            >
+              {editingTodo?.todo_id === todo.todo_id ? (
+                <div className="space-y-4">
                   <input
                     type="text"
-                    value={editingTodo.todo_category}
-                    onChange={(e) => setEditingTodo({...editingTodo, todo_category: e.target.value})}
-                    className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
+                    value={editingTodo.todo_text}
+                    onChange={(e) => setEditingTodo({...editingTodo, todo_text: e.target.value})}
+                    className="w-full p-2 border rounded dark:bg-gray-700"
                   />
-                </div>
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={editingTodo.todo_public}
-                      onChange={(e) => setEditingTodo({...editingTodo, todo_public: e.target.checked})}
-                      className="mr-2"
-                    />
-                    公開
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={editingTodo.todo_complete}
-                      onChange={(e) => setEditingTodo({...editingTodo, todo_complete: e.target.checked})}
-                      className="mr-2"
-                    />
-                    完了
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => updateTodo(editingTodo)}
-                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    更新
-                  </button>
-                  <button
-                    onClick={() => setEditingTodo(null)}
-                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-semibold break-words">{todo.todo_text}</h3>
-                  {isLoggedIn && (
-                    <button
-                      onClick={() => setEditingTodo(todo)}
-                      className="text-blue-500 hover:text-blue-600 ml-2 shrink-0"
+                  <div className="flex flex-wrap gap-4">
+                    <select
+                      value={editingTodo.todo_priority}
+                      onChange={(e) => setEditingTodo({...editingTodo, todo_priority: Number(e.target.value)})}
+                      className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
                     >
-                      編集
+                      <option value={1}>優先度: 高</option>
+                      <option value={2}>優先度: 中</option>
+                      <option value={3}>優先度: 低</option>
+                    </select>
+                    <input
+                      type="datetime-local"
+                      value={editingTodo.todo_limitat.slice(0, 16)}
+                      onChange={(e) => setEditingTodo({...editingTodo, todo_limitat: e.target.value})}
+                      className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
+                    />
+                    <input
+                      type="text"
+                      value={editingTodo.todo_category}
+                      onChange={(e) => setEditingTodo({...editingTodo, todo_category: e.target.value})}
+                      className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={editingTodo.todo_public}
+                        onChange={(e) => setEditingTodo({...editingTodo, todo_public: e.target.checked})}
+                        className="mr-2"
+                      />
+                      公開
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={editingTodo.todo_complete}
+                        onChange={(e) => setEditingTodo({...editingTodo, todo_complete: e.target.checked})}
+                        className="mr-2"
+                      />
+                      完了
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => updateTodo(editingTodo)}
+                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    >
+                      更新
                     </button>
-                  )}
+                    <button
+                      onClick={() => setEditingTodo(null)}
+                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <p>優先度: {getPriorityText(todo.todo_priority)}</p>
-                  <p>期限: {formatDateTime(todo.todo_limitat)}</p>
-                  <p>カテゴリ: {todo.todo_category}</p>
-                  <p>状態: {todo.todo_complete ? '完了' : '未完了'}</p>
-                  <p>公開設定: {todo.todo_public ? '公開' : '非公開'}</p>
+              ) : (
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold break-words">{todo.todo_text}</h3>
+                    {isLoggedIn && (
+                      <button
+                        onClick={() => setEditingTodo(todo)}
+                        className="text-blue-500 hover:text-blue-600 ml-2 shrink-0"
+                      >
+                        編集
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <p>優先度: {getPriorityText(todo.todo_priority)}</p>
+                    <p>期限: {formatDateTime(todo.todo_limitat)}</p>
+                    <p>カテゴリ: {todo.todo_category}</p>
+                    <p>公開設定: {todo.todo_public ? '公開' : '非公開'}</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="text-center text-gray-500 py-4">
+            {activeTab === 'todo' ? '未完了のタスクはありません' : '完了済みのタスクはありません'}
+          </p>
+        )}
       </div>
     </div>
   )
