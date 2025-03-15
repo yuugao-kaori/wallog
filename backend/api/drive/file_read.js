@@ -81,7 +81,12 @@ router.get('/file/:file_id', async (req, res) => {
         const s3Response = await s3Client.send(command);
         
         // Content-Typeをfile_formatから判定
-        const contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        let contentType = 'application/octet-stream';
+        if (file_format === 'webp') {
+            contentType = 'image/webp';
+        } else {
+            contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        }
         res.setHeader('Cache-Control', 'public, max-age=31536000');
         res.setHeader('Content-Type', contentType);
         res.setHeader('X-File-Format', file_format || 'unknown');
@@ -138,7 +143,12 @@ router.get('/file_download/:file_id', async (req, res) => {
         const s3Response = await s3Client.send(command);
         
         // Content-Typeをfile_formatから判定
-        const contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        let contentType = 'application/octet-stream';
+        if (file_format === 'webp') {
+            contentType = 'image/webp';
+        } else {
+            contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        }
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${fileId}.${file_format}"`);
 

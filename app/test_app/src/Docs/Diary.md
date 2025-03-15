@@ -74,6 +74,45 @@ processPostText({
 })
 ```
 
+### 3.3 投稿モード
+
+投稿フォームは以下の4つのモードで動作します：
+
+- `normal`: 通常の新規投稿
+- `quote`: 既存の投稿を引用する投稿
+- `reply`: 既存の投稿への返信
+- `correct`: 削除して再投稿するモード（投稿の修正用）
+
+```typescript
+// モードに応じた処理の分岐例
+switch (mode) {
+  case 'normal':
+    await api.post('/api/post/post_create', payload);
+    break;
+  case 'quote':
+    await api.post('/api/post/post_create', { ...payload, quote_post_id: targetPostId });
+    break;
+  case 'reply':
+    await api.post('/api/post/post_create', { ...payload, reply_post_id: targetPostId });
+    break;
+  case 'correct':
+    // 既存投稿を削除
+    await api.post('/api/post/post_delete', { post_id: targetPostId });
+    // 新規投稿を作成
+    await api.post('/api/post/post_create', payload);
+    break;
+}
+```
+
+各モードの使用場面：
+
+| モード | 使用場面 | 処理内容 |
+|--------|---------|---------|
+| normal | 通常の投稿作成時 | 新規投稿の作成 |
+| quote | 他の投稿を引用する時 | 引用元の情報を含めた新規投稿 |
+| reply | 他の投稿に返信する時 | 返信先の情報を含めた新規投稿 |
+| correct | 投稿内容の修正が必要な時 | 既存投稿を削除し、修正内容で再投稿 |
+
 ## 4. データフロー
 
 1. ユーザー入力

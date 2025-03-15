@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Post } from './PostFeed';
 import { 
   FileItem, 
@@ -119,9 +119,25 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
       // ダミーファイルを作成（実際のファイル情報はすでにuploadedFilesにある）
       uploadedFiles.forEach(fileItem => {
         // 空のBlobからファイルを作成（サイズ0）
+        // ここでFile作成時にカスタムプロパティを追加
         const dummyFile = new File([""], fileItem.name || "file", { 
           type: fileItem.contentType || "application/octet-stream" 
         });
+        
+        // カスタムプロパティの追加
+        Object.defineProperties(dummyFile, {
+          'isImage': { 
+            value: fileItem.isImage,
+            writable: true, 
+            enumerable: true 
+          },
+          'fileId': { 
+            value: fileItem.id,
+            writable: true, 
+            enumerable: true 
+          }
+        });
+        
         dataTransfer.items.add(dummyFile);
       });
       
@@ -177,6 +193,99 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     // No need to update hashtagsState since autoAppendTags is managed by the parent component
     // The autoAppendTags state is passed to processPostText function directly
   }, [autoAppendTags]);
+
+  const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
+
+  const cleanFileId = (fileId: string | number): string | number => {
+    return typeof fileId === 'string' ? fileId.replace(/[{}"\[\]]/g, '') : fileId;
+  };
+
+  useEffect(() => {
+    if (isOpen && mode === 'correct' && targetPost && targetPost.post_file && !hasLoadedFiles) {
+      const fileIds = Array.isArray(targetPost.post_file)
+        ? targetPost.post_file.map(id => cleanFileId(id))
+        : typeof targetPost.post_file === 'string'
+          ? targetPost.post_file.split(',').map(id => cleanFileId(id.trim()))
+          : [];
+          
+      const fetchFileMetadata = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file_list`);
+          if (!response.ok) {
+            console.error('Failed to fetch file metadata:', response.statusText);
+            return;
+          }
+          
+          const data = await response.json();
+          console.log('File metadata response:', data);
+          
+          const fileItems = fileIds
+            .map(fileId => {
+              const cleanId = cleanFileId(fileId);
+              const fileInfo = data.files.find((file: any) => 
+                String(file.file_id) === String(cleanId)
+              );
+              
+              if (fileInfo) {
+                // cleanIdから拡張子を取得する処理
+                const fileName = cleanId.toString() || '';
+                // 引用符や不要な文字を除去してからファイル名を処理
+                const cleanFileName = fileName.replace(/['"]/g, '').trim();
+                
+                // 拡張子を取得するロジックを修正
+                // 最後のドットより後のすべてを拡張子として取得
+                const lastDotIndex = cleanFileName.lastIndexOf('.');
+                const extension = lastDotIndex > 0 ? cleanFileName.substring(lastDotIndex + 1).toLowerCase() : '';
+                
+                // サーバーから提供されたContent-Typeを優先して使用
+                // APIレスポンスのcontent_typeキーを適切に取得
+                const contentType = fileInfo.content_type || 
+                  fileInfo.contentType ||
+                  (extension ? `image/${extension}` : 'application/octet-stream');
+                
+                // 画像系拡張子リスト（拡張子ベースでの判定を強化）
+                const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'heic', 'heif'];
+                
+                // 画像判定ロジック:
+                // 1. contentTypeが'image/'で始まるか
+                // 2. 拡張子が画像系リストにあるか
+                // 3. ファイル名に.webpなどの画像系文字列が含まれているか
+                const isImage = 
+                  contentType.startsWith('image/') || 
+                  (extension && imageExtensions.includes(extension)) ||
+                  imageExtensions.some(ext => cleanFileName.toLowerCase().endsWith(`.${ext}`));
+                  
+                console.log(`File ${cleanId}: FileName=${fileName}, cleanFileName=${cleanFileName}, lastDotIndex=${lastDotIndex}, extension=${extension}, contentType=${contentType}, isImage=${isImage}, originalContentType=${fileInfo.content_type || 'none'}`);
+                
+                return {
+                  id: cleanId,
+                  name: fileInfo.file_name || `file-${cleanId}`,
+                  contentType: contentType,
+                  isImage: isImage,
+                  isExisting: true
+                };
+              }
+              return null;
+            })
+            .filter(Boolean) as FileItem[];
+            
+          if (fileItems.length > 0) {
+            console.log('Setting files for correct mode:', fileItems);
+            setFiles(fileItems);
+            setHasLoadedFiles(true);
+          }
+        } catch (error) {
+          console.error('Failed to load file metadata:', error);
+        }
+      };
+      
+      fetchFileMetadata();
+    }
+    
+    if (!isOpen) {
+      setHasLoadedFiles(false);
+    }
+  }, [isOpen, mode, targetPost, setFiles, hasLoadedFiles]);
 
   /**
    * テキストエリアでのキー入力ハンドラ
@@ -262,12 +371,25 @@ const handleFormSubmit = async (e: React.FormEvent) => {
   try {
     // 修正モードの場合、先に元の投稿を削除
     if (mode === 'correct') {
-      if (handleDelete && targetPost) {
-        const deleted = await handleDelete(targetPost.post_id);
-        if (!deleted) {
-          return;
-        }
+      if (!handleDelete) {
+        console.error('handleDelete function is not provided');
+        return;
       }
+      
+      if (!targetPost) {
+        console.error('targetPost is not provided');
+        return;
+      }
+      
+      console.log('Attempting to delete post:', targetPost.post_id);
+      const deleted = await handleDelete(targetPost.post_id);
+      
+      if (!deleted) {
+        console.error('Failed to delete post');
+        return;
+      }
+      
+      console.log('Post successfully deleted, proceeding with repost');
     }
 
     // 共通関数を使って最終的な投稿テキストを作成
@@ -282,12 +404,22 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     console.log('Submitting post with:', {
       mode,
       targetPostId: targetPost?.post_id,
-      finalPostText
+      finalPostText,
+      files: files.map(file => ({ ...file, id: cleanFileId(file.id) })) // ファイルIDをクリーニング
     });
 
+    // 送信前に全てのファイルIDをクリーニング
+    const cleanFiles = files.map(file => ({
+      ...file,
+      id: cleanFileId(file.id)
+    }));
+    
+    // ファイルIDをクリーニングしてからhandleSubmitに渡す
+    setFiles(cleanFiles);
+    
     // handleSubmit を呼び出し
     await handleSubmit(e, finalPostText, targetPost?.post_id, mode);
-
+    
     // 成功時の状態リセット
     setPostText('');
     setFiles([]);
@@ -317,6 +449,14 @@ const handleFormSubmit = async (e: React.FormEvent) => {
 
   // ポップアップが閉じられている場合は何もレンダリングしない
   if (!isOpen) return null;
+
+  const handleImageDisplay = (fileId: string | number): string => {
+    const cleanId = typeof fileId === 'string' 
+      ? fileId.replace(/[{}"\[\]]/g, '') 
+      : fileId;
+    
+    return `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${cleanId}`;
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
@@ -478,25 +618,34 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                       <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
                         {file.isImage ? (
                           <img
-                            src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.id}`}
+                            src={handleImageDisplay(file.id)}
                             alt={`File ${file.id}`}
                             className="w-full h-full object-contain"
                             onError={(e) => {
+                              console.error(`Failed to load image with ID: ${file.id}`, e);
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
-                              target.parentElement!.innerHTML = '<span class="text-gray-500">読み込みエラー</span>';
+                              
+                              const errorElement = document.createElement('div');
+                              errorElement.className = 'flex items-center justify-center w-full h-full text-gray-500';
+                              errorElement.innerHTML = `<span>読み込みエラー: ${file.contentType || 'Unknown'}</span>`;
+                              
+                              target.parentElement?.appendChild(errorElement);
                             }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <span className="text-2xl text-gray-500">
-                              {file.contentType ? file.contentType.split('/')[1].toUpperCase() : 'ファイル'}
+                              {file.contentType 
+                                ? file.contentType.split('/')[1]?.toUpperCase() || '不明なファイル'
+                                : 'ファイル'}
                             </span>
                           </div>
                         )}
                       </div>
                       <div className="text-sm truncate dark:text-gray-300">
-                        ファイルID: {file.id}
+                        ファイルID: {cleanFileId(file.id)}
+                        {file.contentType && <span className="ml-2">({file.contentType})</span>}
                       </div>
                       <button
                         type="button"

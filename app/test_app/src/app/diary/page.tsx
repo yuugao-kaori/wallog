@@ -436,6 +436,12 @@ const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
 
 // 投稿削除用の関数を修正
 const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
+  event.preventDefault();
+  event.stopPropagation();
+  return deletePost(postId);
+}
+
+const deletePost = async (postId: string): Promise<boolean> => {
   try {
     const response = await api.delete('/api/post/post_delete', {
       data: { post_id: postId }
@@ -446,13 +452,14 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       addNotification('投稿を削除しました');
       return true;
     }
-    throw new Error('削除に失敗しました');
+    addNotification('投稿の削除に失敗しました');
+    return false;
   } catch (error) {
     console.error('Error deleting post:', error);
     addNotification('投稿の削除に失敗しました');
     return false;
   }
-}
+};
 
   const handleCancelAttach = (fileId: string | number) => {
     setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
@@ -673,34 +680,31 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
         e.preventDefault();
 
         try {
-          // Add debugging to see what parameters are being received
           console.log('Submit called with:', {
             finalText,
             targetPostId,
             mode,
-            hasRepostData: !!repostData
+            hasRepostData: !!repostData,
+            files
           });
           
           if (repostData) {
-            // 古い投稿を削除
+            const originalFiles = files.slice();
+            
             const deleteSuccess = await handleDeletePost(
               { stopPropagation: () => {} } as React.MouseEvent,
               repostData.post_id
             );
             
-            if (!deleteSuccess) {
-              addNotification('古い投稿の削除に失敗しました');
-              return;
+            if (deleteSuccess) {
+              setFiles(originalFiles);
             }
           }
 
-          // 新しい投稿を作成
           const payload = {
             post_text: finalText,
             ...(files.length > 0 && { post_file: files.map(file => file.id) }),
-            // 引用投稿の場合はrepost_idを追加
             ...(mode === 'quote' && targetPostId && { repost_id: targetPostId }),
-            // 返信投稿の場合はreply_idを追加
             ...(mode === 'reply' && targetPostId && { reply_id: targetPostId })
           };
 
@@ -721,7 +725,6 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           console.error('投稿処理でエラーが発生しました:', error);
           addNotification('投稿に失敗しました');
         }
-        
       }}
 
       files={files}
@@ -736,6 +739,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       handleCancelAttach={handleCancelAttach} // 追加
+      handleDelete={deletePost}  // 新しい関数を渡す
       />
 
       {/* ファ���ル選択モーダル */}

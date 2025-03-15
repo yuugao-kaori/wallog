@@ -4,7 +4,7 @@ import { runMaintenance } from '../setup/maintenance.js';
 import { runMinioMaintenance } from '../setup/minio_maintenance.js';
 import { generateAndSaveSitemap } from '../setup/sitemap_generator.js';
 import { generateAndSaveRssFeeds } from '../setup/rss_generator.js';
-import { runDiscordAnnounce } from './discord_announce.js';
+import { runDiscordAnnounce, runDiscordWakeupAnnounce } from './discord_announce.js';
 
 /**
  * メンテナンス処理の重複実行を防ぐためのフラグ
@@ -138,6 +138,7 @@ const executeRssGeneration = async () => {
  * @async
  * @returns {Promise<void>}
  */
+
 const executeDiscordAnnounce = async () => {
   if (isDiscordAnnounceRunning) {
     console.log('Discord announcement already in progress, skipping...');
@@ -150,6 +151,24 @@ const executeDiscordAnnounce = async () => {
   try {
     await runDiscordAnnounce();
     console.log('Discord announcement completed', new Date().toISOString());
+  } catch (error) {
+    console.error('Error running Discord announcement:', error);
+  } finally {
+    isDiscordAnnounceRunning = false;
+  }
+}
+const executeDiscordWakeupAnnounce = async () => {
+  if (isDiscordAnnounceRunning) {
+    console.log('Discord announcement already in progress, skipping...');
+    return;
+  }
+  
+  isDiscordAnnounceRunning = true;
+  console.log('Starting Discord announcement...', new Date().toISOString());
+  
+  try {
+    await runDiscordWakeupAnnounce();
+    console.log('Discord Wakeup announcement completed', new Date().toISOString());
   } catch (error) {
     console.error('Error running Discord announcement:', error);
   } finally {
@@ -187,9 +206,9 @@ export function startMaintenanceScheduler() {
   const rssJob = schedule.scheduleJob('0 */4 * * *', executeRssGeneration);
   console.log('RSS generation scheduled for every 4 hours');
   
-  // Discord通知の定期実行（毎日午前9時と午後6時）
-  const discordMorningJob = schedule.scheduleJob('0 9 * * *', executeDiscordAnnounce);
-  const discordEveningJob = schedule.scheduleJob('0 18 * * *', executeDiscordAnnounce);
+  // Discord通知の定期実行（毎日午前7時と午後6時）
+  const discordMorningJob = schedule.scheduleJob('0 7 * * *', executeDiscordAnnounce);
+  //const discordEveningJob = schedule.scheduleJob('0 18 * * *', executeDiscordAnnounce);
   console.log('Discord announcements scheduled for 9 AM and 6 PM daily');
   
   // 初回実行（5秒後）
@@ -199,7 +218,7 @@ export function startMaintenanceScheduler() {
   // RSSも初回実行（15秒後）
   setTimeout(executeRssGeneration, 15000);
   // Discord通知も初回実行（20秒後）
-  setTimeout(executeDiscordAnnounce, 20000);
+  setTimeout(executeDiscordWakeupAnnounce, 20000);
 
   // エラーハンドリング
   process.on('uncaughtException', (err) => {

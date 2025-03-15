@@ -204,6 +204,19 @@ export function useFileUpload(
     const newProgress: { [key: string]: number } = {};
     const uploadedFiles: FileItem[] = [];
     
+    const isImageFile = (contentType: string | undefined, fileName: string): boolean => {
+      if (!contentType && !fileName) return false;
+      
+      if (contentType && contentType.startsWith('image/')) return true;
+      
+      if (!contentType && fileName) {
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext || '');
+      }
+      
+      return false;
+    };
+
     try {
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -251,9 +264,8 @@ export function useFileUpload(
               id: response.id,
               name: file.name,
               size: file.size,
-              contentType: file.type,
-              isImage: file.type.startsWith('image/'),
-              isExisting: false
+              contentType: file.type || `image/${file.name.split('.').pop()}`,
+              isImage: isImageFile(file.type, file.name)
             };
             
             uploadedFiles.push(newFile);

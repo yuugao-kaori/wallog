@@ -9,6 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
 import PostFormPopup from './PostFormPopup';  // PostFormModalの代わりに使用
 import SiteCard from './SiteCard';
+import { FileItem } from './PostFormCommon';  // FileItem型をインポート
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
@@ -145,7 +146,8 @@ const Card = memo(({
 
   const [formState, setFormState] = useState({
     postText: '',
-    mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct'
+    mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct',
+    files: [] as FileItem[]
   });
 
   // 追加: テキストの展開状態を管理
@@ -519,15 +521,31 @@ const Card = memo(({
 
   const handleRepost = async (event: React.MouseEvent) => {
     event.stopPropagation();
+    
+    const fileIds = post.post_file 
+      ? Array.isArray(post.post_file)
+        ? post.post_file
+        : post.post_file.split(',').map(file => file.trim().replace(/^"|"$/g, ''))
+      : [];
+      
+    const fileItems: FileItem[] = fileIds.map(fileId => ({
+      id: fileId,
+      isImage: true,
+      contentType: '',
+      name: `file-${fileId}`
+    }));
+    
     setUiState(prev => ({
       ...prev,
       repostModalOpen: false,
       menuOpen: false,
-      postFormModalOpen: true  // フォームを開く
+      postFormModalOpen: true
     }));
+    
     setFormState({
-      postText: post.post_text,  // 元の投稿テキストを設定
-      mode: 'correct'  // correct モードを設定
+      postText: post.post_text,
+      mode: 'correct',
+      files: fileItems
     });
   };
 
@@ -536,7 +554,7 @@ const Card = memo(({
     event.preventDefault();
     event.stopPropagation();
     console.log('Quote mode triggered');
-    setFormState({ postText: '', mode: 'quote' });
+    setFormState({ postText: '', mode: 'quote', files: [] });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
@@ -550,7 +568,7 @@ const Card = memo(({
     event.preventDefault();
     event.stopPropagation();
     console.log('Reply mode triggered');
-    setFormState({ postText: '', mode: 'reply' });
+    setFormState({ postText: '', mode: 'reply', files: [] });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
@@ -569,7 +587,9 @@ const Card = memo(({
     return (
       <div className={`mt-4 ${files.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
         {files.map(file => {
-          const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
+          const rawFileId = typeof file === "string" ? file : String(file);
+          const fileId = rawFileId.replace(/[{}"\[\]]/g, '');
+          
           const data = imageData[fileId];
 
           return (
@@ -655,6 +675,18 @@ const Card = memo(({
   }, [post.repost_body, formatDate]);
 
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
+
+  // handleFiles関数を追加
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    console.log('Files selected in PostCard:', files);
+    
+    // ファイル選択時の処理
+    // 実際のファイル処理はPostFormPopup内で行われるため、
+    // 必要に応じてここに追加の処理を記述
+  }, []);
+  
   return (
     <>
       {/* メインの投稿カードコンテナ - Intersection Observer用のref付与 */}
@@ -803,20 +835,47 @@ const Card = memo(({
           e.preventDefault();
           console.log('PostCard: handleSubmit called with:', { finalText, targetPostId, mode });
           try {
-            if (onQuoteSubmit && (mode === 'quote' || mode === 'reply') && post.post_id) {
+            if (mode === 'correct') {
+              // 修正: ファイル情報をペイロードに含める
+              const payload = { 
+                post_text: finalText,
+                // ファイル情報を追加
+                ...(formState.files.length > 0 && { post_file: formState.files.map(file => file.id) })
+              };
+              
+              console.log('Sending payload with files:', payload);
+              
+              const response = await fetch('/api/post/post_create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'include',
+              });
+              
+              if (response.ok) {
+                addNotification('再投稿が完了しました');
+                setUiState(prev => ({ ...prev, postFormModalOpen: false }));
+                
+                // 新しい投稿を取得して表示を更新
+                const newPost = await response.json();
+                // ここで親コンポーネントに新しい投稿を通知する処理を追加
+              } else {
+                throw new Error('再投稿に失敗しました');
+              }
+            } else if (onQuoteSubmit && (mode === 'quote' || mode === 'reply') && post.post_id) {
               await onQuoteSubmit(finalText, mode, post.post_id);
               addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿を作成しました`);
               setUiState(prev => ({ ...prev, postFormModalOpen: false }));
             }
           } catch (error) {
             console.error('Error in form submission:', error);
-            addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿の作成に失敗しました`);
+            const modeText = mode === 'correct' ? '再投稿' : mode === 'quote' ? '引用投稿' : '返信投稿';
+            addNotification(`${modeText}の作成に失敗しました`);
           }
         }}
         mode={formState.mode}
         targetPost={post}
-        files={[]}
-        handleFiles={() => {}}
+        files={formState.files}
         isLoggedIn={isLoggedIn}
         status=""
         onSelectExistingFiles={() => {}}
@@ -826,7 +885,9 @@ const Card = memo(({
         setAutoAppendTags={() => {}}
         handleCancelAttach={() => {}}
         handleDeletePermanently={() => {}}
-        setFiles={() => {}}
+        setFiles={(newFiles) => setFormState(prev => ({ ...prev, files: Array.isArray(newFiles) ? newFiles : newFiles(prev.files) }))}
+        handleDelete={handleDelete}
+        handleFiles={handleFiles}  // 必須のhandleFilesプロパティを追加
       />
     </>
   );

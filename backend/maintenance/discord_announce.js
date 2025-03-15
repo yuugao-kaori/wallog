@@ -464,26 +464,9 @@ const checkLatestBlogs = async () => {
  * @export
  * @returns {Promise<void>}
  */
+
 export const runDiscordAnnounce = async () => {
-  try {
-    console.log('Discord通知処理を開始します...');
-    
-    // Discord clientの初期化
-    await initializeDiscordClient();
-    
-    // データベース接続テスト
-    const dbConnected = await testDatabaseConnection();
-    if (!dbConnected) {
-      console.error('データベースに接続できないため、処理を終了します');
-      return;
-    }
-    
-    // リアクションウォッチャーのセットアップ
-    await setupReactionWatcher();
-    
-    // 起動通知
-    await sendStartupNotification();
-    
+  
     // 短い待機時間を設けて、各処理を順番に実行
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -505,6 +488,28 @@ export const runDiscordAnnounce = async () => {
     
     // ブログの確認
     await checkLatestBlogs();
+
+
+};
+export const runDiscordWakeupAnnounce = async () => {
+  try {
+    console.log('Discord通知処理を開始します...');
+    
+    // Discord clientの初期化
+    await initializeDiscordClient();
+    
+    // データベース接続テスト
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+      console.error('データベースに接続できないため、処理を終了します');
+      return;
+    }
+    
+    // リアクションウォッチャーのセットアップ
+    await setupReactionWatcher();
+    
+    // 起動通知
+    await sendStartupNotification();
     
     console.log('Discord通知処理が完了しました');
   } catch (error) {
