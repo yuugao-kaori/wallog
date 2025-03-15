@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Card from '@/components/PostCard';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
+import { FileItem } from './PostFormCommon';
 
 // 動的インポートでNotificationコンポーネントを読み込む
 const Notification = dynamic(() => import('@/components/Notification'), {
@@ -43,8 +44,7 @@ interface PostFeedProps {
   hasMore: boolean;
   loadMorePosts: () => Promise<void>;
   onRepost?: (post: Post) => Promise<void>;  // 追加
-  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
-
+  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => Promise<void>;
 }
 
 const PostFeed: React.FC<PostFeedProps> = ({ 

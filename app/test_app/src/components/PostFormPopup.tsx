@@ -6,7 +6,10 @@ import {
   FileItem, 
   useHashtags, 
   useFileUpload,
-  processPostText
+  processPostText,
+  FilePreview,
+  cleanFileId,
+  isImageFile
 } from './PostFormCommon';
 
 // Define PostMode type locally since it's not exported from PostFormCommon
@@ -25,7 +28,13 @@ interface PostFormPopupProps {
   /** 投稿テキストを設定する関数 */
   setPostText: (text: string) => void;
   /** フォーム送信時の処理 */
-  handleSubmit: (e: React.FormEvent, finalPostText: string, targetPostId?: string, mode?: PostMode) => void;
+  handleSubmit: (
+    e: React.FormEvent, 
+    finalPostText: string, 
+    targetPostId?: string, 
+    mode?: PostMode, 
+    files?: FileItem[]
+  ) => void;
   /** 添付ファイルのリスト */
   files: FileItem[];
   /** ファイル追加時の処理 */
@@ -199,10 +208,6 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<any[]>([]);
 
-  const cleanFileId = (fileId: string | number): string | number => {
-    return typeof fileId === 'string' ? fileId.replace(/[{}"\[\]]/g, '') : fileId;
-  };
-
   // 既存ファイル選択用の関数
   const loadDriveFiles = useCallback(async () => {
     try {
@@ -228,7 +233,8 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
       }
       
       const contentType = fileMetadata.content_type || 'application/octet-stream';
-      const isImage = contentType.startsWith('image/');
+      // isImageFile関数を使用するよう修正
+      const isImage = isImageFile(fileMetadata);
       
       if (!files.some(file => file.id === fileId)) {
         setFiles(prev => [...prev, { 
@@ -239,7 +245,6 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
           isExisting: true
         }]);
       }
-
       setShowFileSelector(false);
     } catch (error) {
       console.error('Failed to select file:', error);
@@ -273,35 +278,16 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
               );
               
               if (fileInfo) {
-                // cleanIdから拡張子を取得する処理
-                const fileName = cleanId.toString() || '';
-                // 引用符や不要な文字を除去してからファイル名を処理
-                const cleanFileName = fileName.replace(/['"]/g, '').trim();
-                
-                // 拡張子を取得するロジックを修正
-                // 最後のドットより後のすべてを拡張子として取得
-                const lastDotIndex = cleanFileName.lastIndexOf('.');
-                const extension = lastDotIndex > 0 ? cleanFileName.substring(lastDotIndex + 1).toLowerCase() : '';
-                
-                // サーバーから提供されたContent-Typeを優先して使用
-                // APIレスポンスのcontent_typeキーを適切に取得
+                // サーバーから提供されたContent-Typeを取得
                 const contentType = fileInfo.content_type || 
                   fileInfo.contentType ||
-                  (extension ? `image/${extension}` : 'application/octet-stream');
+                  'application/octet-stream';
                 
-                // 画像系拡張子リスト（拡張子ベースでの判定を強化）
-                const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'heic', 'heif'];
-                
-                // 画像判定ロジック:
-                // 1. contentTypeが'image/'で始まるか
-                // 2. 拡張子が画像系リストにあるか
-                // 3. ファイル名に.webpなどの画像系文字列が含まれているか
-                const isImage = 
-                  contentType.startsWith('image/') || 
-                  (extension && imageExtensions.includes(extension)) ||
-                  imageExtensions.some(ext => cleanFileName.toLowerCase().endsWith(`.${ext}`));
+                // isImageFile関数を使用して画像かどうかを判定
+                // ファイル情報を渡し、一貫した判定ロジックを適用
+                const isImage = isImageFile(fileInfo);
                   
-                console.log(`File ${cleanId}: FileName=${fileName}, cleanFileName=${cleanFileName}, lastDotIndex=${lastDotIndex}, extension=${extension}, contentType=${contentType}, isImage=${isImage}, originalContentType=${fileInfo.content_type || 'none'}`);
+                console.log(`File ${cleanId}: contentType=${contentType}, isImage=${isImage}, originalContentType=${fileInfo.content_type || 'none'}`);
                 
                 return {
                   id: cleanId,
@@ -447,25 +433,25 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       fixedHashtags
     );
 
-    // デバッグログ追加
-    console.log('Submitting post with:', {
-      mode,
-      targetPostId: targetPost?.post_id,
-      finalPostText,
-      files: files.map(file => ({ ...file, id: cleanFileId(file.id) })) // ファイルIDをクリーニング
-    });
-
-    // 送信前に全てのファイルIDをクリーニング
+    // 全てのファイルIDをクリーニング
     const cleanFiles = files.map(file => ({
       ...file,
       id: cleanFileId(file.id)
     }));
     
-    // ファイルIDをクリーニングしてからhandleSubmitに渡す
+    // ファイルIDをクリーニングしてからsetFilesに渡す
     setFiles(cleanFiles);
+
+    // デバッグログ追加
+    console.log('Submitting post with:', {
+      mode,
+      targetPostId: targetPost?.post_id,
+      finalPostText,
+      files: cleanFiles
+    });
     
-    // handleSubmit を呼び出し
-    await handleSubmit(e, finalPostText, targetPost?.post_id, mode);
+    // handleSubmit を呼び出し（引数にクリーニング済みファイル配列を追加）
+    await handleSubmit(e, finalPostText, targetPost?.post_id, mode, cleanFiles);
     
     // 成功時の状態リセット
     setPostText('');
@@ -502,14 +488,6 @@ const handleFormSubmit = async (e: React.FormEvent) => {
 
   // ポップアップが閉じられている場合は何もレンダリングしない
   if (!isOpen) return null;
-
-  const handleImageDisplay = (fileId: string | number): string => {
-    const cleanId = typeof fileId === 'string' 
-      ? fileId.replace(/[{}"\[\]]/g, '') 
-      : fileId;
-    
-    return `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${cleanId}`;
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
@@ -663,60 +641,16 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 </div>
               )}
 
-              {/* 添付ファイル一覧 */}
+              {/* 添付ファイル一覧 - FilePreviewコンポーネントを使用 */}
               {files.length > 0 && (
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {files.map((file) => (
-                    <div key={file.id} className="border rounded p-2 relative bg-white dark:bg-gray-800">
-                      <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
-                        {file.isImage ? (
-                          <img
-                            src={handleImageDisplay(file.id)}
-                            alt={`File ${file.id}`}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              console.error(`Failed to load image with ID: ${file.id}`, e);
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              
-                              const errorElement = document.createElement('div');
-                              errorElement.className = 'flex items-center justify-center w-full h-full text-gray-500';
-                              errorElement.innerHTML = `<span>読み込みエラー: ${file.contentType || 'Unknown'}</span>`;
-                              
-                              target.parentElement?.appendChild(errorElement);
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-2xl text-gray-500">
-                              {file.contentType 
-                                ? file.contentType.split('/')[1]?.toUpperCase() || '不明なファイル'
-                                : 'ファイル'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-sm truncate dark:text-gray-300">
-                        ファイルID: {cleanFileId(file.id)}
-                        {file.contentType && <span className="ml-2">({file.contentType})</span>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCancelAttach(file.id)}
-                        className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                        title="添付を取り消す"
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePermanently(file.id)}
-                        className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                        title="ファイルを削除する"
-                      >
-                        ×
-                      </button>
-                    </div>
+                  <FilePreview
+                    key={file.id}
+                    file={file}
+                    onCancel={handleCancelAttach}
+                    onDelete={handleDeletePermanently}
+                  />
                   ))}
                 </div>
               )}
@@ -749,7 +683,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-                {/* 既存ファイル選択ボタン */}
+              {/* 既存ファイル選択ボタン */}
               <div className="mt-4">
                 <button
                   type="button"
@@ -782,7 +716,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         )}
       </div>
 
-      {/* 既存ファイル選択モーダル */}
+      {/* 既存ファイル選択モーダル - ファイルプレビューもFilePreviewコンポーネントを使用 */}
       {showFileSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
@@ -795,79 +729,33 @@ const handleFormSubmit = async (e: React.FormEvent) => {
             <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルを選択（試験）</h2>
             {driveFiles.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {driveFiles.map((file) => (
-                  <div
-                    key={file.file_id}
-                    className="border rounded p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                    onClick={() => handleSelectFile(file.file_id)}
-                  >
-                    <div className="w-full aspect-video bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                      {(() => {
-                        const isImageFile = (file: any) => {
-                          // デバッグ情報を常に出力
-                          console.log('Checking file type:', file.file_id, 'file_name:', file.file_name, 'content_type:', file.content_type);
-                          
-                          // 1. content_typeプロパティを確認
-                          if (file.content_type && file.content_type.startsWith('image/')) {
-                            return true;
-                          }
-                          
-                          // 2. file_nameから拡張子で判定
-                          const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'heif', 'heic'];
-                          if (file.file_name) {
-                            const ext = file.file_name.split('.').pop()?.toLowerCase();
-                            if (ext && imageExtensions.includes(ext)) {
-                              return true;
-                            }
-                          }
-                          
-                          // 3. file_idに拡張子が含まれている場合
-                          if (typeof file.file_id === 'string') {
-                            const ext = file.file_id.split('.').pop()?.toLowerCase();
-                            if (ext && imageExtensions.includes(ext)) {
-                              return true;
-                            }
-                          }
-                          
-                          console.log('Not an image file: file_id:', file.file_id, 'file_name:', file.file_name, 'content_type:', file.content_type);
-                          return false;
-                        };
-
-                        return isImageFile(file) ? (
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}/thumbnail`}
-                            alt={`File ${file.file_id}`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              // エラー時のフォールバック表示
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              
-                              // 親要素のクリア
-                              const parent = target.parentElement;
-                              if (parent) {
-                                // フォールバック表示用の要素を追加
-                                const fallback = document.createElement('div');
-                                fallback.className = 'flex h-full w-full items-center justify-center';
-                                fallback.innerHTML = '<span class="text-gray-500">プレビューを読み込めません</span>';
-                                parent.appendChild(fallback);
-                              }
-                            }}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="text-gray-500 text-center p-2 w-full h-full flex items-center justify-center">
-                            {(file.file_name || `ファイル`).split('.').pop()?.toUpperCase() || 'FILE'}
-                          </div>
-                        );
-                      })()}
+                {driveFiles.map((file) => {
+                  // ファイルがイメージかどうか判定
+                  const fileItem: FileItem = {
+                    id: file.file_id,
+                    name: file.file_name || `file-${file.file_id}`,
+                    contentType: file.content_type || 'application/octet-stream',
+                    isImage: isImageFile(file)
+                  };
+                  
+                  return (
+                    <div
+                      key={file.file_id}
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSelectFile(file.file_id)}
+                    >
+                      <FilePreview
+                        file={fileItem}
+                        showActions={false}
+                        className="border-0"
+                      />
+                      <div className="text-sm truncate mt-1 dark:text-gray-300 p-2">
+                        <div className="font-medium">{file.file_name || `ファイル ${file.file_id}`}</div>
+                        <div className="text-xs text-gray-500">ID: {file.file_id}</div>
+                      </div>
                     </div>
-                    <div className="text-sm truncate mt-1 dark:text-gray-300">
-                      <div className="font-medium">{file.file_name || `ファイル ${file.file_id}`}</div>
-                      <div className="text-xs text-gray-500">ID: {file.file_id}</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-center text-gray-500 dark:text-gray-400">ファイルが見つかりません</p>

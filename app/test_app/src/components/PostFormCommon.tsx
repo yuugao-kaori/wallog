@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';  // Reactをインポート
 
 /**
  * ファイルアイテムのインターフェース
@@ -21,6 +22,108 @@ export interface HashtagInfo {
   post_tag_text: string;
   use_count: string;    // 文字列型に変更
 }
+
+/**
+ * ファイルプレビュー用コンポーネントプロパティ
+ */
+export interface FilePreviewProps {
+  file: FileItem;
+  onDelete?: (fileId: string | number) => void;
+  onCancel?: (fileId: string | number) => void;
+  showActions?: boolean;
+  className?: string;
+}
+
+/**
+ * ファイルIDをクリーニングする関数
+ * JSONやクォーテーションマークなどの不要な記号を取り除く
+ */
+export const cleanFileId = (fileId: string | number): string | number => {
+  return typeof fileId === 'string' ? fileId.replace(/[{}"\[\]]/g, '') : fileId;
+};
+
+/**
+ * ファイルプレビューコンポーネント
+ * 画像ファイルとその他のファイルの表示を統一的に扱う
+ */
+export const FilePreview: React.FC<FilePreviewProps> = ({
+  file,
+  onDelete,
+  onCancel,
+
+  showActions = true,
+  className = '',
+}) => {
+  const cleanId = cleanFileId(file.id);
+  const [imageError, setImageError] = useState(false);
+  
+  const handleImageDisplay = (fileId: string | number): string => {
+    const cleanedId = cleanFileId(fileId);
+    return `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${cleanedId}`;
+  };
+
+  return (
+    <div className={`border rounded p-2 relative bg-white dark:bg-gray-800 ${className}`}>
+      <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+        {file.isImage ? (
+          imageError ? (
+            <div className="flex items-center justify-center w-full h-full text-gray-500">
+              <span>読み込みエラー: {file.contentType || 'Unknown'}</span>
+            </div>
+          ) : (
+            <img
+              src={handleImageDisplay(file.id)}
+              alt={`File ${file.id}`}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                console.error(`Failed to load image with ID: ${file.id}`, e);
+                setImageError(true);
+              }}
+            />
+          )
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-2xl text-gray-500">
+              {file.contentType 
+                ? file.contentType.split('/')[1]?.toUpperCase() || '不明なファイル'
+                : 'ファイル'}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="text-sm truncate dark:text-gray-300">
+        ファイルID: {cleanId}
+        {file.contentType && <span className="ml-2">({file.contentType})</span>}
+      </div>
+      
+      {showActions && (
+        <>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(file.id)}
+              className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+              title="添付を取り消す"
+            >
+              -
+            </button>
+          )}
+          
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(file.id)}
+              className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+              title="ファイルを削除する"
+            >
+              ×
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 /**
  * 投稿テキストにハッシュタグを処理して追加する
@@ -402,3 +505,39 @@ export function useFileUpload(
     uploadedFiles
   };
 }
+
+/**
+ * ファイルがイメージかどうかを判断する関数
+ * 拡張子やContent-Typeを使って判定する
+ * 
+ * @param file ファイルメタデータ
+ * @returns イメージファイルかどうか
+ */
+export const isImageFile = (file: {content_type?: string, file_name?: string, file_id?: string | number}): boolean => {
+  // 1. content_typeプロパティを確認
+  console.log('file:', file,);
+  if (file.content_type && file.content_type.startsWith('image/')) {
+    return true;
+  }
+  
+  // 画像系拡張子リスト
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'heif', 'heic'];
+  
+  // 2. file_nameから拡張子で判定
+  if (file.file_name) {
+    const ext = file.file_name.split('.').pop()?.toLowerCase();
+    if (ext && imageExtensions.includes(ext)) {
+      return true;
+    }
+  }
+  
+  // 3. file_idに拡張子が含まれている場合
+  if (typeof file.file_id === 'string') {
+    const ext = file.file_id.split('.').pop()?.toLowerCase();
+    if (ext && imageExtensions.includes(ext)) {
+      return true;
+    }
+  }
+  
+  return false;
+};

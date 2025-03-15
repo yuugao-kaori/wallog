@@ -3,7 +3,8 @@ import {
   FileItem, 
   useHashtags, 
   useFileUpload,
-  processPostText
+  processPostText,
+  FilePreview
 } from './PostFormCommon';
 
 /**
@@ -244,6 +245,7 @@ const PostForm: React.FC<PostFormProps> = ({
                   </span>
                 )}
               </button>
+
               {isDropdownOpen && (
                 <div className="absolute z-10 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
                   <div className="py-1 max-h-48 overflow-y-auto">
@@ -332,50 +334,16 @@ const PostForm: React.FC<PostFormProps> = ({
             />
           </div>
 
+          {/* 添付ファイル一覧 - FilePreviewコンポーネントを使用 */}
           {files.length > 0 && (
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {files.map((file) => (
-                <div key={file.id} className="border rounded p-2 relative bg-white dark:bg-gray-800">
-                  <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
-                    {file.isImage ? (
-                      <img
-                        src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.id}`}
-                        alt={`File ${file.id}`}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.innerHTML = '<span class="text-gray-500">読み込みエラー</span>';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-2xl text-gray-500">
-                          {file.contentType ? file.contentType.split('/')[1].toUpperCase() : 'ファイル'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-sm truncate dark:text-gray-300">
-                    ファイルID: {file.id}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCancelAttach(file.id)}
-                    className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                    title="添付を取り消す"
-                  >
-                    -
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePermanently(file.id)}
-                    className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                    title="ファイルを削除する"
-                  >
-                    ×
-                  </button>
-                </div>
+                <FilePreview
+                  key={file.id}
+                  file={file}
+                  onCancel={handleCancelAttach}
+                  onDelete={handleDeletePermanently}
+                />
               ))}
             </div>
           )}

@@ -84,13 +84,30 @@ function Diary() {
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // 引用・返信投稿を処理する関数を追加
-  const handleQuoteSubmit = async (text: string, type: 'quote' | 'reply', targetPostId: string) => {
+  // 引用・返信投稿を処理する関数を修正
+  const handleQuoteSubmit = async (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => {
     try {
+      // 使用するファイル配列を決定 (引数で渡されたファイルがあればそれを使い、なければグローバルのfilesを使用)
+      const filesToUse = attachedFiles && attachedFiles.length > 0 ? attachedFiles : files;
+      
+      console.log(`handleQuoteSubmit called with:`, {
+        text,
+        type,
+        targetPostId,
+        attachedFiles,
+        filesToUse
+      });
+      
+      // ファイルIDを取得し、クリーニングする
+      const fileIds = filesToUse.map(file => typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id);
+      
+      console.log('handleQuoteSubmit with files:', filesToUse, 'cleaned IDs:', fileIds);
+      
       // 引用投稿または返信投稿用のペイロードを作成
       const payload = {
         post_text: text,
-        ...(files.length > 0 && { post_file: files.map(file => file.id) }),
+        // 重要: fileIdsが空でない場合のみpost_fileを追加
+        ...(fileIds.length > 0 && { post_file: fileIds }),
         // 引用投稿の場合はrepost_idを追加
         ...(type === 'quote' && { repost_id: targetPostId }),
         // 返信投稿の場合はreply_idを追加
@@ -108,6 +125,11 @@ function Diary() {
       // 新しい投稿をリストに追加
       if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
         setPosts(prevPosts => [response.data, ...prevPosts]);
+      }
+      
+      // 投稿後にファイルリストをクリア
+      if (!attachedFiles) {
+        setFiles([]);
       }
       
       return response.data;
@@ -676,7 +698,7 @@ const deletePost = async (postId: string): Promise<boolean> => {
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       setFiles={setFiles} // anyキャストを削除
-      handleSubmit={async (e, finalText, targetPostId, mode) => {
+      handleSubmit={async (e, finalText, targetPostId, mode, submitFiles) => {
         e.preventDefault();
 
         try {
@@ -685,11 +707,14 @@ const deletePost = async (postId: string): Promise<boolean> => {
             targetPostId,
             mode,
             hasRepostData: !!repostData,
-            files
+            files: submitFiles || files
           });
           
+          // 使用するファイル配列を決定
+          const filesToUse = submitFiles || files;
+          
           if (repostData) {
-            const originalFiles = files.slice();
+            const originalFiles = filesToUse.slice();
             
             const deleteSuccess = await handleDeletePost(
               { stopPropagation: () => {} } as React.MouseEvent,
@@ -701,11 +726,16 @@ const deletePost = async (postId: string): Promise<boolean> => {
             }
           }
 
+          // 引用または返信モードの場合は特別な処理
+          if ((mode === 'quote' || mode === 'reply') && targetPostId) {
+            await handleQuoteSubmit(finalText, mode, targetPostId, filesToUse);
+            closeModal();
+            return;
+          }
+
           const payload = {
             post_text: finalText,
-            ...(files.length > 0 && { post_file: files.map(file => file.id) }),
-            ...(mode === 'quote' && targetPostId && { repost_id: targetPostId }),
-            ...(mode === 'reply' && targetPostId && { reply_id: targetPostId })
+            ...(filesToUse.length > 0 && { post_file: filesToUse.map(file => file.id) })
           };
 
           console.log('Sending API request with payload:', payload);

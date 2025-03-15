@@ -10,6 +10,7 @@ import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
 import PostFormPopup from './PostFormPopup';  // PostFormModalの代わりに使用
 import SiteCard from './SiteCard';
 import { FileItem } from './PostFormCommon';  // FileItem型をインポート
+import { FaRetweet, FaReply, FaQuoteRight, FaTrash } from 'react-icons/fa';
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
@@ -41,7 +42,7 @@ interface Props {
   onRepost?: (post: PostFeedPost) => Promise<void>;
   onQuote?: (post: PostFeedPost) => void;
   onReply?: (post: PostFeedPost) => void;
-  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
+  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => Promise<void>;
   handleDelete?: (postId: string) => Promise<boolean>;
 }
 
@@ -953,7 +954,7 @@ const Card = memo(({
               console.log(`Sending ${mode} payload with files:`, payload);
               
               // 親コンポーネントの引用・返信処理を呼び出し
-              await onQuoteSubmit(finalText, mode, post.post_id);
+              await onQuoteSubmit(finalText, mode, post.post_id, formState.files);
               addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿を作成しました`);
               
               // モーダルを閉じて状態をリセット
