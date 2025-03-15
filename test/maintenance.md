@@ -1,9 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0022'
-- TODOにおいて、完了可否をタブで分けるように
-- デフォルトの期限について、16時間後となっていたのを24時間に修正
-- 期限切れのタスクを強調表示するように変更" && git push -u origin nextjs_test
+'Dev 2025.03.04.0024'
+- 削除して再投稿、において画像の添付をドライブから追加できるように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 
