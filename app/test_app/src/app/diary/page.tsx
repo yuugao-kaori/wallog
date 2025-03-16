@@ -20,6 +20,10 @@ interface Post {
   post_createat: string;
   title?: string;
   created_at: string;
+  repost_id?: string; // 追加: 引用元投稿ID 
+  reply_id?: string;  // 追加: 返信先投稿ID
+  repost_grant_id?: string;
+  reply_grant_id?: string;
 }
 
 // DriveFile インターフェースを修正
@@ -397,15 +401,21 @@ function Diary() {
   };
 
   const handleSubmit = useCallback(async (
-    e: React.FormEvent, finalText?: string, targetPostId?: string, mode?: string
+    e: React.FormEvent, finalText?: string, targetPostId?: string, mode?: string, submitFiles?: FileItem[], 
+    originalRepostId?: string, originalReplyId?: string  // 追加：元の引用/返信IDを受け取る
   ) => {
     e.preventDefault();
     try {
       const payload = {
         post_text: finalText || postText,
-        ...(files.length > 0 && { post_file: files.map(file => file.id) })
-      };
+        ...(files.length > 0 && { post_file: files.map(file => file.id) }),
+         // originalRepostIdとoriginalReplyIdが存在する場合はペイロードに追加
+        ...(originalRepostId && { repost_id: originalRepostId }),
+        ...(originalReplyId && { reply_id: originalReplyId })
 
+
+      };
+      console.log('handleSubmit Payload:', payload);
       const response = await api.post('/api/post/post_create', payload);
       addNotification('投稿が成功しました！');
       setPostText('');
@@ -616,7 +626,16 @@ const deletePost = async (postId: string): Promise<boolean> => {
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
           onQuoteSubmit={handleQuoteSubmit} // 追加
-
+          onCorrect={(post) => {
+            console.log('Correct mode initiated from PostFeed for post:', {
+              post_id: post.post_id,
+              repost_id: post.repost_id,
+              reply_id: post.reply_id
+            });
+            setRepostData(post);
+            setRepostText(post.post_text);
+            setIsModalOpen(true);
+          }}
         />
         </div>
       </div>
@@ -698,26 +717,40 @@ const deletePost = async (postId: string): Promise<boolean> => {
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
       setFiles={setFiles} // anyキャストを削除
-      handleSubmit={async (e, finalText, targetPostId, mode, submitFiles) => {
+      handleSubmit={async (e, finalText, targetPostId, mode, submitFiles, originalRepostId, originalReplyId) => {
         e.preventDefault();
 
         try {
-          console.log('Submit called with:', {
+          // デバッグ出力を強化
+          console.log('Submit called with enhanced debug:', {
             finalText,
             targetPostId,
             mode,
             hasRepostData: !!repostData,
-            files: submitFiles || files
+            files: submitFiles || files,
+            originalRepostId: originalRepostId || repostData?.repost_id,
+            originalReplyId: originalReplyId || repostData?.reply_id,
+            repostData: repostData ? {
+              post_id: repostData.post_id,
+              repost_id: repostData.repost_id,
+              reply_id: repostData.reply_id
+            } : null,
+            targetPost: targetPostId ? posts.find(p => p.post_id === targetPostId) : null
           });
           
           // 使用するファイル配列を決定
           const filesToUse = submitFiles || files;
           
+          // repostDataがある場合はそこから元の投稿情報を取得
+          // これは引用/返信情報の継承に重要
+          const effectiveRepostId = originalRepostId || repostData?.repost_id;
+          const effectiveReplyId = originalReplyId || repostData?.reply_id;
+          
           if (repostData) {
             const originalFiles = filesToUse.slice();
             
             const deleteSuccess = await handleDeletePost(
-              { stopPropagation: () => {} } as React.MouseEvent,
+              { preventDefault: () => {}, stopPropagation: () => {} } as React.MouseEvent,
               repostData.post_id
             );
             
@@ -733,12 +766,16 @@ const deletePost = async (postId: string): Promise<boolean> => {
             return;
           }
 
+          // payload構築時にcorrectモードの場合は特別処理を追加
           const payload = {
             post_text: finalText,
-            ...(filesToUse.length > 0 && { post_file: filesToUse.map(file => file.id) })
+            ...(filesToUse.length > 0 && { post_file: filesToUse.map(file => file.id) }),
+            // 元の投稿が引用または返信の場合、その情報を引き継ぐ
+            ...(effectiveRepostId && { repost_id: effectiveRepostId }),
+            ...(effectiveReplyId && { reply_id: effectiveReplyId })
           };
 
-          console.log('Sending API request with payload:', payload);
+          console.log('Sending API request with final payload:', payload);
 
           const response = await api.post('/api/post/post_create', payload);
           addNotification('投稿が成功しました！');

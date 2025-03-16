@@ -33,7 +33,9 @@ interface PostFormPopupProps {
     finalPostText: string, 
     targetPostId?: string, 
     mode?: PostMode, 
-    files?: FileItem[]
+    files?: FileItem[],
+    originalRepostId?: string, // 追加: 元の引用投稿ID
+    originalReplyId?: string   // 追加: 元の返信投稿ID
   ) => void;
   /** 添付ファイルのリスト */
   files: FileItem[];
@@ -414,6 +416,20 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         return;
       }
       
+      // 元投稿のrepost_grant_idとreply_grant_idを保持
+      const originalRepostId = targetPost.repost_grant_id;
+      const originalReplyId = targetPost.reply_grant_id;
+      
+      // デバッグログを追加 - フルオブジェクト情報も出力
+      console.log('Correct mode - original post:', {
+        post_id: targetPost.post_id,
+        repost_id: originalRepostId,
+        reply_id: originalReplyId,
+        has_repost_body: !!targetPost.repost_body,
+        has_reply_body: !!targetPost.reply_body,
+        fullPost: targetPost
+      });
+      
       console.log('Attempting to delete post:', targetPost.post_id);
       const deleted = await handleDelete(targetPost.post_id);
       
@@ -423,8 +439,61 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       }
       
       console.log('Post successfully deleted, proceeding with repost');
+      
+      // 共通関数を使って最終的な投稿テキストを作成
+      const finalPostText = processPostText(
+        postText,
+        selectedHashtags,
+        autoAppendTags,
+        fixedHashtags
+      );
+
+      // 全てのファイルIDをクリーニング
+      const cleanFiles = files.map(file => ({
+        ...file,
+        id: cleanFileId(file.id)
+      }));
+      
+      // ファイルIDをクリーニングしてからsetFilesに渡す
+      setFiles(cleanFiles);
+
+      // デバッグログ追加
+      console.log('Submitting post with:', {
+        mode,
+        targetPostId: targetPost?.post_id,
+        originalRepostId,
+        originalReplyId,
+        finalPostText,
+        files: cleanFiles
+      });
+      
+      // handleSubmit を呼び出し（引数にクリーニング済みファイル配列とrepost_id、reply_idを追加）
+      await handleSubmit(
+        e, 
+        finalPostText, 
+        targetPost?.post_id, 
+        mode, 
+        cleanFiles, 
+        originalRepostId, 
+        originalReplyId
+      );
+      
+      // 成功時の状態リセット
+      setPostText('');
+      setFiles([]);
+      setSelectedHashtags(new Set());
+      setIsDropdownOpen(false);
+      onClose();
+      
+      // リポストモードの場合はコールバックを実行
+      if (repostMode && onRepostComplete) {
+        onRepostComplete();
+      }
+      
+      return;
     }
 
+    // 修正モード以外の処理（既存のコード）
     // 共通関数を使って最終的な投稿テキストを作成
     const finalPostText = processPostText(
       postText,

@@ -20,12 +20,17 @@ export interface Post {
   title?: string;
   created_at: string;
   // 他の必要なプロパティを追加
+  repost_grant_id?: string;
+  reply_grant_id?: string;
+  repost_id?: string;
+  reply_id?: string;
   reply_body?: {
     post_id: string;
     post_text: string;
     post_file?: string | string[];
     post_createat: string;
     user_id: string;
+    
   };
   repost_body?: {
     post_id: string;
@@ -45,6 +50,7 @@ interface PostFeedProps {
   loadMorePosts: () => Promise<void>;
   onRepost?: (post: Post) => Promise<void>;  // 追加
   onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => Promise<void>;
+  onCorrect?: (post: Post) => void;  // 新しく追加されたプロパティ
 }
 
 const PostFeed: React.FC<PostFeedProps> = ({ 
@@ -55,7 +61,8 @@ const PostFeed: React.FC<PostFeedProps> = ({
   hasMore, 
   loadMorePosts, 
   onRepost,
-  onQuoteSubmit
+  onQuoteSubmit,
+  onCorrect  // パラメータを追加
 }) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -207,6 +214,7 @@ const PostFeed: React.FC<PostFeedProps> = ({
             onRepost={onRepost}
             handleDelete={handleDelete}
             onQuoteSubmit={onQuoteSubmit}
+            onCorrect={onCorrect}  // MemoizedCardにonCorrectを渡す
           />
         </div>
       ))}

@@ -31,6 +31,7 @@ const Notification = dynamic(() => import('./Notification'));
  * @property {Function} [onReply] - 返信投稿時のコールバック
  * @property {Function} [onQuoteSubmit] - 引用・返信投稿送信時のコールバック
  * @property {Function} [handleDelete] - 投稿削除のハンドラー
+ * @property {Function} [onCorrect] - 修正モードを開始するためのコールバック
  */
 interface Props {
   post: PostFeedPost;
@@ -44,6 +45,7 @@ interface Props {
   onReply?: (post: PostFeedPost) => void;
   onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => Promise<void>;
   handleDelete?: (postId: string) => Promise<boolean>;
+  onCorrect?: (post: PostFeedPost) => void; // 追加: 修正モードを開始するためのコールバック
 }
 
 /**
@@ -115,7 +117,8 @@ const Card = memo(({
   onQuote, 
   onReply, 
   onQuoteSubmit, 
-  handleDelete 
+  handleDelete,
+  onCorrect // 追加: パラメータとして受け取る
 }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -578,6 +581,12 @@ const Card = memo(({
     }));
   }, []);
 
+  // 修正モード処理を追加
+  const handleCorrectClick = () => {
+    console.log('Correct mode triggered for post:', post);
+    onCorrect && onCorrect(post);
+  };
+
   const renderImages = useCallback(() => {
     if (!post.post_file) return null;
 
@@ -880,9 +889,9 @@ const Card = memo(({
         onClose={() => setUiState(prev => ({ ...prev, postFormModalOpen: false }))}
         postText={formState.postText}
         setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
-        handleSubmit={async (e, finalText, targetPostId, mode) => {
+        handleSubmit={async (e, finalText, targetPostId, mode, originalReplyId, originalRepostId) => {
           e.preventDefault();
-          console.log('PostCard: handleSubmit called with:', { finalText, targetPostId, mode });
+          console.log('PostCard: handleSubmit called with:', { finalText, targetPostId, mode, originalReplyId, originalRepostId});
           try {
             if (mode === 'correct') {
               // 元の投稿を削除
@@ -910,8 +919,23 @@ const Card = memo(({
                     // ファイルIDを適切にクリーニング
                     return typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id;
                   }) 
+                }),
+                // originalRepostIdをそのまま使用するのではなく、値の確認と型変換を行う
+                ...(originalRepostId && { 
+                  repost_id: Array.isArray(originalRepostId) 
+                    ? originalRepostId.length > 0 
+                      ? originalRepostId[0] 
+                      : null 
+                    : originalRepostId 
+                }),
+                // originalReplyIdをそのまま使用するのではなく、値の確認と型変換を行う
+                ...(originalReplyId && { 
+                  reply_id: typeof originalReplyId === 'string' 
+                    ? originalReplyId 
+                    : String(originalReplyId) 
                 })
               };
+
 
               console.log('Sending repost payload with files:', payload);
               
