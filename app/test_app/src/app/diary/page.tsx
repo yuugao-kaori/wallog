@@ -406,16 +406,31 @@ function Diary() {
   ) => {
     e.preventDefault();
     try {
+
+
+      // finalTextが渡された場合はそれを使う（既に子コンポーネントで処理済み）
+      // 渡されなかった場合は、processPostTextを使って親コンポーネントで処理する
+      let processedText = finalText;
+
+      if (!processedText) {
+        // processPostTextをインポートして使用する必要があります
+        const { processPostText } = await import('../../components/PostFormCommon');
+        processedText = processPostText(
+          postText,
+          new Set(), // 選択されたタグがない場合は空のSetを渡す
+          autoAppendTags, // 自動付与設定を渡す
+          fixedHashtags // 固定ハッシュタグを渡す
+        );
+      }
+  
       const payload = {
-        post_text: finalText || postText,
+        post_text: processedText || postText,
         ...(files.length > 0 && { post_file: files.map(file => file.id) }),
-         // originalRepostIdとoriginalReplyIdが存在する場合はペイロードに追加
         ...(originalRepostId && { repost_id: originalRepostId }),
         ...(originalReplyId && { reply_id: originalReplyId })
-
-
       };
       console.log('handleSubmit Payload:', payload);
+      
       const response = await api.post('/api/post/post_create', payload);
       addNotification('投稿が成功しました！');
       setPostText('');

@@ -910,7 +910,9 @@ const Card = memo(({
               
               console.log('Starting repost process in correct mode');
               
-              // 削除して再投稿のペイロードを準備
+
+              // 修正バージョン - より安全な型チェックと変換を行う
+
               const payload = {
                 post_text: finalText,
                 // ファイルIDの配列を追加（存在する場合のみ）
@@ -920,20 +922,38 @@ const Card = memo(({
                     return typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id;
                   }) 
                 }),
-                // originalRepostIdをそのまま使用するのではなく、値の確認と型変換を行う
-                ...(originalRepostId && { 
+                // originalRepostIdの処理を改善 - 安全な型チェックと変換
+                ...(originalRepostId ? { 
                   repost_id: Array.isArray(originalRepostId) 
-                    ? originalRepostId.length > 0 
-                      ? originalRepostId[0] 
+                    ? (originalRepostId.length > 0 && originalRepostId[0] != null)
+                      ? String(originalRepostId[0])  // Stringコンストラクタで明示的に変換
                       : null 
-                    : originalRepostId 
-                }),
-                // originalReplyIdをそのまま使用するのではなく、値の確認と型変換を行う
-                ...(originalReplyId && { 
-                  reply_id: typeof originalReplyId === 'string' 
-                    ? originalReplyId 
-                    : String(originalReplyId) 
-                })
+                    : (originalRepostId != null)
+                      ? String(originalRepostId)  // Stringコンストラクタで明示的に変換
+                      : null
+                } : {}),
+
+                // originalReplyIdの処理を改善 - より安全な型変換とnull/undefined処理
+                ...(originalReplyId ? (() => {
+                  // originalReplyIdが配列の場合
+                  if (Array.isArray(originalReplyId)) {
+                    // 配列が空でなく、最初の要素がnullでない場合
+                    if (originalReplyId.length > 0 && originalReplyId[0] != null) {
+                      // 最初の要素がオブジェクトでない場合のみ使用
+                      if (typeof originalReplyId[0] !== 'object') {
+                        return { reply_id: String(originalReplyId[0]) };
+                      }
+                    }
+                    // それ以外の場合は何も追加しない
+                    return {};
+                  } 
+                  // 配列でなく、nullでなく、オブジェクトでない場合
+                  else if (originalReplyId != null && typeof originalReplyId !== 'object') {
+                    return { reply_id: String(originalReplyId) };
+                  }
+                  // それ以外の場合は何も追加しない
+                  return {};
+                })() : {})
               };
 
 

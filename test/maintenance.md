@@ -1,7 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0024'
-- 削除して再投稿、において画像の添付をドライブから追加できるように" && git push -u origin nextjs_test
+'Dev 2025.03.04.0026'
+- 引用と返信が行なわれている投稿についても「削除して再投稿」ができるように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

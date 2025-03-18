@@ -106,8 +106,8 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   handleDeletePermanently,
   handleFiles,
 }) => {
-  // 共通ハッシュタグフック
-  const hashtagsState = useHashtags(fixedHashtags);
+  // 共通ハッシュタグフック - autoInitializeSelectedをfalseに設定
+  const hashtagsState = useHashtags(fixedHashtags, autoAppendTags, false);
   const {
     hashtagRanking,
     isDropdownOpen,
@@ -116,7 +116,6 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     setSelectedHashtags,
     isLoading,
     handleHashtagSelect,
-    handleHashtagChange
   } = hashtagsState;
 
   // ファイルアップロード完了時のコールバック
@@ -175,35 +174,16 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
     handlePaste: handlePasteInternal,
   } = useFileUpload(files, setFiles, onFileUploadComplete);
 
-  // ハッシュタグの初期読み込み
-  useEffect(() => {
-    // useHashtags フックは内部で初期化を行うため、ここでの明示的な呼び出しは不要
-    // hashtagRankingはフックの初期化時に自動的に取得される
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
+  const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFixedHashtags(value); // 親コンポーネントの状態を更新
+  }, [setFixedHashtags]);
 
-  // ハッシュタグランキングのフェッチ
-  useEffect(() => {
-    // ハッシュタグのフェッチ処理はuseHashtags内部で処理されるため、このuseEffectは削除するか以下のようにコメントで残す
-    // isDropdownOpen が変更されたときの処理（必要であれば）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDropdownOpen]);
-
-  // 同期を維持するための効果
-  useEffect(() => {
-    // fixedHashtags is managed by parent component, no need to sync from hashtagsState
-    // This effect can be removed if hashtagsState doesn't maintain its own fixedHashtags
-  }, [fixedHashtags, setFixedHashtags]);
-
-  useEffect(() => {
-    // No need to update hashtagsState directly since fixedHashtags is passed to useHashtags
-    // and handled internally by the hook
-  }, [fixedHashtags]);
-
-  useEffect(() => {
-    // No need to update hashtagsState since autoAppendTags is managed by the parent component
-    // The autoAppendTags state is passed to processPostText function directly
-  }, [autoAppendTags]);
+  // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
+  const handleAutoAppendTagsChange = useCallback((value: boolean) => {
+    setAutoAppendTags(value); // 親コンポーネントの状態を更新
+  }, [setAutoAppendTags]);
 
   const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
   // 既存ファイル選択モーダル用の状態
@@ -440,13 +420,39 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       
       console.log('Post successfully deleted, proceeding with repost');
       
-      // 共通関数を使って最終的な投稿テキストを作成
-      const finalPostText = processPostText(
-        postText,
-        selectedHashtags,
-        autoAppendTags,
-        fixedHashtags
-      );
+      // 最終的な投稿テキストを作成
+      // 選択されたハッシュタグは常に追加し、固定ハッシュタグは自動付与設定がONの場合のみ追加
+      let finalPostText = postText;
+      
+      // 選択されたハッシュタグがある場合は常に追加
+      if (selectedHashtags.size > 0) {
+        const tagsArray = Array.from(selectedHashtags)
+          .filter(tag => tag.trim() !== '')
+          .map(tag => `#${tag.replace(/^#/, '')}`);
+        
+        if (tagsArray.length > 0) {
+          const tagPart = tagsArray.join(' ');
+          finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
+        }
+      }
+      
+      // 固定ハッシュタグは自動付与設定がONの場合のみ追加
+      if (autoAppendTags && fixedHashtags.trim()) {
+        // ここで選択済みタグと重複している場合は除外する
+        const existingTags = new Set(Array.from(selectedHashtags).map(tag => tag.toLowerCase().trim()));
+        
+        const fixedTagsArray = fixedHashtags
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(tag => tag !== '')
+          .filter(tag => !existingTags.has(tag.toLowerCase().replace(/^#/, '')))
+          .map(tag => `#${tag.replace(/^#/, '')}`);
+        
+        if (fixedTagsArray.length > 0) {
+          const tagPart = fixedTagsArray.join(' ');
+          finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
+        }
+      }
 
       // 全てのファイルIDをクリーニング
       const cleanFiles = files.map(file => ({
@@ -464,7 +470,10 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         originalRepostId,
         originalReplyId,
         finalPostText,
-        files: cleanFiles
+        files: cleanFiles,
+        selectedHashtags: Array.from(selectedHashtags),
+        fixedHashtags,
+        autoAppendTags
       });
       
       // handleSubmit を呼び出し（引数にクリーニング済みファイル配列とrepost_id、reply_idを追加）
@@ -494,13 +503,41 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     }
 
     // 修正モード以外の処理（既存のコード）
-    // 共通関数を使って最終的な投稿テキストを作成
-    const finalPostText = processPostText(
-      postText,
-      selectedHashtags,
-      autoAppendTags,
-      fixedHashtags
-    );
+    // 最終的な投稿テキストを作成
+    let finalPostText = postText;
+    
+    // 選択されたハッシュタグがある場合は常に追加
+    if (selectedHashtags.size > 0) {
+      const tagsArray = Array.from(selectedHashtags)
+        .filter(tag => tag.trim() !== '')
+        .map(tag => `#${tag.replace(/^#/, '')}`);
+      
+      if (tagsArray.length > 0) {
+        const tagPart = tagsArray.join(' ');
+        finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
+      }
+    }
+    
+    // 固定ハッシュタグは自動付与設定がONの場合のみ追加
+    if (autoAppendTags && fixedHashtags.trim()) {
+      // 選択済みハッシュタグと重複チェック - 厳密に比較するよう修正
+      const existingTags = new Set(Array.from(selectedHashtags).map(tag => 
+        tag.toLowerCase().trim().replace(/^#/, '')
+      ));
+      
+      // 固定タグを処理
+      const fixedTagsArray = fixedHashtags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag !== '')
+        .filter(tag => !existingTags.has(tag.toLowerCase().replace(/^#/, ''))) // 重複除外を厳密に
+        .map(tag => `#${tag.replace(/^#/, '')}`);
+      
+      if (fixedTagsArray.length > 0) {
+        const tagPart = fixedTagsArray.join(' ');
+        finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
+      }
+    }
 
     // 全てのファイルIDをクリーニング
     const cleanFiles = files.map(file => ({
@@ -516,7 +553,10 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       mode,
       targetPostId: targetPost?.post_id,
       finalPostText,
-      files: cleanFiles
+      files: cleanFiles,
+      selectedHashtags: Array.from(selectedHashtags),
+      fixedHashtags,
+      autoAppendTags
     });
     
     // handleSubmit を呼び出し（引数にクリーニング済みファイル配列を追加）
@@ -729,10 +769,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 <input
                   type="text"
                   value={fixedHashtags}
-                  onChange={(e) => {
-                    handleHashtagChange(e);
-                    setFixedHashtags(e.target.value);
-                  }}
+                  onChange={handleFixedHashtagsChange}
                   className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
                   placeholder="ハッシュタグの固定"
                 />
@@ -742,7 +779,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                       type="checkbox"
                       className="sr-only peer"
                       checked={autoAppendTags}
-                      onChange={(e) => setAutoAppendTags(e.target.checked)}
+                      onChange={(e) => handleAutoAppendTagsChange(e.target.checked)}
                     />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                     <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">

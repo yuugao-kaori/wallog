@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { 
   FileItem, 
   useHashtags, 
@@ -64,7 +64,9 @@ const PostForm: React.FC<PostFormProps> = ({
   handleCancelAttach,
   handleDeletePermanently,
 }) => {
-  // 共通ハッシュタグフック
+  // 共通ハッシュタグフック - 親コンポーネントから受け取った値を初期値として使用
+  const hashtagsState = useHashtags(fixedHashtags, autoAppendTags);
+  // hashtagsStateから必要な値と関数を取得
   const {
     hashtagRanking,
     isDropdownOpen,
@@ -73,8 +75,19 @@ const PostForm: React.FC<PostFormProps> = ({
     setSelectedHashtags,
     isLoading,
     handleHashtagSelect,
-    handleHashtagChange,
-  } = useHashtags(fixedHashtags);
+    handleHashtagChange
+  } = hashtagsState;
+
+  // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
+  const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFixedHashtags(value); // 親コンポーネントの状態を更新
+  }, [setFixedHashtags]);
+
+  // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
+  const handleAutoAppendTagsChange = useCallback((value: boolean) => {
+    setAutoAppendTags(value); // 親コンポーネントの状態を更新
+  }, [setAutoAppendTags]);
 
   // ファイルアップロード完了時のコールバック
   const onFileUploadComplete = React.useCallback((uploadedFiles: FileItem[]) => {
@@ -112,15 +125,6 @@ const PostForm: React.FC<PostFormProps> = ({
     handleFilesWithProgress,
     handlePaste: handlePasteInternal
   } = useFileUpload(files, setFiles, onFileUploadComplete);
-
-  // 同期を維持するための効果 - fixedHashtagsの更新
-  useEffect(() => {
-    // ハッシュタグ入力を変更したら選択されたハッシュタグを更新
-    if (fixedHashtags) {
-      const tags = fixedHashtags.split(',').map(tag => tag.trim()).filter(Boolean);
-      setSelectedHashtags(new Set(tags.map(tag => tag.replace(/^#/, ''))));
-    }
-  }, [fixedHashtags, setSelectedHashtags]);
 
   /**
    * テキスト入力時のキーハンドラ
@@ -199,14 +203,11 @@ const PostForm: React.FC<PostFormProps> = ({
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // テキスト処理 - 選択されたハッシュタグを投稿に結合する
-    // @param {string} text - 元の投稿テキスト
-    // @param {Set<string>} tags - 選択されたハッシュタグセット
-    // @param {boolean} autoAppend - 自動付与フラグ
-    // @param {string} fixedTags - 常に付与する固定タグ（カンマ区切り）
-    // @returns {string} 処理後のテキスト
+    // 共通関数を使用してテキスト処理
     const finalText = processPostText(postText, selectedHashtags, autoAppendTags, fixedHashtags);
+    
     handleSubmit(e, finalText);
+    
     // 投稿後に選択されたタグをクリア
     setSelectedHashtags(new Set());
     setIsDropdownOpen(false);
@@ -360,10 +361,7 @@ const PostForm: React.FC<PostFormProps> = ({
             <input
               type="text"
               value={fixedHashtags}
-              onChange={(e) => {
-                handleHashtagChange(e);
-                setFixedHashtags(e.target.value);
-              }}
+              onChange={handleFixedHashtagsChange}
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
               placeholder="ハッシュタグの固定"
             />
@@ -373,7 +371,7 @@ const PostForm: React.FC<PostFormProps> = ({
                   type="checkbox"
                   className="sr-only peer"
                   checked={autoAppendTags}
-                  onChange={(e) => setAutoAppendTags(e.target.checked)}
+                  onChange={(e) => handleAutoAppendTagsChange(e.target.checked)}
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">

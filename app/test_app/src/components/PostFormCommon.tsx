@@ -2,6 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import React from 'react';  // Reactをインポート
 
 /**
+ * 投稿モードの種類を定義
+ * - normal: 通常の新規投稿
+ * - quote: 他の投稿を引用する投稿
+ * - reply: 他の投稿への返信
+ * - correct: 投稿を削除して再投稿（修正）
+ */
+export type PostMode = 'normal' | 'quote' | 'reply' | 'correct';
+
+/**
  * ファイルアイテムのインターフェース
  */
 export interface FileItem {
@@ -12,15 +21,51 @@ export interface FileItem {
   isImage: boolean;
   uploadProgress?: number;
   error?: string;
+  isExisting?: boolean;
 }
 
 /**
  * ハッシュタグ情報の型定義
+ * 投稿タグ情報を表すインターフェース（サーバーから返却される形式）
  */
 export interface HashtagInfo {
-  post_tag_id: string;  // 文字列型に変更
-  post_tag_text: string;
-  use_count: string;    // 文字列型に変更
+  post_tag_id: string;  // タグの一意識別子
+  post_tag_text: string; // タグテキスト（"#タグ名"形式）
+  use_count: string;    // 使用回数（文字列形式）
+}
+
+/**
+ * ハッシュタグ管理の戻り値インターフェース
+ */
+export interface HashtagsState {
+  /** 人気ハッシュタグランキング配列 */
+  hashtagRanking: HashtagInfo[];
+  /** ドロップダウンの表示状態 */
+  isDropdownOpen: boolean;
+  /** ドロップダウンの表示状態を設定する関数 */
+  setIsDropdownOpen: (isOpen: boolean) => void;
+  /** 選択されたハッシュタグのセット */
+  selectedHashtags: Set<string>;
+  /** 選択されたハッシュタグを設定する関数 */
+  setSelectedHashtags: React.Dispatch<React.SetStateAction<Set<string>>>;
+  /** ハッシュタグ読み込み中フラグ */
+  isLoading: boolean;
+  /** ハッシュタグ選択時のハンドラ関数 */
+  handleHashtagSelect: (tag: string) => void;
+  /** 固定ハッシュタグ（カンマ区切り文字列） */
+  fixedHashtags: string;
+  /** 固定ハッシュタグを設定する関数 */
+  setFixedHashtags: (tags: string) => void;
+  /** ハッシュタグ自動付与フラグ */
+  autoAppendTags: boolean;
+  /** ハッシュタグ自動付与フラグを設定する関数 */
+  setAutoAppendTags: (value: boolean) => void;
+  /** 投稿テキストを処理する関数（ハッシュタグを追加） */
+  processPostText: (text: string) => string;
+  /** 固定ハッシュタグ入力フィールドの変更ハンドラ */
+  handleHashtagChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** ハッシュタグランキングを手動で更新する関数 */
+  refreshHashtags: () => Promise<void>;
 }
 
 /**
@@ -140,45 +185,68 @@ export function processPostText(
   autoAppend: boolean, 
   fixedTags: string
 ): string {
-  if (!text && !selectedTags.size && !fixedTags) return '';
+  if (!text && !selectedTags.size && (!autoAppend || !fixedTags)) return '';
   
   const textWithoutTags = text.replace(/#[^\s#]+/g, '').trim();
   
-  // 選択されたタグと固定タグを配列に変換
+  // 選択されたタグは常に追加
   const tagsArray = Array.from(selectedTags)
     .filter(tag => tag.trim() !== '')
     .map(tag => `#${tag.replace(/^#/, '')}`);
     
-  // 固定タグを追加（カンマ区切りをスペース区切りに変換）
-  const fixedTagsArray = fixedTags
+  // 固定タグはautoAppendがtrueの場合のみ追加
+  const fixedTagsArray = autoAppend ? fixedTags
     .split(',')
     .map(tag => tag.trim())
     .filter(tag => tag !== '')
-    .map(tag => `#${tag.replace(/^#/, '')}`);
+    .filter(tag => !Array.from(selectedTags).some(
+      selected => selected.toLowerCase() === tag.toLowerCase().replace(/^#/, '')
+    ))
+    .map(tag => `#${tag.replace(/^#/, '')}`)
+    : [];
   
-  // 選択されたタグまたは固定タグがある場合は、常にテキストに追加する
-  if (selectedTags.size > 0 || fixedTagsArray.length > 0) {
-    const allTags = [...new Set([...tagsArray, ...fixedTagsArray])];
+  // タグがあれば追加処理を行う
+  const allTags = [...new Set([...tagsArray, ...fixedTagsArray])];
+  if (allTags.length > 0) {
     return textWithoutTags 
-      ? `${textWithoutTags} ${allTags.join(' ')}`
+      ? `${textWithoutTags}\n\n${allTags.join(' ')}`
       : allTags.join(' ');
   }
   
+  // タグがない場合はテキストのみを返す
   return textWithoutTags || '';
 }
 
 /**
  * ハッシュタグ管理のカスタムフック
+ * 投稿フォーム共通のハッシュタグ関連機能を提供する
+ * 
+ * @param initialFixedTags 初期固定タグ（カンマ区切り文字列）
+ * @param initialAutoAppend 初期自動付与設定
+ * @returns ハッシュタグ関連の状態と操作関数
  */
-export function useHashtags(initialFixedTags: string = '') {
+export function useHashtags(
+  initialFixedTags: string = '', 
+  initialAutoAppend: boolean = false,
+  autoInitializeSelected: boolean = false // 新しいパラメータ追加
+): HashtagsState {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
   const [hashtagRanking, setHashtagRanking] = useState<HashtagInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [fixedHashtags, setFixedHashtags] = useState(initialFixedTags);
-  const [autoAppendTags, setAutoAppendTags] = useState(false);
+  const [autoAppendTags, setAutoAppendTags] = useState(initialAutoAppend);
   const apiUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN || ''}/api/hashtag/hashtag_rank`;
+
+  // 外部値の変更を内部状態に反映する（一方向のみ）
+  useEffect(() => {
+    setFixedHashtags(initialFixedTags);
+  }, [initialFixedTags]);
+
+  useEffect(() => {
+    setAutoAppendTags(initialAutoAppend);
+  }, [initialAutoAppend]);
 
   // タグ選択の切り替え
   const handleHashtagSelect = useCallback((tag: string) => {
@@ -197,14 +265,15 @@ export function useHashtags(initialFixedTags: string = '') {
     });
   }, []);
 
-  // 固定タグのハンドラー
+  // 固定タグ入力フォームの変更ハンドラ
   const handleHashtagChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFixedHashtags(e.target.value);
+    const value = e.target.value;
+    setFixedHashtags(value);
   }, []);
 
   // タグランキングのフェッチ
   const fetchHashtags = useCallback(async () => {
-    if (!isDropdownOpen || hasLoadedOnce) return;
+    if (isLoading) return; // 既に読み込み中なら何もしない
     
     setIsLoading(true);
     
@@ -251,12 +320,18 @@ export function useHashtags(initialFixedTags: string = '') {
     } finally {
       setIsLoading(false);
     }
-  }, [apiUrl, isDropdownOpen, hasLoadedOnce]);
+  }, [apiUrl, isLoading]);
 
-  // 初期タグ読み込み
-  const fetchInitialHashtags = useCallback(() => {
-    // 固定タグがある場合は初期選択する
-    if (initialFixedTags) {
+  // 手動でハッシュタグランキングを更新するための関数
+  const refreshHashtags = useCallback(async () => {
+    setHasLoadedOnce(false);  // 強制的に再読み込みするためにフラグをリセット
+    return fetchHashtags();
+  }, [fetchHashtags]);
+
+  // 初期タグ読み込み - 条件付きで実行するように修正
+  const initializeSelectedHashtags = useCallback(() => {
+    // autoInitializeSelectedがtrueの場合のみ初期選択する
+    if (autoInitializeSelected && initialFixedTags) {
       const tags = initialFixedTags
         .split(',')
         .map(tag => tag.trim())
@@ -265,19 +340,24 @@ export function useHashtags(initialFixedTags: string = '') {
       
       setSelectedHashtags(new Set(tags));
     }
-  }, [initialFixedTags]);
+  }, [initialFixedTags, autoInitializeSelected]);
 
   // isDropdownOpenが変更されたときにフェッチを実行
   useEffect(() => {
-    if (isDropdownOpen) {
+    if (isDropdownOpen && !hasLoadedOnce) {
       fetchHashtags();
     }
-  }, [isDropdownOpen, fetchHashtags]);
+  }, [isDropdownOpen, fetchHashtags, hasLoadedOnce]);
 
-  // 初期化時にfetchInitialHashtagsを実行
+  // 初期化時にinitializeSelectedHashtagsを実行
   useEffect(() => {
-    fetchInitialHashtags();
-  }, [fetchInitialHashtags]);
+    initializeSelectedHashtags();
+  }, [initializeSelectedHashtags]);
+
+  // 処理されたポストテキストを提供する関数
+  const processPostTextWithState = useCallback((text: string) => {
+    return processPostText(text, selectedHashtags, autoAppendTags, fixedHashtags);
+  }, [selectedHashtags, autoAppendTags, fixedHashtags]);
 
   // コンポーネントがアンマウントされたかを追跡
   const isMounted = useRef(true);
@@ -295,13 +375,13 @@ export function useHashtags(initialFixedTags: string = '') {
     setSelectedHashtags,
     isLoading,
     handleHashtagSelect,
-    handleHashtagChange,
-    fetchHashtags,
-    fetchInitialHashtags,
-    fixedHashtags,
+    fixedHashtags, 
     setFixedHashtags,
     autoAppendTags,
-    setAutoAppendTags
+    setAutoAppendTags,
+    processPostText: processPostTextWithState,
+    handleHashtagChange,
+    refreshHashtags
   };
 }
 
@@ -515,7 +595,6 @@ export function useFileUpload(
  */
 export const isImageFile = (file: {content_type?: string, file_name?: string, file_id?: string | number}): boolean => {
   // 1. content_typeプロパティを確認
-  console.log('file:', file,);
   if (file.content_type && file.content_type.startsWith('image/')) {
     return true;
   }
