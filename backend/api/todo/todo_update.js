@@ -82,7 +82,16 @@ async function updateTodo(todoId, userId, updatedData) {
     
     if (updatedData.todo_limitat !== undefined) {
       updateFields.push(`todo_limitat = $${paramCount++}`);
-      values.push(new Date(updatedData.todo_limitat));
+      
+      // タイムゾーン処理のデバッグログ
+      console.log(`Original limit date update: ${updatedData.todo_limitat}`);
+      
+      // 日付文字列をDateオブジェクトに変換
+      const date = new Date(updatedData.todo_limitat);
+      console.log(`Parsed date object: ${date}`);
+      console.log(`Date in ISO format: ${date.toISOString()}`);
+      
+      values.push(date);
     }
     
     if (updatedData.todo_category !== undefined) {

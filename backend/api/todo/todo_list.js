@@ -26,6 +26,8 @@ router.get('/todo_list', async (req, res) => {
       await client.connect();
       console.log('PostgreSQLに接続しました。');
 
+      // タイムゾーン設定の行を削除
+
       // クエリパラメータからフィルタリング条件を取得
       const category = req.query.category;
       const priority = req.query.priority;
@@ -34,8 +36,23 @@ router.get('/todo_list', async (req, res) => {
       const limit = parseInt(req.query.limit) || 100; // デフォルトは100件
       const offset = parseInt(req.query.offset) || 0;
       
-      // ベースクエリ
-      let query = 'SELECT * FROM todo';
+      // ベースクエリ - タイムゾーン変換を削除
+      let query = `
+        SELECT 
+          todo_id,
+          user_id,
+          todo_text,
+          todo_priority,
+          todo_limitat,
+          todo_category,
+          todo_attitude,
+          todo_createat,
+          todo_updateat,
+          todo_public,
+          todo_complete
+        FROM todo
+      `;
+      
       let params = [];
       let paramCount = 1;
       
@@ -93,8 +110,23 @@ router.get('/todo_list', async (req, res) => {
       const countResult = await client.query(countQuery, countParams);
       const totalCount = parseInt(countResult.rows[0].count);
 
+      // データをISOString形式に変換して返す
+      const formattedTodos = result.rows.map(todo => {
+        // 日付型フィールドをISO文字列形式に変換
+        if (todo.todo_limitat && todo.todo_limitat instanceof Date) {
+          todo.todo_limitat = todo.todo_limitat.toISOString();
+        }
+        if (todo.todo_createat && todo.todo_createat instanceof Date) {
+          todo.todo_createat = todo.todo_createat.toISOString();
+        }
+        if (todo.todo_updateat && todo.todo_updateat instanceof Date) {
+          todo.todo_updateat = todo.todo_updateat.toISOString();
+        }
+        return todo;
+      });
+
       return res.status(200).json({
-        todos: result.rows,
+        todos: formattedTodos,
         total: totalCount,
         limit: limit,
         offset: offset

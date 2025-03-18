@@ -65,6 +65,12 @@ async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, t
     // トランザクションを開始
     await client.query('BEGIN');
 
+    // タイムゾーン処理のデバッグログ
+    if (todoLimitAt) {
+      console.log(`Original todo_limitat: ${todoLimitAt}`);
+      console.log(`Date object: ${todoLimitAt instanceof Date ? 'Date object' : 'Not a Date object'}`);
+    }
+
     // todoテーブルに挿入
     const insertTodoQuery = `
       INSERT INTO todo (
@@ -74,12 +80,20 @@ async function insertTodo(todoId, userId, todoText, todoPriority, todoLimitAt, t
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
+    
+    // 日付オブジェクトがDateクラスのインスタンスでない場合は変換
+    let limitDate = todoLimitAt;
+    if (todoLimitAt && !(todoLimitAt instanceof Date)) {
+      limitDate = new Date(todoLimitAt);
+      console.log(`Converted todo_limitat: ${limitDate.toISOString()}`);
+    }
+    
     const todoValues = [
       todoId,
       userId,
       todoText,
       todoPriority || 3, // デフォルト優先度は3
-      todoLimitAt || new Date(),
+      limitDate || new Date(),
       todoCategory || 'default',
       todoPublic !== undefined ? todoPublic : true,  // 指定がなければデフォルトでpublic
       todoComplete !== undefined ? todoComplete : false  // 指定がなければデフォルトで未完了
@@ -156,6 +170,7 @@ router.post('/todo_create', async (req, res) => {
       // リクエストボディから必要なデータを取得
       const { todo_text, todo_priority, todo_limitat, todo_category, todo_public, todo_complete } = req.body;
       console.log(`TODO Text: ${todo_text}`);
+      console.log(`TODO Limit At (original): ${todo_limitat}`);
       console.log(`TODO Public: ${todo_public !== undefined ? todo_public : true}`);
       console.log(`TODO Complete: ${todo_complete !== undefined ? todo_complete : false}`);
 
@@ -167,7 +182,7 @@ router.post('/todo_create', async (req, res) => {
           parsedSession.username,
           todo_text,
           todo_priority,
-          todo_limitat ? new Date(todo_limitat) : null,
+          todo_limitat,
           todo_category,
           todo_public,
           todo_complete
