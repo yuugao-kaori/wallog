@@ -1,146 +1,255 @@
-# Maximum update depth exceededエラーの対応
+# ブログエディター実装計画書
 
-## 問題概要
+## 1. 概要
 
-React開発中に以下のエラーが発生：
-```Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.```
+本計画書は、Wallogプラットフォームにおける新しいブログエディターページ(`/blog/blog_editer`)の実装計画を記述するものです。このエディターは、既存の`Blogformpopup.tsx`コンポーネントをページとして置き換え、より高度な編集体験を提供します。
 
+## 2. 目標
 
-このエラーは`useEffect`内で状態を更新し、その状態が再び同じ`useEffect`を呼び出すような循環依存が発生した場合に表示される。
+1. マークダウン記法とカスタム記法をサポートする軽量で機能的なエディターの実装
+2. 既存のブログ編集機能の強化と拡張
+3. 画像管理機能の追加
+4. 操作履歴管理と編集履歴のUI表示
+5. ドラフト管理機能の実装
 
-## 原因特定
+## 3. 技術的アプローチ
 
-### 循環依存の特定
+### 3.1. コンポーネント構成
 
-1. `PostFormCommon.ts`と`PostFormCommon.tsx`間の相互インポート
-   - `PostFormCommon.ts`は非推奨ファイルで、`PostFormCommon.tsx`から全てインポートして再エクスポートしている
-
-2. コンポーネント間の双方向データフロー
-   - `PostForm.tsx`および`PostFormPopup.tsx`で以下のようなコードが存在：
-
-`
-// 親コンポーネントとハッシュタグ関連の状態を同期
-useEffect(() => {
-  hashtagSetFixedTags(fixedHashtags);
-}, [fixedHashtags, hashtagSetFixedTags]);
-
-// 固定ハッシュタグの変更があった場合は親コンポーネントに通知
-useEffect(() => {
-  if (hashtagFixedTags !== fixedHashtags) {
-    setFixedHashtags(hashtagFixedTags);
-  }
-}, [hashtagFixedTags, fixedHashtags, setFixedHashtags]);
-`
-
-これにより、以下の循環が発生：
-
-- 親のfixedHashtagsが変更される
-- 1つ目のuseEffectで子の状態を更新
-- 子の状態が更新されたことで2つ目のuseEffectが発火
-- 親のfixedHashtagsが再び更新される
-- 1に戻る（無限ループ）
-
-## 解決策
-1. 単方向データフローの実装
-親から子へのデータフローのみを維持し、子から親への自動同期を避ける：
-`
-// 親から子への同期は維持
-useEffect(() => {
-  hashtagSetFixedTags(fixedHashtags);
-}, [fixedHashtags, hashtagSetFixedTags]);
-
-// 以下の子から親への自動同期を削除
-// useEffect(() => {
-//   if (hashtagFixedTags !== fixedHashtags) {
-//     setFixedHashtags(hashtagFixedTags);
-//   }
-// }, [hashtagFixedTags, fixedHashtags, setFixedHashtags]);
-`
-
-2. 明示的なイベントハンドラでの状態更新
-子の状態変更を親に反映する場合は、明示的なイベントハンドラで処理：
-
-`
-// ハッシュタグ変更処理を一箇所で行う
-const handleHashtagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const value = e.target.value;
-  hashtagSetFixedTags(value); // 内部状態を更新
-  setFixedHashtags(value);    // 親コンポーネントに通知
-};
-`
-
-3. データフローを整理する
-`PostFormCommon.tsx`の`useHashtags`フックを修正して、外部から提供された値と内部状態の同期をより制御できるようにします：
 ```
-export function useHashtags(
-  externalFixedTags: string = '', 
-  externalAutoAppend: boolean = false,
-  syncToExternal: boolean = false // 外部に同期するかどうかのフラグ
-): HashtagsState {
-  const [fixedHashtags, setFixedHashtagsInternal] = useState(externalFixedTags);
-  const [autoAppendTags, setAutoAppendTagsInternal] = useState(externalAutoAppend);
-
-  // 外部値が変更されたら内部状態を更新
-  useEffect(() => {
-    setFixedHashtagsInternal(externalFixedTags);
-  }, [externalFixedTags]);
-
-  useEffect(() => {
-    setAutoAppendTagsInternal(externalAutoAppend);
-  }, [externalAutoAppend]);
-
-  // 内部状態を変更するラッパー関数（必要に応じて外部にも通知）
-  const setFixedHashtags = useCallback((value: string) => {
-    setFixedHashtagsInternal(value);
-  }, []);
-
-  const setAutoAppendTags = useCallback((value: boolean) => {
-    setAutoAppendTagsInternal(value);
-  }, []);
-  
-  // 他のロジックは同様...
-
-  return {
-    // ...他のプロパティ
-    fixedHashtags,
-    setFixedHashtags,
-    autoAppendTags,
-    setAutoAppendTags,
-    // ...他のプロパティ
-  };
-}
+/app/blog/blog_editer/
+├── page.tsx                # メインエディターページ
+├── components/
+│   ├── EditorToolbar.tsx   # マークダウンツールバー
+│   ├── EditorTextarea.tsx  # テキストエリアコンポーネント
+│   ├── ImageUploader.tsx   # 画像アップロードコンポーネント
+│   ├── BlogSelector.tsx    # ブログ選択ドロップダウン
+│   ├── TagSelector.tsx     # タグ選択コンポーネント
+│   └── HistoryViewer.tsx   # 編集履歴表示コンポーネント
+└── hooks/
+    ├── useEditorHistory.ts # 編集履歴管理カスタムフック
+    └── useAutoComplete.ts  # オートコンプリート管理カスタムフック
 ```
 
-4. 推奨される修正方法
-最も簡潔な解決策として、`PostForm.tsx`の以下の部分を削除または修正します：
-```
-// 削除または修正：親コンポーネントに自動的に通知するuseEffect
-useEffect(() => {
-  if (hashtagFixedTags !== fixedHashtags) {
-    setFixedHashtags(hashtagFixedTags);
-  }
-}, [hashtagFixedTags, fixedHashtags, setFixedHashtags]);
+## 4. 機能詳細
 
-// 削除または修正：親コンポーネントに自動的に通知するuseEffect
-useEffect(() => {
-  if (hashtagAutoAppendTags !== autoAppendTags) {
-    setAutoAppendTags(hashtagAutoAppendTags);
-  }
-}, [hashtagAutoAppendTags, autoAppendTags, setAutoAppendTags]);
-```
-代わりに、変更が必要な場合は明示的なイベントハンドラーで処理します：
-```
-// ハッシュタグ関連のイベントハンドラを作成
-const handleHashtagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const value = e.target.value;
-  hashtagSetFixedTags(value); // 内部状態を更新
-  setFixedHashtags(value);    // 親コンポーネントに通知
-};
-```
-まとめ
-このエラーは、`useEffect`内での状態更新が再びその`useEffect`を発火させる循環に起因しています。解決するには：
+### 4.1. エディター基本機能
 
-双方向の状態同期を避け、単方向のデータフローを実装する
-必要な場合のみ状態を更新する条件を適切に設定する
-状態の変更を明示的なイベントハンドラで処理する
-上記の修正を適用することで、「`Maximum update depth exceeded`」エラーを解消できるはずです。
+#### 4.1.1. ブログ選択機能
+
+- ドロップダウンで既存ブログの一覧から選択
+- blog_idによる直接指定
+- URL (`/blog/blog_editer?id=BLOG_ID`)からの編集モード起動
+- 新規作成と編集モードの切り替え
+
+#### 4.1.2. マークダウンエディター
+
+- シンプルなテキストエリアベース（WYSIWYG不要）
+- マークダウン記法のボタンによる挿入
+- キーボードショートカットのサポート
+- シンタックスハイライトの実装（オプション）
+
+#### 4.1.3. オートコンプリート
+
+- リスト項目の自動継続
+  - `- ` → 箇条書き継続
+  - `1. ` → 番号付きリスト継続（番号自動インクリメント）
+- 空行入力時のキャンセル
+- ネストされたリストのサポート
+
+#### 4.1.4. 履歴管理
+
+- 状態変更の記録
+- ローカルストレージによる自動保存
+- Undo/Redo機能の強化（Ctrl+Zとユーザーインターフェース）
+- 編集履歴のタイムライン表示
+
+### 4.2. 画像管理機能
+
+#### 4.2.1. 画像アップロード
+
+- ドラッグ&ドロップインターフェース
+- ファイル選択ダイアログ
+- アップロードのプログレス表示
+- エラーハンドリングと再試行機能
+
+#### 4.2.2. 画像ギャラリー
+
+- アップロード済み画像の表示
+- 検索と並べ替え
+- 画像のプレビュー
+- エディターへの画像挿入 (`<img=file_id>` 形式)
+
+### 4.3. メタデータ管理
+
+#### 4.3.1. タグ管理
+
+- ハッシュタグの入力と表示
+- 既存タグの候補表示
+- ドラッグ&ドロップによる並べ替え
+
+#### 4.3.2. サムネイル管理
+
+- サムネイル画像のアップロードと選択
+- 画像のクロップと調整
+- プレビュー機能
+
+#### 4.3.3. カスタムURL
+
+- 固定URLの設定オプション
+
+## 5. データフロー
+
+### 5.1. 初期化処理
+
+1. URL パラメータでブログIDが指定されている場合:
+   - `/api/blog/blog_read/{blog_id}` から既存のブログデータを取得
+   - 編集モードでエディタを初期化
+2. 新規作成モードの場合:
+   - 空のフォームで初期化
+   - ローカルストレージから下書きがあれば復元
+
+### 5.2. データ保存
+
+1. 自動保存:
+   - ローカルストレージにエディター状態を定期的に保存
+   - 変更検知による保存トリガー
+
+2. ブログ保存:
+   - 新規作成: `/api/blog/blog_create` にPOSTリクエスト
+   - 更新: `/api/blog/blog_update/{blog_id}` にPUTリクエスト
+   - 入力値バリデーション
+   - エラーハンドリングと再試行メカニズム
+
+## 6. UI/UX設計
+
+### 6.1. レイアウト
+
+```
++---------------------------------------------------------+
+| ブログ選択ドロップダウン | 新規作成ボタン | その他操作   |
++---------------------------------------------------------+
+| マークダウンツールバー                                  |
++---------------------------------------------------------+
+|                                                         |
+|                                                         |
+|                エディターテキストエリア                  |
+|                                                         |
+|                                                         |
++---------------------------------------------------------+
+| 画像アップロード | タグ管理 | サムネイル選択             |
++---------------------------------------------------------+
+| プレビュー切替 | 保存ボタン | 公開設定                  |
++---------------------------------------------------------+
+| 編集履歴タイムライン                                    |
++---------------------------------------------------------+
+```
+
+### 6.2. レスポンシブ設計
+
+- デスクトップ: フルレイアウト表示
+- タブレット: サイドバーをコラプス可能に
+- モバイル: 縦スタックレイアウト、ツールバーをドロップダウンに
+
+## 7. サポートするマークダウン記法
+
+以下のマークダウン記法を優先的にサポート:
+
+| 記法 | 説明 | 実装優先度 |
+|------|------|------------|
+| # 見出し | h1〜h3の見出し | 高 |
+| - リスト | 順序なしリスト | 高 |
+| 1. リスト | 順序付きリスト | 高 |
+| **太字** | 太字テキスト | 高 |
+| *斜体* | 斜体テキスト | 高 |
+| __下線__ | 下線テキスト | 中 |
+| ~~取消線~~ | 取消線テキスト | 中 |
+| --- | 水平線 | 中 |
+| > 引用 | ブロック引用 | 中 |
+| ```コード``` | コードブロック | 高 |
+| `インラインコード` | インラインコード | 高 |
+| <img=file_id> | 画像挿入 | 高 |
+
+## 8. 拡張性
+
+### 8.1. プラグインシステム
+
+将来的なマークダウン記法追加に対応するため、以下のプラグインシステムを設計:
+
+1. ツールバーアイテムの登録APIを実装
+2. カスタムパーサーの登録機能
+3. 記法定義ファイルによる宣言的拡張
+
+### 8.2. 将来的な拡張候補
+
+- テーブル記法のサポート
+- 数式記法のサポート
+- 図表自動生成ツール
+- コードブロックのシンタックスハイライト
+- リアルタイムコラボレーション機能
+
+## 9. 開発ステップ
+
+1. **フェーズ1: 基本エディター構築**
+   - エディターページのベース実装
+   - Markdown挿入ツールバー
+   - 基本的なブログ保存と読み込み機能
+
+2. **フェーズ2: オートコンプリート実装**
+   - リスト自動継続
+   - 編集履歴とUndo/Redo
+
+3. **フェーズ3: 画像管理**
+   - 画像アップロード
+   - ギャラリー表示
+   - 挿入機能
+
+4. **フェーズ4: メタデータ管理**
+   - タグ管理
+   - サムネイル設定
+   - カスタムURL設定
+
+5. **フェーズ5: 仕上げ**
+   - UI/UXの最適化
+   - パフォーマンス改善
+   - ブラウザテスト
+   - エラーハンドリング
+
+## 10. 懸念事項と解決策
+
+1. **大きなコンテンツのパフォーマンス**
+   - テキストエリアの最適化（仮想化スクロール検討）
+   - 編集履歴の効率的な保存（差分ベース）
+
+2. **ブラウザの互換性**
+   - 主要ブラウザでのテスト計画
+   - Polyfillの検討
+
+3. **セッション管理**
+   - 編集中の自動保存
+   - セッション切れ対策
+
+4. **セキュリティ**
+   - XSS対策
+   - CSRF対策
+   - 画像アップロードのバリデーション
+
+## 11. ドキュメント計画
+
+1. **コード内ドキュメント**
+   - JSDocによるコンポーネントとフック記述
+   - TypeScriptの型定義による自己文書化
+
+2. **開発者ドキュメント**
+   - コンポーネント構造の説明
+   - 拡張方法の解説
+
+3. **ユーザードキュメント**
+   - マークダウン記法のガイド
+   - エディター機能の解説
+
+## 13. まとめ
+
+この新しいブログエディターは、Wallogプラットフォームのコンテンツ作成体験を大幅に向上させます。既存の`Blogformpopup.tsx`の機能を基盤としつつ、より使いやすさと拡張性に富んだ専用ページとして実装することで、コンテンツクリエイターの生産性向上を目指します。
+
+フェーズドアプローチにより、基本機能から徐々に高度な機能を追加していくことで、開発リスクを最小化し、早期に価値を提供することを目標とします。

@@ -1,0 +1,109 @@
+/* BlogEditor.module.css */
+.editorContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.historyIndicator {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.375rem;
+}
+
+.toolbarButton {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 0.25rem;
+  background-color: white;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.toolbarButton:hover {
+  background-color: #e5e5e5;
+}
+
+.editor {
+  font-family: monospace;
+  line-height: 1.6;
+  min-height: 30rem;
+  padding: 0.75rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 0.375rem;
+  resize: vertical;
+}
+
+.preview {
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.375rem;
+  background-color: white;
+}
+
+/* マークダウンプレビュー用スタイル */
+.markdownPreview h1 {
+  font-size: 2em;
+  font-weight: bold;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #eee;
+}
+
+.markdownPreview h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.markdownPreview h3 {
+  font-size: 1.3em;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+}
+
+.markdownPreview blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1em;
+  color: #666;
+  margin: 1em 0;
+}
+
+.markdownPreview pre {
+  background: #f6f8fa;
+  padding: 1em;
+  border-radius: 3px;
+  overflow-x: auto;
+}
+
+.markdownPreview code {
+  background: #f6f8fa;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbarButton {
+    width: 100%;
+  }
+}
