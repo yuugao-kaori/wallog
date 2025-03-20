@@ -3,7 +3,6 @@
 import { Metadata } from 'next';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import BlogFormPopup from '@/components/Blogformpopup';
 import axios from 'axios';
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -556,31 +555,14 @@ export default function BlogDetail() {
         </div>
 
         {isLoggedIn && (
-          <button
-            onClick={handleEditClick}
-            className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg"
+          <a
+            href={`/blog/blog_editer?id=${params.blog_id}`}
+            className="fixed bottom-8 right-8 px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shadow-lg text-center"
           >
             編集
-          </button>
+          </a>
         )}
-        <BlogFormPopup
-          isOpen={isEditPopupOpen}
-          onClose={() => setIsEditPopupOpen(false)}
-          blogData={editData ? {
 
-            ...editData, 
-            blog_id: String(editData.blog_id)
-          } : {
-            blog_title: '',
-            blog_text: '',
-            blog_file: '',
-            blog_thumbnail: '',
-            blog_id: ''
-          }}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-          mode="edit"
-        />
       </div>
     </CodeBlockProvider>
   );
