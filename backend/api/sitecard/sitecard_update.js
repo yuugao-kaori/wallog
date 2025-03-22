@@ -61,21 +61,6 @@ const s3Client = new S3Client({
   apiVersion: 'latest'
 });
 
-// IDの生成関数
-function generateSiteCardId() {
-  const date = new Date();
-  const year = date.getFullYear().toString();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  const hour = date.getHours().toString().padStart(2, '0');
-  const minute = date.getMinutes().toString().padStart(2, '0');
-  const second = date.getSeconds().toString().padStart(2, '0');
-  const millisecond = date.getMilliseconds().toString().padStart(3, '0');
-  const timestamp = `${year}${month}${day}${hour}${minute}${second}${millisecond}`;
-  const randomDigits = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-  return `card-${timestamp}${randomDigits}`;
-}
-
 // OGタグをスクレイピングする関数
 async function scrapeOgTags(url) {
   try {
@@ -228,8 +213,8 @@ function determineContentType(imageBuffer, imageUrl) {
   return { contentType: 'image/png', extension: 'png' };
 }
 
-// URLをチェックして既存のサイトカードを取得または作成する関数
-async function getSiteCardByUrl(url) {
+// サイトカード更新関数
+async function updateSiteCard(url) {
   const client = new Client({
     user: process.env.POSTGRES_USER,
     host: process.env.POSTGRES_NAME,
@@ -248,98 +233,97 @@ async function getSiteCardByUrl(url) {
     `;
     const searchResult = await client.query(searchQuery, [url]);
     
-    if (searchResult.rows.length > 0) {
-      return searchResult.rows[0];
+    // サイトカードが存在しない場合はエラー
+    if (searchResult.rows.length === 0) {
+      throw new Error('サイトカードが見つかりません');
     }
     
-    // 存在しない場合は新しいサイトカードを作成
-    const ogTags = await scrapeOgTags(url);
-    const siteCardId = generateSiteCardId();
-    let thumbnailId = null;
+    const existingSiteCard = searchResult.rows[0];
+    const siteCardId = existingSiteCard.site_card_id;
+    const existingThumbnailId = existingSiteCard.site_card_thumbnail;
     
-    if (ogTags.image) {
-      try {
-        // OG画像を取得
-        const imageResponse = await fetch(ogTags.image);
-        const imageBuffer = await imageResponse.buffer();
-        
-        // 画像のContent-Typeと拡張子を判定
-        const { contentType, extension } = determineContentType(imageBuffer, ogTags.image);
-        
-        thumbnailId = `thumbnail-${siteCardId}.${extension}`;
-        
-        // MinIOに画像を保存
-        await s3Client.send(new PutObjectCommand({
-          Bucket: 'publicdata',
-          Key: thumbnailId,
-          Body: imageBuffer,
-          ContentType: contentType
-        }));
-        
-        console.log(`サムネイル画像をMinIOにアップロードしました: ${thumbnailId}, ContentType: ${contentType}`);
-      } catch (imageError) {
-        console.error('OG画像の取得に失敗:', imageError);
-        // デフォルトのサムネイルを作成
-        const thumbnailBuffer = await generateThumbnail(ogTags.title, url);
-        thumbnailId = `thumbnail-${siteCardId}.png`;
-        
-        await s3Client.send(new PutObjectCommand({
-          Bucket: 'publicdata',
-          Key: thumbnailId,
-          Body: thumbnailBuffer,
-          ContentType: 'image/png'
-        }));
-        
-        console.log(`生成したサムネイル画像をMinIOにアップロードしました: ${thumbnailId}`);
-      }
-    } else {
-      // OG画像がない場合はタイトルを使ってサムネイルを生成
-      const thumbnailBuffer = await generateThumbnail(ogTags.title, url);
-      thumbnailId = `thumbnail-${siteCardId}.png`;
+    // 新しいOGタグを取得
+    const ogTags = await scrapeOgTags(url);
+    
+    try {
+      // サムネイル画像の更新処理
+      let thumbnailBuffer;
+      let contentType = 'image/png'; // デフォルト値
+      let extension = 'png';
       
+      if (ogTags.image) {
+        try {
+          // OG画像を取得
+          const imageResponse = await fetch(ogTags.image);
+          thumbnailBuffer = await imageResponse.buffer();
+          
+          // Content-Typeと拡張子を判定
+          const typeInfo = determineContentType(thumbnailBuffer, ogTags.image);
+          contentType = typeInfo.contentType;
+          extension = typeInfo.extension;
+        } catch (imageError) {
+          console.error('OG画像の取得に失敗:', imageError);
+          // デフォルトのサムネイルを作成
+          thumbnailBuffer = await generateThumbnail(ogTags.title, url);
+          contentType = 'image/png';
+          extension = 'png';
+        }
+      } else {
+        // OG画像がない場合はタイトルを使ってサムネイルを生成
+        thumbnailBuffer = await generateThumbnail(ogTags.title, url);
+        contentType = 'image/png';
+        extension = 'png';
+      }
+      
+      // 既存のサムネイルIDの拡張子を更新
+      let newThumbnailId = existingThumbnailId;
+      // 拡張子が既に含まれている場合は取り除く
+      if (existingThumbnailId.includes('.')) {
+        newThumbnailId = existingThumbnailId.substring(0, existingThumbnailId.lastIndexOf('.'));
+      }
+      newThumbnailId = `${newThumbnailId}.${extension}`;
+      
+      // MinIOに画像を保存
       await s3Client.send(new PutObjectCommand({
         Bucket: 'publicdata',
-        Key: thumbnailId,
+        Key: newThumbnailId,
         Body: thumbnailBuffer,
-        ContentType: 'image/png'
+        ContentType: contentType
       }));
       
-      console.log(`生成したサムネイル画像をMinIOにアップロードしました: ${thumbnailId}`);
+      console.log(`サムネイル画像を更新しました: ${newThumbnailId}, ContentType: ${contentType}`);
+      
+      // サイトカード情報をデータベースで更新
+      const updateQuery = `
+        UPDATE "site-card" 
+        SET site_card_title = $1, 
+            site_card_text = $2,
+            site_card_thumbnail = $3,
+            site_card_createat = NOW()
+        WHERE site_card_id = $4
+        RETURNING *;
+      `;
+      
+      const values = [
+        ogTags.title,
+        ogTags.description,
+        newThumbnailId,
+        siteCardId
+      ];
+      
+      const result = await client.query(updateQuery, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('サイトカード更新エラー:', error);
+      throw error;
     }
-    
-    // サイトカード情報をデータベースに保存
-    const insertQuery = `
-      INSERT INTO "site-card" (
-        site_card_id, 
-        url_text, 
-        site_card_title, 
-        site_card_text, 
-        site_card_thumbnail
-      )
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *;
-    `;
-    
-    const values = [
-      siteCardId,
-      url,
-      ogTags.title,
-      ogTags.description,
-      thumbnailId
-    ];
-    
-    const result = await client.query(insertQuery, values);
-    return result.rows[0];
-  } catch (error) {
-    console.error('サイトカード処理エラー:', error);
-    throw error;
   } finally {
     await client.end();
   }
 }
 
-// サイトカード取得エンドポイント
-router.post('/sitecard_get', async (req, res) => {
+// サイトカード更新エンドポイント
+router.post('/sitecard_update', async (req, res) => {
   if (!req.session) {
     console.error('Session object is not found.');
     return res.status(401).json({ error: 'Session object not found' });
@@ -376,14 +360,20 @@ router.post('/sitecard_get', async (req, res) => {
       return res.status(400).json({ error: 'Invalid URL format' });
     }
     
-    const siteCard = await getSiteCardByUrl(url);
+    const updatedSiteCard = await updateSiteCard(url);
     
     return res.status(200).json({
-      message: 'Site card retrieved successfully',
-      site_card: siteCard
+      message: 'Site card updated successfully',
+      site_card: updatedSiteCard
     });
   } catch (error) {
-    console.error('Error processing site card:', error);
+    console.error('Error updating site card:', error);
+    
+    // サイトカードが見つからない場合の専用エラーメッセージ
+    if (error.message === 'サイトカードが見つかりません') {
+      return res.status(404).json({ error: 'Site card not found' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

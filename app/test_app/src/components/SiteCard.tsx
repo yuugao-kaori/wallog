@@ -22,12 +22,14 @@ const SiteCard: React.FC<SiteCardProps> = ({ title, description, thumbnailId, ur
       <div className="flex flex-col sm:flex-row">
         {thumbnailId && (
           <div className="sm:w-1/3 h-40 sm:h-auto relative bg-gray-100 dark:bg-gray-800">
+            {/* Next.jsの画像最適化をバイパスするためにunoptimizedをtrueに設定 */}
             <Image
-              src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${thumbnailId}/thumbnail`}
+              src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${thumbnailId}`}
               alt={title}
               fill
               className="object-cover"
               sizes="(max-width: 640px) 100vw, 33vw"
+              unoptimized={true} // 追加: 画像最適化を無効化
             />
           </div>
         )}

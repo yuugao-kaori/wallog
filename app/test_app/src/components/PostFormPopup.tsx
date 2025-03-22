@@ -9,7 +9,9 @@ import {
   processPostText,
   FilePreview,
   cleanFileId,
-  isImageFile
+  isImageFile,
+  HashtagSelector,
+  usePostText // 新たに追加したフックをインポート
 } from './PostFormCommon';
 
 // Define PostMode type locally since it's not exported from PostFormCommon
@@ -106,8 +108,55 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   handleDeletePermanently,
   handleFiles,
 }) => {
+  // usePostTextフックを使用
+  const postTextState = usePostText('');
+  
+  // 親コンポーネントのテキスト状態と同期するが、無限ループを避ける
+  const [isInitialSync, setIsInitialSync] = useState(true);
+  
+  // 初期同期と明示的な更新のみを行う
+  useEffect(() => {
+    if (isOpen) {
+      // 親からの明示的な変更がある場合のみ同期する
+      if (postText !== postTextState.postText) {
+        console.log('Syncing text from parent:', postText);
+        postTextState.setPostTextWithoutSave(postText);
+      }
+      
+      // 初回同期フラグをリセット
+      if (isInitialSync) {
+        setIsInitialSync(false);
+      }
+    } else {
+      // ポップアップが閉じられる時は初期同期フラグをリセット
+      setIsInitialSync(true);
+    }
+  }, [isOpen, postText]);
+  
+  // テキスト変更を親コンポーネントへ反映するカスタムハンドラ
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>) => {
+    const newText = e.target.value;
+    // 親コンポーネントに通知
+    setPostText(newText);
+    
+    // カスタムフック内部の状態も更新（デバウンスされた保存含む）
+    postTextState.handlePostTextChange(e);
+  }, [setPostText]);
+
   // 共通ハッシュタグフック - autoInitializeSelectedをfalseに設定
   const hashtagsState = useHashtags(fixedHashtags, autoAppendTags, false);
+
+  // 親から渡された値が変更された時に再設定するuseEffect
+  useEffect(() => {
+    if (fixedHashtags !== hashtagsState.fixedHashtags) {
+      hashtagsState.setFixedHashtags(fixedHashtags);
+    }
+    
+    if (autoAppendTags !== hashtagsState.autoAppendTags) {
+      hashtagsState.setAutoAppendTags(autoAppendTags);
+    }
+  }, [fixedHashtags, autoAppendTags, hashtagsState]);
+
   const {
     hashtagRanking,
     isDropdownOpen,
@@ -177,13 +226,25 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
   const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setFixedHashtags(value); // 親コンポーネントの状態を更新
-  }, [setFixedHashtags]);
+    setFixedHashtags(value);
+    if (hashtagsState.saveUserHashtags) {
+      if (window.hashtagSaveTimer) clearTimeout(window.hashtagSaveTimer);
+      window.hashtagSaveTimer = setTimeout(() => {
+        hashtagsState.saveUserHashtags();
+      }, 2000); // Increased debounce time
+    }
+  }, [setFixedHashtags, hashtagsState.saveUserHashtags]);
 
   // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
   const handleAutoAppendTagsChange = useCallback((value: boolean) => {
-    setAutoAppendTags(value); // 親コンポーネントの状態を更新
-  }, [setAutoAppendTags]);
+    setAutoAppendTags(value);
+    if (hashtagsState.saveUserHashtags) {
+      if (window.hashtagAutoSaveTimer) clearTimeout(window.hashtagAutoSaveTimer);
+      window.hashtagAutoSaveTimer = setTimeout(() => {
+        hashtagsState.saveUserHashtags();
+      }, 300); // Adjusted debounce time
+    }
+  }, [setAutoAppendTags, hashtagsState.saveUserHashtags]);
 
   const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
   // 既存ファイル選択モーダル用の状態
@@ -311,7 +372,7 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      if (postText.trim() !== '' || files.length > 0) {
+      if (postTextState.postText.trim() !== '' || files.length > 0) {
         handleFormSubmit(e as any);
       }
     }
@@ -422,37 +483,12 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       
       // 最終的な投稿テキストを作成
       // 選択されたハッシュタグは常に追加し、固定ハッシュタグは自動付与設定がONの場合のみ追加
-      let finalPostText = postText;
-      
-      // 選択されたハッシュタグがある場合は常に追加
-      if (selectedHashtags.size > 0) {
-        const tagsArray = Array.from(selectedHashtags)
-          .filter(tag => tag.trim() !== '')
-          .map(tag => `#${tag.replace(/^#/, '')}`);
-        
-        if (tagsArray.length > 0) {
-          const tagPart = tagsArray.join(' ');
-          finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
-        }
-      }
-      
-      // 固定ハッシュタグは自動付与設定がONの場合のみ追加
-      if (autoAppendTags && fixedHashtags.trim()) {
-        // ここで選択済みタグと重複している場合は除外する
-        const existingTags = new Set(Array.from(selectedHashtags).map(tag => tag.toLowerCase().trim()));
-        
-        const fixedTagsArray = fixedHashtags
-          .split(',')
-          .map(tag => tag.trim())
-          .filter(tag => tag !== '')
-          .filter(tag => !existingTags.has(tag.toLowerCase().replace(/^#/, '')))
-          .map(tag => `#${tag.replace(/^#/, '')}`);
-        
-        if (fixedTagsArray.length > 0) {
-          const tagPart = fixedTagsArray.join(' ');
-          finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
-        }
-      }
+      const finalPostText = processPostText(
+        postTextState.postText,
+        selectedHashtags,
+        autoAppendTags,
+        fixedHashtags
+      );
 
       // 全てのファイルIDをクリーニング
       const cleanFiles = files.map(file => ({
@@ -487,7 +523,9 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         originalReplyId
       );
       
-      // 成功時の状態リセット
+      // 成功時の状態リセット - setPostTextWithSaveをsetPostTextWithoutSaveに変更
+      postTextState.setPostTextWithoutSave('');
+      // 親のsetPostTextも呼び出して同期を維持
       setPostText('');
       setFiles([]);
       setSelectedHashtags(new Set());
@@ -504,40 +542,12 @@ const handleFormSubmit = async (e: React.FormEvent) => {
 
     // 修正モード以外の処理（既存のコード）
     // 最終的な投稿テキストを作成
-    let finalPostText = postText;
-    
-    // 選択されたハッシュタグがある場合は常に追加
-    if (selectedHashtags.size > 0) {
-      const tagsArray = Array.from(selectedHashtags)
-        .filter(tag => tag.trim() !== '')
-        .map(tag => `#${tag.replace(/^#/, '')}`);
-      
-      if (tagsArray.length > 0) {
-        const tagPart = tagsArray.join(' ');
-        finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
-      }
-    }
-    
-    // 固定ハッシュタグは自動付与設定がONの場合のみ追加
-    if (autoAppendTags && fixedHashtags.trim()) {
-      // 選択済みハッシュタグと重複チェック - 厳密に比較するよう修正
-      const existingTags = new Set(Array.from(selectedHashtags).map(tag => 
-        tag.toLowerCase().trim().replace(/^#/, '')
-      ));
-      
-      // 固定タグを処理
-      const fixedTagsArray = fixedHashtags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag !== '')
-        .filter(tag => !existingTags.has(tag.toLowerCase().replace(/^#/, ''))) // 重複除外を厳密に
-        .map(tag => `#${tag.replace(/^#/, '')}`);
-      
-      if (fixedTagsArray.length > 0) {
-        const tagPart = fixedTagsArray.join(' ');
-        finalPostText = finalPostText.trim() ? `${finalPostText.trim()}\n\n${tagPart}` : tagPart;
-      }
-    }
+    const finalPostText = processPostText(
+      postTextState.postText,
+      selectedHashtags,
+      autoAppendTags,
+      fixedHashtags
+    );
 
     // 全てのファイルIDをクリーニング
     const cleanFiles = files.map(file => ({
@@ -562,7 +572,9 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     // handleSubmit を呼び出し（引数にクリーニング済みファイル配列を追加）
     await handleSubmit(e, finalPostText, targetPost?.post_id, mode, cleanFiles);
     
-    // 成功時の状態リセット
+    // 成功時の状態リセット - setPostTextWithSaveをsetPostTextWithoutSaveに変更
+    postTextState.setPostTextWithoutSave('');
+    // 親のsetPostTextも呼び出して同期を維持
     setPostText('');
     setFiles([]);
     setSelectedHashtags(new Set());
@@ -629,12 +641,12 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         {isLoggedIn ? (
           <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-2">
-              {/* 投稿テキスト入力エリア */}
+              {/* 投稿テキスト入力エリア - カスタムハンドラを使用 */}
               <textarea
                 id="postText"
                 className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                value={postText}
-                onChange={(e) => setPostText(e.target.value)}
+                value={postTextState.postText}
+                onChange={handleTextChange} // カスタムハンドラを使用
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder="ここに投稿内容を入力してください"
@@ -643,72 +655,17 @@ const handleFormSubmit = async (e: React.FormEvent) => {
               
               {/* 字数カウンター */}
               <div className="text-right text-sm text-gray-500 mt-1">
-                {postText.length}/140
+                {postTextState.postText.length}/140
               </div>
               
               {/* ハッシュタグドロップダウン */}
-              <div className="relative mt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center gap-2"
-                >
-                  <span>人気のハッシュタグ</span>
-                  {selectedHashtags.size > 0 && (
-                    <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
-                      {selectedHashtags.size}
-                    </span>
-                  )}
-                </button>
-                
-                {/* ハッシュタグ選択ドロップダウン */}
-                {isDropdownOpen && (
-                  <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
-                    <div className="py-1 max-h-48 overflow-y-auto">
-                      {isLoading ? (
-                        <div className="p-4 text-center text-gray-500">読み込み中...</div>
-                      ) : (
-                        hashtagRanking.map((tag) => (
-                          <button
-                            key={tag.post_tag_id}
-                            type="button"
-                            onClick={() => handleHashtagSelect(tag.post_tag_text)}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                              selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) ? 'bg-blue-50 dark:bg-blue-900' : ''
-                            }`}
-                          >
-                            <span>{tag.post_tag_text}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500">({tag.use_count})</span>
-                              {selectedHashtags.has(tag.post_tag_text.replace(/^#/, '')) && (
-                                <span className="text-blue-500 text-sm">✓</span>
-                              )}
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 選択されたタグの表示 */}
-              {selectedHashtags.size > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {Array.from(selectedHashtags).map(tag => (
-                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
-                      #{tag}
-                      <button
-                        type="button"
-                        onClick={() => handleHashtagSelect(tag)}
-                        className="text-blue-500 hover:text-blue-700"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <HashtagSelector
+                hashtagsState={hashtagsState}
+                fixedHashtags={fixedHashtags}
+                autoAppendTags={autoAppendTags}
+                onFixedHashtagsChange={handleFixedHashtagsChange}
+                onAutoAppendChange={handleAutoAppendTagsChange}
+              />
 
               {/* ファイルドロップエリア */}
               <div
@@ -764,31 +721,6 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 </div>
               )}
 
-              {/* ハッシュタグとオプション設定 */}
-              <div className="mt-4 space-y-2">
-                <input
-                  type="text"
-                  value={fixedHashtags}
-                  onChange={handleFixedHashtagsChange}
-                  className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                  placeholder="ハッシュタグの固定"
-                />
-                <div className="flex items-center">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={autoAppendTags}
-                      onChange={(e) => handleAutoAppendTagsChange(e.target.checked)}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                      ハッシュタグを自動付与
-                    </span>
-                  </label>
-                </div>
-              </div>
-
               {/* 既存ファイル選択ボタン */}
               <div className="mt-4">
                 <button
@@ -806,11 +738,11 @@ const handleFormSubmit = async (e: React.FormEvent) => {
               <button
                 type="submit"
                 className={`w-full p-2 text-white rounded transition-colors ${
-                  (postText.trim() === '' && files.length === 0) || isUploading
+                  (postTextState.postText.trim() === '' && files.length === 0) || isUploading
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
                 }`}
-                disabled={(postText.trim() === '' && files.length === 0) || isUploading}
+                disabled={(postTextState.postText.trim() === '' && files.length === 0) || isUploading}
               >
                 {isUploading ? 'アップロード中...' : '投稿'}
               </button>

@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     user_failcount SMALLSERIAL,
     user_token TEXT,
     user_hashtag text[],
+    user_post_text text,
     user_auto_hashtag text[]
 );
 

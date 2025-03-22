@@ -63,16 +63,33 @@ async function updateUserInfo(userId, updates) {
       valueCounter++;
     }
 
+    // user_post_textの更新
+    if (updates.user_post_text !== undefined) {
+      updateFields.push(`user_post_text = $${valueCounter}`);
+      values.push(updates.user_post_text);
+      valueCounter++;
+    }
+
+    // 更新するフィールドがない場合は処理を終了
+    if (updateFields.length === 0) {
+      console.log('No fields to update');
+      return null;
+    }
+
     values.push(userId);
     const query = `
       UPDATE "user"
       SET ${updateFields.join(', ')}, user_updateat = CURRENT_TIMESTAMP
       WHERE user_id = $${valueCounter}
-      RETURNING user_id, user_hashtag, user_auto_hashtag, user_updateat
+      RETURNING user_id, user_hashtag, user_auto_hashtag, user_updateat, user_post_text
     `;
 
+    console.log('Executing update query:', query, 'with values:', values);
     const result = await client.query(query, values);
     return result.rows[0];
+  } catch (error) {
+    console.error('Error in updateUserInfo:', error);
+    throw error;
   } finally {
     await client.end();
   }
@@ -97,20 +114,24 @@ router.put('/user_update', async (req, res) => {
       return res.status(401).json({ error: 'User not logged in' });
     }
 
+    // リクエストから更新データを取得
     const updates = {
       user_hashtag: req.body.user_hashtag,
-      user_auto_hashtag: req.body.user_auto_hashtag
+      user_auto_hashtag: req.body.user_auto_hashtag,
+      user_post_text: req.body.user_post_text // 本文テキストも受け取る
     };
+
+    console.log('Received update request with data:', updates);
 
     const updatedUser = await updateUserInfo(parsedSession.username, updates);
     if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'User not found or no fields to update' });
     }
 
     return res.status(200).json(updatedUser);
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in user_update endpoint:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -60,6 +60,7 @@ import blog_deleteRoute from './api/blog/blog_delete.js';
 import blog_listRoute from './api/blog/blog_list.js';
 import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
 import sitecardGetRoute from './api/sitecard/sitecard_get.js'; // New: サイトカード取得ルート
+import sitecardUpdateRoute from './api/sitecard/sitecard_update.js'; // New: サイトカード更新ルート
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
@@ -83,7 +84,7 @@ app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_de
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
 app.use('/api/search', all_search);
-app.use('/api/sitecard', sitecardGetRoute); // New: サイトカードAPIのルートを追加
+app.use('/api/sitecard', sitecardGetRoute, sitecardUpdateRoute); // New: サイトカードAPIのルートを追加
 app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_listRoute); // TODOリスト取得ルートを追加
 
 // サイトマップへのアクセスを処理

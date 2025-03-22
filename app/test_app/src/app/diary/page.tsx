@@ -74,6 +74,7 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
+  // ハッシュタグ自動付与設定をデフォルトでfalseに設定
   const [autoAppendTags, setAutoAppendTags] = useState<boolean>(false);  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
@@ -626,6 +627,53 @@ const deletePost = async (postId: string): Promise<boolean> => {
     openModal(true);
   };
 
+  // ユーザー設定を読み込む関数を修正
+  const loadUserSettings = useCallback(async () => {
+    if (!isLoggedIn) return;
+
+    try {
+      const response = await api.get('/api/user/user_read');
+      if (response.status === 200) {
+        const data = response.data;
+        console.log('User settings loaded in Diary component:', data);
+
+        // ハッシュタグ配列を半角スペース区切り文字列に変換
+        if (data.user_auto_hashtag && Array.isArray(data.user_auto_hashtag)) {
+          const hashtagsString: string = data.user_auto_hashtag
+            .filter((tag: string): boolean => typeof tag === 'string' && tag.trim() !== '')
+            .join(' ');
+          console.log('Setting fixed hashtags in Diary:', hashtagsString);
+          setFixedHashtags(hashtagsString);
+          // 自動付与はデフォルトでオフ - 設定がある場合も自動付与はオフのまま
+          setAutoAppendTags(false);
+        } else {
+          setFixedHashtags('');
+          setAutoAppendTags(false);
+        }
+
+        // 保存されていた投稿テキストがあれば復元する
+        if (data.user_post_text) {
+          console.log('Restoring saved post text:', data.user_post_text);
+          setPostText(data.user_post_text);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load user settings:', error);
+    }
+  }, [isLoggedIn, api, setFixedHashtags, setAutoAppendTags, setPostText]);
+
+  // ユーザー設定の読み込み状態を管理
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+
+  // ログイン状態が変更されたときにユーザー設定を読み込む
+  useEffect(() => {
+    if (isLoggedIn && !hasLoadedSettings) {
+      loadUserSettings().then(() => {
+        setHasLoadedSettings(true);
+      });
+    }
+  }, [isLoggedIn, loadUserSettings, hasLoadedSettings]);
+
   return (
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
@@ -817,7 +865,7 @@ const deletePost = async (postId: string): Promise<boolean> => {
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
-      autoAppendTags={autoAppendTags}  // ���加
+      autoAppendTags={autoAppendTags}  // 追加
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       handleCancelAttach={handleCancelAttach} // 追加

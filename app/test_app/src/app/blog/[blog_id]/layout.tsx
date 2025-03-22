@@ -25,7 +25,7 @@ export async function generateMetadata({
   const currentUrl = `${baseUrl}/blog/${params.blog_id}`;
   
   // ブログ記事のサムネイル画像URL（APIから取得できる場合）
-  const imageUrl = blog.thumbnail_url || `${baseUrl}/default-og-image.jpg`;
+  // const imageUrl = blog.thumbnail_url || `${baseUrl}/default-og-image.jpg`;
 
   return {
     title: `${blog.blog_title} | Wallog`,
@@ -35,20 +35,20 @@ export async function generateMetadata({
       description: blog.blog_description,
       type: 'article',
       url: currentUrl,
-      images: [
-        {
-          url: imageUrl,
-          width: 1200,
-          height: 630,
-          alt: blog.blog_title,
-        }
-      ],
+      // images: [
+      //   {
+      //     url: imageUrl,
+      //     width: 1200,
+      //     height: 630,
+      //     alt: blog.blog_title,
+      //   }
+      // ],
     },
     twitter: {
       card: 'summary_large_image',
       title: blog.blog_title,
       description: blog.blog_description,
-      images: [imageUrl],
+      // images: [imageUrl],
     },
   };
 }
