@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { 
   FileItem, 
   useHashtags, 
@@ -67,16 +67,45 @@ const PostForm: React.FC<PostFormProps> = ({
   handleDeletePermanently,
 }) => {
   // usePostTextフックを使用して投稿テキストを管理
-  const postTextState = usePostText(''); // 初期値を空文字列にし、親から初期設定する
+  // 空文字列で初期化し、すぐにローカルストレージからロードする
+  const postTextState = usePostText(''); 
+  // 静的な値として初期読み込み済みかを判断するフラグ
+  const isInitialSync = useRef(true);
+  // ローカルストレージからのデータロード完了フラグ
+  const [hasLoadedFromLocalStorage, setHasLoadedFromLocalStorage] = useState(false);
 
-  // 親コンポーネントとテキスト状態を同期する - 初回とpostTextの変更時のみ実行
+  // コンポーネント初回マウント時にローカルストレージからデータをロード
   useEffect(() => {
+    // まだロードしていない場合は、ローカルストレージからデータを読み込む
+    if (!hasLoadedFromLocalStorage) {
+      // ローカルストレージからテキストをロードする型付きPromise処理
+      postTextState.loadPostText().then((loadedText: string | null) => {
+        if (loadedText) {
+          console.log('Loaded text from localStorage in PostForm:', loadedText);
+          // 読み込んだテキストで親の状態も更新する
+          setPostText(loadedText);
+        }
+        setHasLoadedFromLocalStorage(true);
+      }).catch((error: Error) => {
+        console.error('Failed to load text from localStorage:', error);
+        setHasLoadedFromLocalStorage(true); // エラー時もロード完了とマーク
+      });
+    }
+  }, [postTextState, setPostText, hasLoadedFromLocalStorage]);
+
+  // 親コンポーネントとテキスト状態を同期する - ローカルストレージ読み込み後のみ実行
+  useEffect(() => {
+    // ローカルストレージからの読み込みが完了していない場合はスキップ
+    if (!hasLoadedFromLocalStorage) {
+      return;
+    }
+    
     // 初回マウント時または親からの値が変更された場合のみ実行
     if (postTextState.postText !== postText) {
       // 親コンポーネントからの変更時はusePostTextの状態を更新（保存なし）
       postTextState.setPostTextWithoutSave(postText);
     }
-  }, [postText]); // postTextStateは依存配列から除外
+  }, [postText, postTextState, hasLoadedFromLocalStorage]);
 
   // usePostTextの状態が変更された時のみ親へ通知
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
@@ -91,31 +120,35 @@ const PostForm: React.FC<PostFormProps> = ({
   const hashtagsState = useHashtags(fixedHashtags, autoAppendTags);
 
   // 親から渡された値が変更された時に再設定するuseEffect
+  // 防御的な処理を追加して無限ループを防止
   useEffect(() => {
+    if (isInitialSync.current) {
+      // 初回の同期は完了したとみなし、フラグをfalseに設定
+      isInitialSync.current = false;
+      return;
+    }
+
+    // 値が実際に変更された場合のみ更新（無限ループ防止）
     if (fixedHashtags !== hashtagsState.fixedHashtags) {
+      console.log('[PostForm] Syncing fixedHashtags from parent to hook:', fixedHashtags);
       hashtagsState.setFixedHashtags(fixedHashtags);
     }
     
+    // 値が実際に変更された場合のみ更新（無限ループ防止）
     if (autoAppendTags !== hashtagsState.autoAppendTags) {
+      console.log('[PostForm] Syncing autoAppendTags from parent to hook:', autoAppendTags);
       hashtagsState.setAutoAppendTags(autoAppendTags);
     }
-  }, [fixedHashtags, autoAppendTags, hashtagsState]);
-
-  // hashtagsStateから必要な値と関数を取得
-  const {
-    hashtagRanking,
-    isDropdownOpen,
-    setIsDropdownOpen,
-    selectedHashtags,
-    setSelectedHashtags,
-    isLoading,
-    handleHashtagSelect,
-    handleHashtagChange
-  } = hashtagsState;
+  }, [fixedHashtags, autoAppendTags, hashtagsState.fixedHashtags, hashtagsState.autoAppendTags, hashtagsState.setFixedHashtags, hashtagsState.setAutoAppendTags]);
 
   // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
   const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === fixedHashtags) {
+      return;
+    }
+    
     setFixedHashtags(value); // 親コンポーネントの状態を更新
     
     // 自動保存用のデバウンスタイマー
@@ -138,10 +171,15 @@ const PostForm: React.FC<PostFormProps> = ({
           });
       }, 1000);
     }
-  }, [setFixedHashtags, hashtagsState.saveUserHashtags]);
+  }, [setFixedHashtags, fixedHashtags, hashtagsState.saveUserHashtags]);
 
   // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
   const handleAutoAppendTagsChange = useCallback((value: boolean) => {
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === autoAppendTags) {
+      return;
+    }
+    
     setAutoAppendTags(value); // 親コンポーネントの状態を更新
     
     // 自動保存処理
@@ -164,7 +202,7 @@ const PostForm: React.FC<PostFormProps> = ({
           });
       }, 100);
     }
-  }, [setAutoAppendTags, hashtagsState.saveUserHashtags]);
+  }, [setAutoAppendTags, autoAppendTags, hashtagsState.saveUserHashtags]);
 
   // ファイルアップロード完了時のコールバック
   const onFileUploadComplete = React.useCallback((uploadedFiles: FileItem[]) => {
@@ -281,13 +319,17 @@ const PostForm: React.FC<PostFormProps> = ({
     e.preventDefault();
     
     // 共通関数を使用してテキスト処理
-    const finalText = processPostText(postTextState.postText, selectedHashtags, autoAppendTags, fixedHashtags);
+    const finalText = processPostText(postTextState.postText, hashtagsState.selectedHashtags, autoAppendTags, fixedHashtags);
     
     handleSubmit(e, finalText);
     
+    // 投稿完了を通知し、ローカルストレージをクリア
+    postTextState.markAsPosted();
+    console.log('Post submitted - localStorage draft cleared');
+    
     // 投稿後に選択されたタグをクリア
-    setSelectedHashtags(new Set());
-    setIsDropdownOpen(false);
+    hashtagsState.setSelectedHashtags(new Set());
+    hashtagsState.setIsDropdownOpen(false);
     
     // 投稿後にテキストをクリア - 親コンポーネントに空文字を設定
     setPostText('');

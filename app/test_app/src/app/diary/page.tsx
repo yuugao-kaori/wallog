@@ -407,8 +407,6 @@ function Diary() {
   ) => {
     e.preventDefault();
     try {
-
-
       // finalTextが渡された場合はそれを使う（既に子コンポーネントで処理済み）
       // 渡されなかった場合は、processPostTextを使って親コンポーネントで処理する
       let processedText = finalText;
@@ -433,6 +431,16 @@ function Diary() {
       console.log('handleSubmit Payload:', payload);
       
       const response = await api.post('/api/post/post_create', payload);
+      
+      // 投稿成功時にローカルストレージの下書きをクリア
+      try {
+        // ローカルストレージから直接クリア
+        localStorage.removeItem('wallog_draft_post_text');
+        console.log('Post created successfully - localStorage draft cleared');
+      } catch (error) {
+        console.error('Failed to clear post text draft:', error);
+      }
+      
       addNotification('投稿が成功しました！');
       setPostText('');
       setFiles([]); // 既存のファイル配列をクリア
@@ -451,7 +459,7 @@ function Diary() {
     } catch (error) {
       addNotification('投稿に失敗しました。');
     }
-  }, [addNotification, files, postText, setFiles, setPosts, setPostText, setIsModalOpen, fileInputRef]);  // Added missing comma and proper dependency array
+  }, [addNotification, files, postText, setFiles, setPosts, setPostText, setIsModalOpen, fileInputRef, autoAppendTags, fixedHashtags]);
 
 // ファイル削除用の関数を修正
 const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
@@ -825,6 +833,16 @@ const deletePost = async (postId: string): Promise<boolean> => {
           // 引用または返信モードの場合は特別な処理
           if ((mode === 'quote' || mode === 'reply') && targetPostId) {
             await handleQuoteSubmit(finalText, mode, targetPostId, filesToUse);
+            
+            // 引用・返信の場合もローカルストレージをクリア
+            try {
+              // ローカルストレージから直接クリア
+              localStorage.removeItem('wallog_draft_post_text');
+              console.log('Quote/reply post created - localStorage draft cleared');
+            } catch (error) {
+              console.error('Failed to clear post text draft after quote/reply:', error);
+            }
+            
             closeModal();
             return;
           }
@@ -841,6 +859,16 @@ const deletePost = async (postId: string): Promise<boolean> => {
           console.log('Sending API request with final payload:', payload);
 
           const response = await api.post('/api/post/post_create', payload);
+          
+          // 投稿成功時にローカルストレージの下書きをクリア
+          try {
+            // ローカルストレージから直接クリア
+            localStorage.removeItem('wallog_draft_post_text');
+            console.log('Post created successfully from modal - localStorage draft cleared');
+          } catch (error) {
+            console.error('Failed to clear post text draft from modal:', error);
+          }
+          
           addNotification('投稿が成功しました！');
           setPostText('');
           setFiles([]);

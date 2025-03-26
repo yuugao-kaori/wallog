@@ -108,148 +108,171 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   handleDeletePermanently,
   handleFiles,
 }) => {
-  // usePostTextフックを使用
+  // usePostTextフックを使用 - 空文字列で初期化し、ローカルストレージから優先読み込み
   const postTextState = usePostText('');
   
   // 親コンポーネントのテキスト状態と同期するが、無限ループを避ける
   const [isInitialSync, setIsInitialSync] = useState(true);
   
-  // 初期同期と明示的な更新のみを行う
+  // ファイル選択関連の状態
+  const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<any[]>([]);
+  
+  // ローカルストレージからテキストを読み込んだかどうかのフラグ
+  const [hasLoadedFromLocalStorage, setHasLoadedFromLocalStorage] = useState(false);
+
+  // 初回マウント時にローカルストレージからデータをロード
   useEffect(() => {
-    if (isOpen) {
-      // 親からの明示的な変更がある場合のみ同期する
-      if (postText !== postTextState.postText) {
-        console.log('Syncing text from parent:', postText);
-        postTextState.setPostTextWithoutSave(postText);
-      }
-      
-      // 初回同期フラグをリセット
-      if (isInitialSync) {
-        setIsInitialSync(false);
-      }
-    } else {
-      // ポップアップが閉じられる時は初期同期フラグをリセット
-      setIsInitialSync(true);
+    if (isOpen && !hasLoadedFromLocalStorage) {
+      // ローカルストレージからデータを読み込む
+      postTextState.loadPostText().then((loadedText: string | null) => {
+        if (loadedText) {
+          console.log('Loaded text from localStorage in PostFormPopup:', loadedText);
+          // 読み込んだテキストで親の状態も更新
+          setPostText(loadedText);
+        }
+        setHasLoadedFromLocalStorage(true);
+      }).catch((error: Error) => {
+        console.error('Failed to load text from localStorage:', error);
+        setHasLoadedFromLocalStorage(true); // エラー時もロード完了とマーク
+      });
     }
-  }, [isOpen, postText]);
+    
+    // ポップアップが表示された時に確実にisPostedフラグがリセットされるようにする
+    if (isOpen) {
+      // 既にスケジュールされている保存処理を確実に実行するため、即座に保存を試みる
+      if (postTextState.postText.trim() !== '') {
+        console.log('Popup opened, forcing immediate save of any pending text');
+        postTextState.savePostText()
+          .catch((error: Error): void => {
+            console.error('Failed to save text on popup open:', error);
+          });
+      }
+    }
+  }, [isOpen, postTextState, setPostText, hasLoadedFromLocalStorage]);
+
+  // ポップアップが閉じられる時の処理を分離
+  useEffect(() => {
+    // ポップアップが開いている状態から閉じられる時
+    if (!isOpen && hasLoadedFromLocalStorage) {
+      // 未保存の変更があれば確実に保存
+      if (postTextState.postText.trim() !== '') {
+        console.log('Popup closing - saving changes to localStorage');
+        postTextState.savePostText()
+          .then((): void => {
+            console.log('Successfully saved text before popup close');
+            // 保存完了後にフラグをリセット
+            setHasLoadedFromLocalStorage(false);
+          })
+          .catch((error: Error): void => {
+            console.error('Failed to save text before popup close:', error);
+            setHasLoadedFromLocalStorage(false);
+          });
+      } else {
+        // 空テキストの場合はそのままリセット
+        setHasLoadedFromLocalStorage(false);
+      }
+    }
+  }, [isOpen, hasLoadedFromLocalStorage, postTextState]);
+
+  // 親コンポーネントとテキスト状態を同期する - ローカルストレージ読み込み後のみ
+  useEffect(() => {
+    if (!isOpen || !hasLoadedFromLocalStorage) {
+      return;
+    }
+
+    // 親からの明示的な変更がある場合のみ同期する
+    if (postText !== postTextState.postText) {
+      console.log('Syncing text from parent in PostFormPopup:', postText);
+      postTextState.setPostTextWithoutSave(postText);
+    }
+    
+    // 初回同期フラグをリセット
+    if (isInitialSync) {
+      setIsInitialSync(false);
+    }
+  }, [isOpen, postText, postTextState, hasLoadedFromLocalStorage, isInitialSync]);
   
   // テキスト変更を親コンポーネントへ反映するカスタムハンドラ
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>) => {
     const newText = e.target.value;
+    
     // 親コンポーネントに通知
     setPostText(newText);
     
-    // カスタムフック内部の状態も更新（デバウンスされた保存含む）
+    // usePostText内の状態を更新（自動保存機能付き）
     postTextState.handlePostTextChange(e);
-  }, [setPostText]);
+    
+    // デバッグログを追加して実行を確認
+    console.log('Text changed in PostFormPopup, length:', newText.length, 'empty:', newText.trim() === '');
+  }, [setPostText, postTextState.handlePostTextChange]);
 
   // 共通ハッシュタグフック - autoInitializeSelectedをfalseに設定
   const hashtagsState = useHashtags(fixedHashtags, autoAppendTags, false);
+  // selectedHashtagsとそのセッターを取得
+  const { selectedHashtags, setSelectedHashtags } = hashtagsState;
 
   // 親から渡された値が変更された時に再設定するuseEffect
+  // いくつかの重要な防御措置を追加
   useEffect(() => {
+    // 初期化中や初期同期時は何もしない（無限ループ防止）
+    if (isInitialSync) {
+      return;
+    }
+    
+    // 値が変わった時のみ更新（無限ループ防止のための重要な条件）
     if (fixedHashtags !== hashtagsState.fixedHashtags) {
+      console.log('Sync fixedHashtags from parent to hook state:', fixedHashtags);
       hashtagsState.setFixedHashtags(fixedHashtags);
     }
     
+    // 値が変わった時のみ更新（無限ループ防止のための重要な条件）
     if (autoAppendTags !== hashtagsState.autoAppendTags) {
+      console.log('Sync autoAppendTags from parent to hook state:', autoAppendTags);
+      // 直接設定することで無限ループを防止
       hashtagsState.setAutoAppendTags(autoAppendTags);
     }
-  }, [fixedHashtags, autoAppendTags, hashtagsState]);
-
-  const {
-    hashtagRanking,
-    isDropdownOpen,
-    setIsDropdownOpen,
-    selectedHashtags,
-    setSelectedHashtags,
-    isLoading,
-    handleHashtagSelect,
-  } = hashtagsState;
-
-  // ファイルアップロード完了時のコールバック
-  const onFileUploadComplete = React.useCallback((uploadedFiles: FileItem[]) => {
-    console.log('File upload completed in PostFormPopup with files:', uploadedFiles);
-    
-    // FileListを作成して親のhandleFilesを呼び出す
-    if (uploadedFiles.length > 0 && handleFiles) {
-      // DataTransferを使用してFileListを作成（実際のファイルではなく、IDのみを保持）
-      const dataTransfer = new DataTransfer();
-      // ダミーファイルを作成（実際のファイル情報はすでにuploadedFilesにある）
-      uploadedFiles.forEach(fileItem => {
-        // 空のBlobからファイルを作成（サイズ0）
-        // ここでFile作成時にカスタムプロパティを追加
-        const dummyFile = new File([""], fileItem.name || "file", { 
-          type: fileItem.contentType || "application/octet-stream" 
-        });
-        
-        // カスタムプロパティの追加
-        Object.defineProperties(dummyFile, {
-          'isImage': { 
-            value: fileItem.isImage,
-            writable: true, 
-            enumerable: true 
-          },
-          'fileId': { 
-            value: fileItem.id,
-            writable: true, 
-            enumerable: true 
-          }
-        });
-        
-        dataTransfer.items.add(dummyFile);
-      });
-      
-      // 親コンポーネントにファイル選択を通知
-      handleFiles(dataTransfer.files);
-      
-      // コンソールにログを出力してデバッグを容易にする
-      console.log('Notified parent component with FileList:', dataTransfer.files, 'File IDs:', uploadedFiles.map(f => f.id));
-    } else {
-      console.log('No files to notify parent component about or handleFiles is not defined');
-    }
-  }, [handleFiles]);
-
-  // 共通ファイルアップロードフック
-  const {
-    uploadProgress,
-    isUploading,
-    fileInputRef,
-    dropRef,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleFilesWithProgress,
-    handlePaste: handlePasteInternal,
-  } = useFileUpload(files, setFiles, onFileUploadComplete);
+    // 依存配列に注意：hashtagsState全体ではなく個別のプロパティを使用
+  }, [fixedHashtags, autoAppendTags, isInitialSync, hashtagsState.fixedHashtags, hashtagsState.autoAppendTags, hashtagsState.setFixedHashtags, hashtagsState.setAutoAppendTags]);
 
   // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
+  // 防御的チェックと節流措置を追加
   const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === fixedHashtags) {
+      return;
+    }
+    
     setFixedHashtags(value);
     if (hashtagsState.saveUserHashtags) {
       if (window.hashtagSaveTimer) clearTimeout(window.hashtagSaveTimer);
       window.hashtagSaveTimer = setTimeout(() => {
         hashtagsState.saveUserHashtags();
-      }, 2000); // Increased debounce time
+      }, 2000); // 2秒のデバウンス時間
     }
-  }, [setFixedHashtags, hashtagsState.saveUserHashtags]);
+  }, [setFixedHashtags, fixedHashtags, hashtagsState.saveUserHashtags]);
 
   // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
+  // 防御的チェックを追加
   const handleAutoAppendTagsChange = useCallback((value: boolean) => {
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === autoAppendTags) {
+      return;
+    }
+    
     setAutoAppendTags(value);
+    // APIの節流（スロットリング）処理
     if (hashtagsState.saveUserHashtags) {
       if (window.hashtagAutoSaveTimer) clearTimeout(window.hashtagAutoSaveTimer);
       window.hashtagAutoSaveTimer = setTimeout(() => {
         hashtagsState.saveUserHashtags();
-      }, 300); // Adjusted debounce time
+      }, 2000); // 2秒のデバウンス時間に延長
     }
-  }, [setAutoAppendTags, hashtagsState.saveUserHashtags]);
+  }, [setAutoAppendTags, autoAppendTags, hashtagsState.saveUserHashtags]);
 
-  const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
-  // 既存ファイル選択モーダル用の状態
-  const [showFileSelector, setShowFileSelector] = useState(false);
-  const [driveFiles, setDriveFiles] = useState<any[]>([]);
+  // 既存ファイル選択モーダル用の状態は上部で既に宣言されています
 
   // 既存ファイル選択用の関数
   const loadDriveFiles = useCallback(async () => {
@@ -485,7 +508,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       // 選択されたハッシュタグは常に追加し、固定ハッシュタグは自動付与設定がONの場合のみ追加
       const finalPostText = processPostText(
         postTextState.postText,
-        selectedHashtags,
+        hashtagsState.selectedHashtags, // hashtagsStateから参照
         autoAppendTags,
         fixedHashtags
       );
@@ -507,7 +530,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         originalReplyId,
         finalPostText,
         files: cleanFiles,
-        selectedHashtags: Array.from(selectedHashtags),
+        selectedHashtags: Array.from(hashtagsState.selectedHashtags), // hashtagsStateから参照
         fixedHashtags,
         autoAppendTags
       });
@@ -523,13 +546,17 @@ const handleFormSubmit = async (e: React.FormEvent) => {
         originalReplyId
       );
       
-      // 成功時の状態リセット - setPostTextWithSaveをsetPostTextWithoutSaveに変更
+      // 投稿完了をフックに通知（重要）
+      postTextState.markAsPosted();
+      console.log('Post submitted - marked as posted');
+      
+      // 成功時の状態リセット
       postTextState.setPostTextWithoutSave('');
       // 親のsetPostTextも呼び出して同期を維持
       setPostText('');
       setFiles([]);
-      setSelectedHashtags(new Set());
-      setIsDropdownOpen(false);
+      hashtagsState.setSelectedHashtags(new Set()); // hashtagsStateから参照
+      hashtagsState.setIsDropdownOpen(false); // hashtagsStateから参照
       onClose();
       
       // リポストモードの場合はコールバックを実行
@@ -544,7 +571,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     // 最終的な投稿テキストを作成
     const finalPostText = processPostText(
       postTextState.postText,
-      selectedHashtags,
+      hashtagsState.selectedHashtags, // hashtagsStateから参照
       autoAppendTags,
       fixedHashtags
     );
@@ -564,7 +591,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
       targetPostId: targetPost?.post_id,
       finalPostText,
       files: cleanFiles,
-      selectedHashtags: Array.from(selectedHashtags),
+      selectedHashtags: Array.from(hashtagsState.selectedHashtags), // hashtagsStateから参照
       fixedHashtags,
       autoAppendTags
     });
@@ -572,13 +599,17 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     // handleSubmit を呼び出し（引数にクリーニング済みファイル配列を追加）
     await handleSubmit(e, finalPostText, targetPost?.post_id, mode, cleanFiles);
     
+    // 投稿完了をフックに通知（重要）
+    postTextState.markAsPosted();
+    console.log('Post submitted - marked as posted');
+    
     // 成功時の状態リセット - setPostTextWithSaveをsetPostTextWithoutSaveに変更
     postTextState.setPostTextWithoutSave('');
     // 親のsetPostTextも呼び出して同期を維持
     setPostText('');
     setFiles([]);
-    setSelectedHashtags(new Set());
-    setIsDropdownOpen(false);
+    hashtagsState.setSelectedHashtags(new Set()); // hashtagsStateから参照
+    hashtagsState.setIsDropdownOpen(false); // hashtagsStateから参照
     onClose();
     
     // リポストモードの場合はコールバックを実行
@@ -606,6 +637,19 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     setShowFileSelector(true);
     loadDriveFiles();
   }, [loadDriveFiles]);
+
+  // 共通ファイルアップロードフック
+  const {
+    uploadProgress,
+    isUploading,
+    fileInputRef,
+    dropRef, // ここでdropRefを受け取る
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFilesWithProgress,
+    handlePaste: handlePasteInternal
+  } = useFileUpload(files, setFiles);
 
   // ポップアップが閉じられている場合は何もレンダリングしない
   if (!isOpen) return null;
@@ -669,7 +713,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
 
               {/* ファイルドロップエリア */}
               <div
-                ref={dropRef}
+                ref={dropRef} // ここでdropRefを使用
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -806,3 +850,4 @@ const handleFormSubmit = async (e: React.FormEvent) => {
 };
 
 export default PostFormPopup;
+

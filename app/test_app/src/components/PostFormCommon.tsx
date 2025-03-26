@@ -207,26 +207,44 @@ export function processPostText(
 ): string {
   if (!text && !selectedTags.size && (!autoAppend || !fixedTags)) return '';
   
-  const textWithoutTags = text.replace(/#[^\s#]+/g, '').trim();
+  // 元のテキストからハッシュタグを抽出
+  const existingTags = new Set<string>();
+  const textWithoutTags = text.replace(/#[^\s#]+/g, (match) => {
+    // "#"を取り除いてタグを保存
+    existingTags.add(match.substring(1).toLowerCase());
+    // 元のテキストからはタグを削除
+    return '';
+  }).trim();
   
   // 選択されたタグは常に追加
   const tagsArray = Array.from(selectedTags)
     .filter(tag => tag.trim() !== '')
     .map(tag => `#${tag.replace(/^#/, '')}`);
     
+  // 元のテキストのハッシュタグも追加
+  const existingTagsArray = Array.from(existingTags)
+    .map(tag => `#${tag}`);
+    
   // 固定タグはautoAppendがtrueの場合のみ追加
   const fixedTagsArray = autoAppend ? fixedTags
     .split(/[,\s]+/) // カンマまたは空白で分割
     .map(tag => tag.trim())
     .filter(tag => tag !== '')
-    .filter(tag => !Array.from(selectedTags).some(
-      selected => selected.toLowerCase() === tag.toLowerCase().replace(/^#/, '')
-    ))
+    // 既存のタグや選択済みタグと重複しないものだけ追加
+    .filter(tag => {
+      const cleanTag = tag.replace(/^#/, '').toLowerCase();
+      return !existingTags.has(cleanTag) && 
+             !Array.from(selectedTags).some(
+               selected => selected.toLowerCase() === cleanTag
+             );
+    })
     .map(tag => `#${tag.replace(/^#/, '')}`)
     : [];
   
+  // 全てのタグをまとめる（重複を排除）
+  const allTags = [...new Set([...existingTagsArray, ...tagsArray, ...fixedTagsArray])];
+  
   // タグがあれば追加処理を行う
-  const allTags = [...new Set([...tagsArray, ...fixedTagsArray])];
   if (allTags.length > 0) {
     return textWithoutTags 
       ? `${textWithoutTags}\n\n${allTags.join(' ')}`
@@ -266,7 +284,7 @@ export function useHashtags(
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [fixedHashtags, setFixedHashtags] = useState(initialFixedTags);
-  const [autoAppendTags, setAutoAppendTags] = useState(initialAutoAppend);
+  const [autoAppendTags, setAutoAppendTagsState] = useState(initialAutoAppend); // 命名変更
   const [isUserSettingsLoading, setIsUserSettingsLoading] = useState(false);
   const [userSettingsError, setUserSettingsError] = useState<string | null>(null);
   const apiUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN || ''}/api/hashtag/hashtag_rank`;
@@ -286,23 +304,32 @@ export function useHashtags(
     autoAppendTags: initialAutoAppend
   });
 
+  // 最後にAPIが呼び出された時間を記録する参照
+  const lastApiCallTime = useRef<number>(0);
+  const lastSaveTime = useRef<number>(0);
+  const lastLoadTime = useRef<number>(0);
+  const ignoreEffectsUntil = useRef<number>(Date.now() + 1000); // 初期ロード時に1秒間effectsを無視
+  const pendingAutoAppendValue = useRef<boolean | null>(null);
+
   // 外部値の変更を内部状態に反映する（一方向のみ）
+  // この効果は初期化時のみ実行（依存配列を空に）
   useEffect(() => {
     if (initialFixedTags !== undefined) {
       setFixedHashtags(initialFixedTags);
+      userSettingsRef.current.fixedHashtags = initialFixedTags;
     }
-  }, [initialFixedTags]);
-
-  useEffect(() => {
+    
     if (initialAutoAppend !== undefined) {
-      setAutoAppendTags(initialAutoAppend);
+      setAutoAppendTagsState(initialAutoAppend);
+      userSettingsRef.current.autoAppendTags = initialAutoAppend;
     }
-  }, [initialAutoAppend]);
+  }, []); // 依存配列を空に - 初期化時のみ実行
 
   // ユーザー設定の読み込み - キャッシュ機能付き
   const loadUserSettings = useCallback(async (forceReload = false) => {
     const currentTime = Date.now();
     const cacheTime = 60 * 1000; // Cache valid for 1 minute
+    const MIN_LOAD_INTERVAL = 1000; // 1秒
 
     if (userSettingsCache.isLoading && userSettingsCache.loadPromise) {
       try {
@@ -325,12 +352,22 @@ export function useHashtags(
             .filter(tag => typeof tag === 'string' && tag.trim() !== '')
             .join(' ');
         }
-        setFixedHashtags(hashtagsString);
-        setAutoAppendTags(hashtagsString.trim() !== '');
+        
+        // 現在の値と異なる場合のみ更新（無限ループ防止）
+        if (hashtagsString !== fixedHashtags) {
+          setFixedHashtags(hashtagsString);
+          userSettingsRef.current.fixedHashtags = hashtagsString;
+        }
       }
       return;
     }
 
+    if (!forceReload && currentTime - lastLoadTime.current < MIN_LOAD_INTERVAL) {
+      console.log('API load throttled to prevent excessive requests');
+      return;
+    }
+
+    lastLoadTime.current = currentTime;
     setIsUserSettingsLoading(true);
     setUserSettingsError(null);
     userSettingsCache.isLoading = true;
@@ -354,10 +391,17 @@ export function useHashtags(
             .filter(tag => typeof tag === 'string' && tag.trim() !== '')
             .join(' ');
         }
-        console.log('Setting fixed hashtags in useHashtags:', hashtagsString);
-        setFixedHashtags(hashtagsString);
-        // デフォルトでOFF - 明示的にONにされた場合のみONにする（変更なし）
-        setAutoAppendTags(false);
+        
+        // 現在の値と異なる場合のみ更新（無限ループ防止）
+        if (hashtagsString !== fixedHashtags) {
+          setFixedHashtags(hashtagsString);
+          userSettingsRef.current.fixedHashtags = hashtagsString;
+        }
+        
+        // 初回読み込み時に限り、同期した参照値としてセット
+        if (!userSettingsRef.current.isLoadedOnce) {
+          userSettingsRef.current.isLoadedOnce = true;
+        }
       } catch (error) {
         console.error('Error loading user settings:', error);
         setUserSettingsError('ユーザー設定の読み込みに失敗しました');
@@ -374,18 +418,120 @@ export function useHashtags(
     } catch (error) {
       console.error('Failed to load user settings:', error);
     }
-  }, [userReadUrl, setFixedHashtags, setAutoAppendTags]);
+  }, [userReadUrl, fixedHashtags]); // 依存配列からsetFixedHashtags, setAutoAppendTagsを削除
 
+  // 初回マウント時のみユーザー設定を読み込む
   useEffect(() => {
-    const initialLoad = async () => {
-      await loadUserSettings();
+    // 初期化段階のエフェクトはスキップ
+    if (Date.now() < ignoreEffectsUntil.current) {
+      return;
+    }
+    
+    // グローバルキャッシュがあれば読み込みをスキップ
+    if (userSettingsCache.data && userSettingsCache.lastLoadTime > 0) {
+      console.log('Using global cache for user settings, skipping API call');
+      return;
+    }
+    
+    // 初回の読み込み時のみ実行
+    if (!userSettingsRef.current.isLoadedOnce) {
+      console.log('Initial load of user settings');
+      loadUserSettings().then(() => {
+        userSettingsRef.current.isLoadedOnce = true;
+      });
+    }
+  }, [loadUserSettings]);
+
+  // 自動付与設定の変更ハンドラ - スロットリング機能付き
+  // 重要な変更: setAutoAppendTags の名前を handleAutoAppendChange に明示的に変更
+  const handleAutoAppendChange = useCallback((value: boolean) => {
+    // 初期化段階のエフェクトはスキップ
+    if (Date.now() < ignoreEffectsUntil.current) {
+      console.log('Ignoring auto append change during initialization');
+      pendingAutoAppendValue.current = value;  // 保留中の値を保存
+      return;
+    }
+    
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === autoAppendTags) {
+      console.log('Auto append setting unchanged, skipping update');
+      return;
+    }
+    
+    console.log('Auto append setting changed to:', value);
+    // 状態更新と API 呼び出しを分離（重要：無限ループ防止のため）
+    setAutoAppendTagsState(value);
+    userSettingsRef.current.autoAppendTags = value;
+
+    const now = Date.now();
+    const MIN_API_INTERVAL = 5000; // 5秒に増やす（無限ループ防止）
+    if (now - lastApiCallTime.current < MIN_API_INTERVAL) {
+      console.log('API call throttled to prevent excessive requests');
+      return;
+    }
+
+    // 前回の設定値と実際の値を比較する代わりに現在の状態を使用
+    lastApiCallTime.current = now;
+    const hashtagArray = fixedHashtags
+      ? fixedHashtags.split(/\s+/).map(tag => tag.trim()).filter(tag => tag !== '').map(tag => tag.replace(/^#/, ''))
+      : [];
+    
+    const saveSettings = async () => {
+      try {
+        const payload = { 
+          user_hashtag: null, 
+          user_auto_hashtag: hashtagArray.length > 0 ? hashtagArray : [false] 
+        };
+        console.log('Saving user hashtags with auto append setting:', payload, value);
+
+        const response = await fetch(userUpdateUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'include'
+        });
+
+        if (!response.ok) throw new Error(`API returned status ${response.status}`);
+        console.log('Auto append setting saved successfully');
+      } catch (error) {
+        console.error('Error saving auto append setting:', error);
+        // エラー発生時は前の値に戻す - ただし無限ループにならないよう注意
+        const previousValue = !value;
+        userSettingsRef.current.autoAppendTags = previousValue;
+        setAutoAppendTagsState(previousValue);
+      }
     };
-    initialLoad();
-  }, []); 
+
+    saveSettings().catch(err => {
+      console.error('Failed to save auto append setting:', err);
+    });
+  }, [fixedHashtags, userUpdateUrl, autoAppendTags]);
+
+  // 保留中の自動付与値を適用するエフェクト
+  useEffect(() => {
+    const now = Date.now();
+    if (now >= ignoreEffectsUntil.current && pendingAutoAppendValue.current !== null) {
+      const value = pendingAutoAppendValue.current;
+      pendingAutoAppendValue.current = null;
+      if (value !== autoAppendTags) {
+        console.log('Applying pending auto append value:', value);
+        setAutoAppendTagsState(value);
+        userSettingsRef.current.autoAppendTags = value;
+      }
+    }
+  }, [autoAppendTags]);
 
   // ユーザー設定の保存 - デバウンス機能追加
   const saveUserHashtags = useCallback(async (): Promise<boolean> => {
     try {
+      const now = Date.now();
+      const MIN_SAVE_INTERVAL = 1000; // 1秒
+      if (now - lastSaveTime.current < MIN_SAVE_INTERVAL) {
+        console.log('API save throttled to prevent excessive requests');
+        return true;
+      }
+
+      lastSaveTime.current = now;
       // 空白区切りのハッシュタグを配列に変換
       const hashtagArray = fixedHashtags
         ? fixedHashtags
@@ -421,7 +567,8 @@ export function useHashtags(
       console.log('User hashtags saved successfully');
       
       // 自動付与設定を更新（ハッシュタグの有無に基づいて設定）
-      setAutoAppendTags(shouldAutoAppend);
+      setAutoAppendTagsState(shouldAutoAppend);
+      userSettingsRef.current.autoAppendTags = shouldAutoAppend;
       
       // キャッシュ状態を更新
       userSettingsRef.current = {
@@ -496,67 +643,12 @@ export function useHashtags(
   const handleHashtagChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setFixedHashtags(value);
+    userSettingsRef.current.fixedHashtags = value;
     
     // 自動保存処理
     debouncedSaveHashtags();
   }, [debouncedSaveHashtags]);
   
-  // 自動付与設定の変更ハンドラ - 自動保存機能付き
-  // 修正：ユーザーによる直接変更を可能にする
-  const handleAutoAppendChange = useCallback((value: boolean) => {
-    console.log('Auto append setting changed to:', value);
-    setAutoAppendTags(value);
-    
-    // 値が変更された場合はAPIでユーザー設定を更新する
-    const saveSettings = async () => {
-      try {
-        // 空白区切りのハッシュタグを配列に変換
-        const hashtagArray = fixedHashtags
-          ? fixedHashtags
-              .split(/\s+/) // 空白で分割
-              .map(tag => tag.trim())
-              .filter(tag => tag !== '')
-              .map(tag => tag.replace(/^#/, ''))
-          : [];
-        
-        const payload = {
-          user_hashtag: null,
-          // ハッシュタグが存在しなくても自動付与設定は保存する
-          user_auto_hashtag: hashtagArray.length > 0 ? hashtagArray : [false]
-        };
-        
-        console.log('Saving user hashtags with auto append setting:', payload, value);
-        
-        const response = await fetch(userUpdateUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API returned status ${response.status}`);
-        }
-        
-        console.log('Auto append setting saved successfully');
-        
-        // キャッシュ状態を更新
-        userSettingsRef.current = {
-          ...userSettingsRef.current,
-          fixedHashtags,
-          autoAppendTags: value
-        };
-        
-        return true;
-      } catch (error) {
-        console.error('Error saving auto append setting:', error);
-        return false;
-      }
-    };
-    
-    saveSettings();
-  }, [fixedHashtags, userUpdateUrl]);
-
   // タグランキングのフェッチ
   const fetchHashtags = useCallback(async () => {
     if (isLoading) return; // 既に読み込み中なら何もしない
@@ -665,7 +757,7 @@ export function useHashtags(
     fixedHashtags: fixedHashtags || '', 
     setFixedHashtags,
     autoAppendTags,
-    setAutoAppendTags: handleAutoAppendChange, // 自動保存機能付きの関数に変更
+    setAutoAppendTags: handleAutoAppendChange, // 重要: 自動保存機能付きの関数を返す
     processPostText: processPostTextWithState,
     handleHashtagChange,
     refreshHashtags,
@@ -941,9 +1033,17 @@ export const HashtagSelector: React.FC<HashtagSelectorProps> = ({
   onAutoAppendChange
 }) => {
   // コンポーネントがマウントされた時に外部から受け取った値でフォームを初期化
+  // デバッグログを削減し、実際に必要なときだけ出力する
+  const initialRenderRef = useRef(true);
   useEffect(() => {
-    console.log('HashtagSelector received fixedHashtags:', fixedHashtags);
-    console.log('HashtagSelector autoAppendTags state:', autoAppendTags);
+    if (initialRenderRef.current) {
+      console.log('HashtagSelector initial render with:', { fixedHashtags, autoAppendTags });
+      initialRenderRef.current = false;
+      return;
+    }
+    
+    // 値が実際に変更された場合のみログを出力
+    console.debug('HashtagSelector props updated:', { fixedHashtags, autoAppendTags });
   }, [fixedHashtags, autoAppendTags]);
 
   const {
@@ -975,7 +1075,7 @@ export const HashtagSelector: React.FC<HashtagSelectorProps> = ({
               value={fixedHashtags}
               onChange={onFixedHashtagsChange}
             />
-            {/* 自動付与トグルボタン - コメントアウトを解除 */}
+            {/* 自動付与トグルボタン */}
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
               <button
                 type="button"
@@ -1080,7 +1180,7 @@ export const HashtagSelector: React.FC<HashtagSelectorProps> = ({
 
 /**
  * 投稿テキスト管理のカスタムフック
- * 投稿テキストの状態管理とサーバーへの保存機能を提供する
+ * 投稿テキストの状態管理とローカルストレージへの保存機能を提供する
  * 
  * @param initialText 初期テキスト
  * @returns テキスト関連の状態と操作関数
@@ -1089,10 +1189,13 @@ export const HashtagSelector: React.FC<HashtagSelectorProps> = ({
 // 投稿テキストのグローバルキャッシュ（複数コンポーネント間で共有）
 const postTextCache = {
   data: null as string | null,
-  lastLoadTime: 0,
+  lastSaveTime: 0,
   isLoading: false,
   loadPromise: null as Promise<string | null> | null
 };
+
+// ローカルストレージのキー
+const POST_TEXT_STORAGE_KEY = 'wallog_draft_post_text';
 
 // デバウンス用タイマーID
 let debounceTimerId: ReturnType<typeof setTimeout> | null = null;
@@ -1106,8 +1209,6 @@ export function usePostText(initialText: string = '') {
   const [isTextSaving, setIsTextSaving] = useState(false);
   const [textSaveError, setTextSaveError] = useState<string | null>(null);
   const [lastSavedText, setLastSavedText] = useState(initialText);
-  const userUpdateUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN || ''}/api/user/user_update`;
-  const userReadUrl = `${process.env.NEXT_PUBLIC_SITE_DOMAIN || ''}/api/user/user_read`;
   
   // 初期読み込み済みフラグ
   const initialLoadDone = useRef(false);
@@ -1121,80 +1222,95 @@ export function usePostText(initialText: string = '') {
   const isSaveScheduled = useRef(false);
   // コンポーネントのマウント状態を追跡
   const isMounted = useRef(true);
+
+  // コンポーネントがマウントされたときに isPosted フラグをリセット
+  useEffect(() => {
+    // コンポーネントがマウントされたタイミングで投稿済みフラグをリセット
+    // PostFormPopup が表示されたときに確実に新しい入力を受け付けられるようにする
+    isPosted = false;
+    
+    return () => {
+      // アンマウント時の処理（既存のコードはそのまま）
+      isMounted.current = false;
+      
+      // タイマーのクリーンアップ
+      if (delayedSaveTimerId !== null) {
+        clearTimeout(delayedSaveTimerId);
+        delayedSaveTimerId = null;
+      }
+      
+      // 未保存の変更があれば保存
+      const currentText = currentTextRef.current.trim();
+      if (currentText !== '' && currentText !== lastSavedText && hasChangedSinceLastCheck.current && !isPosted) {
+        console.log('Saving unsaved changes before unmount');
+        // ローカルストレージに直接保存
+        try {
+          localStorage.setItem(POST_TEXT_STORAGE_KEY, currentText);
+          console.log('Saved text to localStorage on unmount');
+          
+          // キャッシュも更新
+          postTextCache.data = currentText;
+          postTextCache.lastSaveTime = Date.now();
+        } catch (error) {
+          console.error('Failed to save text on unmount:', error);
+        }
+      }
+    };
+  }, [lastSavedText]);
   
-  // テキストが投稿されたことを通知する関数
+  /**
+   * テキストが投稿されたことを通知する関数
+   * ローカルストレージの内容をクリアする
+   */
   const markAsPosted = useCallback(() => {
     isPosted = true;
-    console.log('Text marked as posted, next save will send null');
+    isSaveScheduled.current = false;
+    console.log('Text marked as posted, clearing localStorage immediately');
     
-    // 投稿後、少し待ってからnullを送信
-    if (delayedSaveTimerId !== null) {
-      clearTimeout(delayedSaveTimerId);
+    // 投稿成功時は即座にローカルストレージをクリア
+    try {
+      localStorage.removeItem(POST_TEXT_STORAGE_KEY);
+      console.log('localStorage draft text cleared successfully');
+      
+      // グローバルキャッシュもクリア
+      postTextCache.data = null;
+      postTextCache.lastSaveTime = 0;
+      
+      // カスタムイベントを発火してアプリ全体に通知
+      window.dispatchEvent(new CustomEvent('post_text_updated', { 
+        detail: { text: '', source: 'posted' } 
+      }));
+    } catch (error) {
+      console.error('Failed to clear localStorage draft:', error);
     }
     
-    delayedSaveTimerId = setTimeout(async () => {
-      try {
-        const payload = {
-          user_post_text: null
-        };
-        
-        console.log('Posting completed. Sending null to clear saved text.');
-        
-        const response = await fetch(userUpdateUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          console.error('Failed to clear saved text after posting');
-        } else {
-          console.log('Successfully cleared saved text after posting');
-          // キャッシュもクリア
-          postTextCache.data = null;
-          postTextCache.lastLoadTime = Date.now();
-        }
-        
-      } catch (error) {
-        console.error('Error clearing saved text:', error);
-      } finally {
-        // 投稿フラグをリセット
-        isPosted = false;
-      }
-    }, 1000); // 投稿後1秒後にnullを送信
-    
-  }, [userUpdateUrl]);
+    // 既存のタイマーがあればクリア
+    if (delayedSaveTimerId !== null) {
+      clearTimeout(delayedSaveTimerId);
+      delayedSaveTimerId = null;
+    }
+  }, []);
   
-  // サーバーに投稿テキストを保存するための関数
+  /**
+   * ローカルストレージに投稿テキストを保存する関数
+   * @returns {Promise<boolean>} 保存成功時はtrue、失敗時はfalse
+   */
   const savePostText = useCallback(async (): Promise<boolean> => {
-    // 投稿済みの場合はnullを送信
+    // 投稿済みの場合はローカルストレージをクリア
     if (isPosted) {
-      console.log('Text was posted, sending null');
+      console.log('Text was posted, clearing localStorage');
       try {
         setIsTextSaving(true);
-        const payload = {
-          user_post_text: null
-        };
         
-        const response = await fetch(userUpdateUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          console.error('Failed to clear text after post');
-          return false;
-        }
+        // ローカルストレージから投稿テキストを削除
+        localStorage.removeItem(POST_TEXT_STORAGE_KEY);
         
         console.log('Successfully cleared text after post');
         setLastSavedText('');
         
         // キャッシュもクリア
         postTextCache.data = null;
-        postTextCache.lastLoadTime = Date.now();
+        postTextCache.lastSaveTime = Date.now();
         
         // 投稿フラグをリセット
         isPosted = false;
@@ -1212,13 +1328,18 @@ export function usePostText(initialText: string = '') {
     
     // テキストが前回保存した値と同じ場合は保存をスキップ
     if (currentText === lastSavedText) {
-      console.log('Skipping direct save as text has not changed');
+      console.log('Skipping save as text has not changed');
       return true;
     }
     
     // 空テキストは保存しない
     if (currentText === '') {
       console.log('Not saving empty text');
+      // 既存の保存データがある場合はクリア
+      if (localStorage.getItem(POST_TEXT_STORAGE_KEY)) {
+        localStorage.removeItem(POST_TEXT_STORAGE_KEY);
+        console.log('Cleared existing draft text as current text is empty');
+      }
       return true;
     }
     
@@ -1226,27 +1347,9 @@ export function usePostText(initialText: string = '') {
       setIsTextSaving(true);
       setTextSaveError(null);
       
-      const payload = {
-        user_post_text: currentText
-      };
-      
-      console.log('Saving post text with payload:', payload);
-      
-      const response = await fetch(userUpdateUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API returned status ${response.status}:`, errorText);
-        throw new Error(`API returned status ${response.status}: ${errorText}`);
-      }
-      
-      const responseData = await response.json();
-      console.log('Post text saved successfully. Response:', responseData);
+      // ローカルストレージに保存
+      localStorage.setItem(POST_TEXT_STORAGE_KEY, currentText);
+      console.log('Post text saved to localStorage:', currentText);
       
       if (isMounted.current) {
         setLastSavedText(currentText); // 保存したテキストを記録
@@ -1254,11 +1357,17 @@ export function usePostText(initialText: string = '') {
       
       // キャッシュも更新
       postTextCache.data = currentText;
-      postTextCache.lastLoadTime = Date.now();
+      postTextCache.lastSaveTime = Date.now();
+      
+      // グローバルイベントを発火して他のコンポーネントに変更を通知
+      const event = new CustomEvent('post_text_updated', { 
+        detail: { text: currentText, timestamp: Date.now() } 
+      });
+      window.dispatchEvent(event);
       
       return true;
     } catch (error) {
-      console.error('Error saving post text:', error);
+      console.error('Error saving post text to localStorage:', error);
       if (isMounted.current) {
         setTextSaveError('投稿テキストの保存に失敗しました');
       }
@@ -1270,12 +1379,16 @@ export function usePostText(initialText: string = '') {
       // 保存が終了したので、スケジュールフラグをリセット
       isSaveScheduled.current = false;
     }
-  }, [lastSavedText, userUpdateUrl]);
+  }, [lastSavedText]);
   
-  // 30秒後に保存を実行する関数
+  /**
+   * 遅延保存をスケジュールする関数
+   * 3秒後に保存を実行する
+   */
   const scheduleDelayedSave = useCallback(() => {
     // 既に保存がスケジュールされている場合はスキップ
     if (isSaveScheduled.current) {
+      console.log('Save already scheduled, skipping');
       return;
     }
     
@@ -1291,48 +1404,74 @@ export function usePostText(initialText: string = '') {
       return;
     }
     
+    console.log('Scheduling delayed save in 3 seconds for text:', currentTextRef.current);
+    isSaveScheduled.current = true;
+    
     // 既存のタイマーがあればクリア
     if (delayedSaveTimerId !== null) {
+      console.log('Clearing existing timer');
       clearTimeout(delayedSaveTimerId);
       delayedSaveTimerId = null;
     }
     
-    console.log('Scheduling delayed save in 30 seconds');
-    isSaveScheduled.current = true;
-    
-    // 30秒後に保存
     delayedSaveTimerId = setTimeout(() => {
-      // 投稿済みでなく、マウントされていればテキストを保存
-      if (!isPosted && isMounted.current) {
+      try {
         console.log('Executing delayed save now');
-        savePostText().catch(error => {
-          console.error('Failed to execute delayed save:', error);
-        });
-      } else {
-        console.log('Skipping delayed save due to post completion or unmount');
-        isSaveScheduled.current = false;
+        // 投稿済みでなく、マウントされていればテキストを保存
+        if (!isPosted && isMounted.current) {
+          console.log('Conditions met, saving post text:', currentTextRef.current);
+          savePostText()
+            .then(success => {
+              console.log('Delayed save completed with result:', success);
+              isSaveScheduled.current = false; // 保存が終了したのでフラグをリセット
+            })
+            .catch(err => {
+              console.error('Error during delayed save:', err);
+              isSaveScheduled.current = false; // エラー時もフラグをリセット
+            });
+        } else {
+          console.log('Skipping delayed save: isPosted=', isPosted, 'isMounted=', isMounted.current);
+          isSaveScheduled.current = false; // 条件を満たさない場合もフラグをリセット
+        }
+      } catch (error) {
+        console.error('Unexpected error in delayed save callback:', error);
+        isSaveScheduled.current = false; // 例外時もフラグをリセット
+      } finally {
+        // タイマーIDをクリア
+        delayedSaveTimerId = null;
       }
-    }, 30000); // 30秒の遅延
+    }, 3000);
   }, [lastSavedText, savePostText]);
   
-  // テキスト変更ハンドラ - 30秒遅延の自動保存機能付き
+  /**
+   * テキスト変更ハンドラ - 3秒遅延の自動保存機能付き
+   */
   const handlePostTextChange = useCallback((
     e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = e.target.value;
     
-    // テキスト更新
+    // テキスト更新 - UI に反映
     setPostText(value);
+    // 現在の値を参照に保存（タイマーで使用）
     currentTextRef.current = value;
+    
+    // デバッグログ
+    console.log('Text changed to:', value, 'Length:', value.length);
     
     // 空文字でなく、前回保存値と異なる場合のみ保存をスケジュール
     if (value.trim() !== '' && value.trim() !== lastSavedText) {
       hasChangedSinceLastCheck.current = true;
+      console.log('Text changed, scheduling delayed save');
       scheduleDelayedSave();
+    } else {
+      console.log('Text unchanged or empty, not scheduling save');
     }
   }, [lastSavedText, scheduleDelayedSave]);
   
-  // テキスト直接設定関数 - 自動保存あり
+  /**
+   * テキスト直接設定関数 - 自動保存あり
+   */
   const setPostTextWithSave = useCallback((text: string) => {
     setPostText(text);
     currentTextRef.current = text;
@@ -1340,11 +1479,14 @@ export function usePostText(initialText: string = '') {
     // 空文字でなく、前回保存値と異なる場合のみ保存をスケジュール
     if (text.trim() !== '' && text.trim() !== lastSavedText) {
       hasChangedSinceLastCheck.current = true;
+      console.log('Text set with save, scheduling delayed save');
       scheduleDelayedSave();
     }
   }, [lastSavedText, scheduleDelayedSave]);
   
-  // テキスト直接設定関数 - 自動保存なし
+  /**
+   * テキスト直接設定関数 - 自動保存なし
+   */
   const setPostTextWithoutSave = useCallback((text: string) => {
     // 親コンポーネントから更新中フラグをONに - 無限ループを防止
     isParentUpdating.current = true;
@@ -1358,10 +1500,14 @@ export function usePostText(initialText: string = '') {
     }, 0);
   }, []);
   
-  // サーバーからユーザーの投稿テキストを読み込む関数 - キャッシュ機能付き
+  /**
+   * ローカルストレージから投稿テキストを読み込む関数 - キャッシュ機能付き
+   * @param {boolean} forceReload 強制的に再読み込みするかどうか
+   * @returns {Promise<string | null>} 保存されていたテキスト、または存在しない場合はnull
+   */
   const loadPostText = useCallback(async (forceReload = false): Promise<string | null> => {
-    // すでに読み込み済みかつ強制リロードでなければ何もしない
-    if (initialLoadDone.current && !forceReload) {
+    // すでに読み込み済みかつ強制リロードでなければキャッシュを使用
+    if (initialLoadDone.current && !forceReload && postTextCache.data !== null) {
       return postTextCache.data;
     }
     
@@ -1379,7 +1525,7 @@ export function usePostText(initialText: string = '') {
     
     // キャッシュが有効ならキャッシュを使用
     const cacheValid = postTextCache.data !== null && 
-                      (currentTime - postTextCache.lastLoadTime < cacheTime);
+                      (currentTime - postTextCache.lastSaveTime < cacheTime);
     if (!forceReload && cacheValid) {
       console.log('Using cached post text data:', postTextCache.data);
       if (postTextCache.data !== postText) {
@@ -1393,27 +1539,18 @@ export function usePostText(initialText: string = '') {
     
     const loadPromise = (async () => {
       try {
-        console.log('Loading saved post text from API');
-        const response = await fetch(userReadUrl, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API returned status ${response.status}`);
-        }
-        
-        const data = await response.json();
+        console.log('Loading saved post text from localStorage');
+        // ローカルストレージから読み込み
+        const savedText = localStorage.getItem(POST_TEXT_STORAGE_KEY);
         let loadedText = '';
         
-        if (data.user_post_text) {
-          loadedText = data.user_post_text;
+        if (savedText) {
+          loadedText = savedText;
           console.log('Loaded saved post text:', loadedText);
           
           // キャッシュを更新
           postTextCache.data = loadedText;
-          postTextCache.lastLoadTime = currentTime;
+          postTextCache.lastSaveTime = currentTime;
           
           // 現在のテキストと異なる場合のみ更新（無限ループ防止）
           if (loadedText !== postText && isMounted.current) {
@@ -1427,11 +1564,13 @@ export function usePostText(initialText: string = '') {
               isParentUpdating.current = false;
             }, 0);
           }
+        } else {
+          console.log('No saved post text found in localStorage');
         }
         
         return loadedText;
       } catch (error) {
-        console.error('Error loading post text:', error);
+        console.error('Error loading post text from localStorage:', error);
         if (isMounted.current) {
           setTextSaveError('投稿テキストの読み込みに失敗しました');
         }
@@ -1449,7 +1588,24 @@ export function usePostText(initialText: string = '') {
     } finally {
       postTextCache.loadPromise = null;
     }
-  }, [postText, userReadUrl, setPostTextWithoutSave]);
+  }, [postText, setPostTextWithoutSave]);
+
+  // グローバルなPostTextイベントリスナー - 他のコンポーネントからの更新を検知
+  useEffect(() => {
+    const handlePostTextUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{text: string, timestamp: number}>;
+      if (customEvent.detail && customEvent.detail.text !== currentTextRef.current) {
+        console.log('Received post_text_updated event:', customEvent.detail);
+        setPostTextWithoutSave(customEvent.detail.text);
+      }
+    };
+
+    window.addEventListener('post_text_updated', handlePostTextUpdated);
+    
+    return () => {
+      window.removeEventListener('post_text_updated', handlePostTextUpdated);
+    };
+  }, [setPostTextWithoutSave]);
   
   // コンポーネントのマウント/アンマウント状態を追跡
   useEffect(() => {
@@ -1468,24 +1624,20 @@ export function usePostText(initialText: string = '') {
       const currentText = currentTextRef.current.trim();
       if (currentText !== '' && currentText !== lastSavedText && hasChangedSinceLastCheck.current && !isPosted) {
         console.log('Saving unsaved changes before unmount');
-        // 即時実行せずに正しい値を参照するため一旦変数にキャプチャ
-        const textToSave = currentText;
-        // コンポーネントはアンマウント中なので、APIを直接呼び出す
-        fetch(userUpdateUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_post_text: textToSave }),
-          credentials: 'include'
-        }).catch(error => {
+        // ローカルストレージに直接保存
+        try {
+          localStorage.setItem(POST_TEXT_STORAGE_KEY, currentText);
+          console.log('Saved text to localStorage on unmount');
+          
+          // キャッシュも更新
+          postTextCache.data = currentText;
+          postTextCache.lastSaveTime = Date.now();
+        } catch (error) {
           console.error('Failed to save text on unmount:', error);
-        });
-        
-        // キャッシュも更新
-        postTextCache.data = textToSave;
-        postTextCache.lastLoadTime = Date.now();
+        }
       }
     };
-  }, [lastSavedText, userUpdateUrl]);
+  }, [lastSavedText]);
   
   // 初回マウント時のみテキストを読み込む
   useEffect(() => {
@@ -1494,13 +1646,13 @@ export function usePostText(initialText: string = '') {
       return;
     }
     
-    // initialTextが空の場合のみサーバーから読み込む
+    // initialTextが空の場合のみローカルストレージから読み込む
     if (initialText === '') {
       loadPostText().then(loadedText => {
         if (loadedText && isMounted.current) {
           // 読み込んだテキストをキャッシュに保存
           postTextCache.data = loadedText;
-          postTextCache.lastLoadTime = Date.now();
+          postTextCache.lastSaveTime = Date.now();
         }
       }).catch(error => {
         console.error('Failed to load post text at initial mount:', error);
@@ -1510,7 +1662,7 @@ export function usePostText(initialText: string = '') {
       initialLoadDone.current = true;
       // キャッシュも更新
       postTextCache.data = initialText;
-      postTextCache.lastLoadTime = Date.now();
+      postTextCache.lastSaveTime = Date.now();
     }
   }, []); // 初回のみ実行 (依存配列を空に)
   
@@ -1528,7 +1680,7 @@ export function usePostText(initialText: string = '') {
       
       // キャッシュも更新
       postTextCache.data = initialText;
-      postTextCache.lastLoadTime = Date.now();
+      postTextCache.lastSaveTime = Date.now();
     }
   }, [initialText, postText, setPostTextWithoutSave]);
   
