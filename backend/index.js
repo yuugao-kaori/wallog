@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 import fileCreateRoute from './api/drive/file_create.js';  // 変更: インポート名を変更
 import fileListRoute from './api/drive/file_list.js';  // 変更: インポート名を変更
 import fileReadRoute from './api/drive/file_read.js';  // 変更: インポート名を変更
+import fileUpdateRoute from './api/drive/file_update.js';  // 変更: インポート名を変更
 import fileDeleteRoute from './api/drive/file_delete.js';  // 変更: インポート名を変更
 import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
@@ -74,7 +75,7 @@ import todo_listRoute from './api/todo/todo_list.js'; // New: TODOリスト取�
 startMaintenanceScheduler();
 
 // ファイルアップロードルートの設定（file_create.js を使用）
-app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
+app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute, fileUpdateRoute);  // 変更: useメソッドを使用
 app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute,  post_listRoute, post_sseRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute, user_readRoute, user_updateRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);

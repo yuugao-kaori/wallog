@@ -96,15 +96,40 @@ router.get('/file/:file_id', async (req, res) => {
     try {
         await client.connect();
         
-        // ファイル情報をDBから取得
-        const query = 'SELECT file_format FROM drive WHERE file_id = $1';
+        // ファイル情報をDBから取得（EXIF情報を含む）
+        const query = `
+            SELECT 
+                drive.*
+            FROM drive 
+            WHERE file_id = $1`;
         const result = await client.query(query, [fileId]);
         
         if (result.rows.length === 0) {
             return res.status(404).send('File not found in database');
         }
 
-        const { file_format } = result.rows[0];
+        const fileData = result.rows[0];
+        const { file_format } = fileData;
+        
+        // EXIF情報をヘッダーに設定
+        // EXIFの公開設定がtrueの場合のみ、EXIF情報をヘッダーに追加
+        if (fileData.file_exif_public) {
+            if (fileData.file_exif_datetime) res.setHeader('X-EXIF-DateTime', fileData.file_exif_datetime);
+            if (fileData.file_exif_make) res.setHeader('X-EXIF-Make', fileData.file_exif_make);
+            if (fileData.file_exif_model) res.setHeader('X-EXIF-Model', fileData.file_exif_model);
+            if (fileData.file_exif_exposure_time) res.setHeader('X-EXIF-ExposureTime', fileData.file_exif_exposure_time);
+            if (fileData.file_exif_fnumber) res.setHeader('X-EXIF-FNumber', fileData.file_exif_fnumber);
+            if (fileData.file_exif_iso) res.setHeader('X-EXIF-ISO', fileData.file_exif_iso);
+            if (fileData.file_exif_focal_length) res.setHeader('X-EXIF-FocalLength', fileData.file_exif_focal_length);
+        }
+        
+        // GPS情報の公開設定がtrueの場合、GPS情報もヘッダーに追加
+        if (fileData.file_exif_gps_public) {
+            if (fileData.file_exif_gps_latitude) res.setHeader('X-EXIF-GPS-Latitude', fileData.file_exif_gps_latitude);
+            if (fileData.file_exif_gps_longitude) res.setHeader('X-EXIF-GPS-Longitude', fileData.file_exif_gps_longitude);
+            if (fileData.file_exif_gps_altitude) res.setHeader('X-EXIF-GPS-Altitude', fileData.file_exif_gps_altitude);
+            if (fileData.file_exif_image_direction) res.setHeader('X-EXIF-Image-Direction', fileData.file_exif_image_direction);
+        }
         
         // MinIOからファイルを取得
         const command = new GetObjectCommand({

@@ -66,6 +66,7 @@ const s3Client = new S3Client({
  * クエリパラメータ:
  * - limit: 取得する行数（デフォルト: 10）
  * - offset: 開始行（デフォルト: 0）
+ * - sort: ソート方法（オプション: 'exif_datetime'を指定するとEXIF日時でソート）
  */
 router.get('/file_list', async (req, res) => {
   if (!req.session) {
@@ -96,7 +97,7 @@ router.get('/file_list', async (req, res) => {
     console.log(`Session check successful: username = ${parsedSession.username}`);
 
     // Parse query parameters for pagination
-    let { limit, offset } = req.query;
+    let { limit, offset, sort } = req.query;
     limit = parseInt(limit, 10);
     offset = parseInt(offset, 10);
 
@@ -108,7 +109,7 @@ router.get('/file_list', async (req, res) => {
       offset = 0; // デフォルトの開始行
     }
 
-    console.log(`Fetching files with limit=${limit} and offset=${offset}`);
+    console.log(`Fetching files with limit=${limit} and offset=${offset}, sort=${sort}`);
 
     const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_NAME } = process.env;
 
@@ -124,12 +125,101 @@ router.get('/file_list', async (req, res) => {
     await client.connect();
     console.log('PostgreSQLに接続しました。');
 
+    // ORDER BY句の作成
+    let orderByClause;
+    let additionalWhereClause = '';
+    
+    if (sort === 'exif_datetime') {
+      // Exif日時でソートする場合は、file_exif_public=trueのファイルのみをfile_exif_datetimeの降順でソート
+      orderByClause = 'file_exif_datetime DESC NULLS LAST, file_createat DESC';
+      // file_exif_publicがtrueのデータのみを対象とする追加のWHERE条件
+      additionalWhereClause = 'AND file_exif_public = true AND file_exif_datetime IS NOT NULL';
+    } else {
+      // デフォルトは従来通り作成日時の降順
+      orderByClause = 'file_createat DESC';
+    }
+
     // SQLクエリの準備
     const query = `
-      SELECT file_id, user_id, file_size, file_format, file_attitude, file_createat, file_updateat
+      SELECT 
+        file_id, user_id, file_size, file_format, file_attitude, file_createat, file_updateat,
+        file_exif_public, file_exif_gps_public, file_exif_title,
+        CASE 
+          WHEN file_exif_public = true THEN 
+            to_char(file_exif_datetime, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+          ELSE NULL 
+        END AS file_exif_datetime,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_make 
+          ELSE NULL 
+        END AS file_exif_make,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_model 
+          ELSE NULL 
+        END AS file_exif_model,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_xresolution 
+          ELSE NULL 
+        END AS file_exif_xresolution,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_yresolution 
+          ELSE NULL 
+        END AS file_exif_yresolution,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_resolution_unit 
+          ELSE NULL 
+        END AS file_exif_resolution_unit,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_exposure_time 
+          ELSE NULL 
+        END AS file_exif_exposure_time,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_fnumber 
+          ELSE NULL 
+        END AS file_exif_fnumber,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_iso 
+          ELSE NULL 
+        END AS file_exif_iso,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_metering_mode 
+          ELSE NULL 
+        END AS file_exif_metering_mode,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_flash 
+          ELSE NULL 
+        END AS file_exif_flash,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_exposure_compensation 
+          ELSE NULL 
+        END AS file_exif_exposure_compensation,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_focal_length 
+          ELSE NULL 
+        END AS file_exif_focal_length,
+        CASE 
+          WHEN file_exif_public = true THEN file_exif_color_space 
+          ELSE NULL 
+        END AS file_exif_color_space,
+        CASE 
+          WHEN file_exif_public = true AND file_exif_gps_public = true THEN file_exif_gps_latitude 
+          ELSE NULL 
+        END AS file_exif_gps_latitude,
+        CASE 
+          WHEN file_exif_public = true AND file_exif_gps_public = true THEN file_exif_gps_longitude 
+          ELSE NULL 
+        END AS file_exif_gps_longitude,
+        CASE 
+          WHEN file_exif_public = true AND file_exif_gps_public = true THEN file_exif_gps_altitude 
+          ELSE NULL 
+        END AS file_exif_gps_altitude,
+        CASE 
+          WHEN file_exif_public = true AND file_exif_gps_public = true THEN file_exif_image_direction 
+          ELSE NULL 
+        END AS file_exif_image_direction
       FROM drive
-      WHERE user_id = $1
-      ORDER BY file_createat DESC
+      WHERE user_id = $1 ${additionalWhereClause}
+      ORDER BY ${orderByClause}
       LIMIT $2 OFFSET $3;
     `;
     const values = [parsedSession.username, limit, offset];

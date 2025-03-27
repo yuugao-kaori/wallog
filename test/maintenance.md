@@ -1,7 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
 'Dev 2025.03.04.0031'
-- 既存のエディタ機能の無効化と新機能の連携を実施" && git push -u origin nextjs_test
+- Diaryにおいてテキストフォームの内容を保持するように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

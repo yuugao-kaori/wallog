@@ -164,8 +164,8 @@ export default function DrivePage() {
 
       {/* モバイル用モーダル */}
       {showUpload && (
-        <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative">
+        <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 max-h-[90vh] overflow-y-auto my-4 relative">
             <button
               className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"
               onClick={() => setShowUpload(false)}

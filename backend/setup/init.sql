@@ -113,7 +113,29 @@ CREATE TABLE IF NOT EXISTS "drive" (
     file_format CHARACTER VARYING,
     file_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    file_attitude NUMERIC DEFAULT 1
+    file_attitude NUMERIC DEFAULT 1,
+    file_exif_public BOOLEAN DEFAULT false,
+    file_exif_datetime TIMESTAMP WITH TIME ZONE,
+    file_exif_title TEXT,
+    file_exif_description TEXT,
+    file_exif_gps_latitude TEXT,
+    file_exif_gps_longitude TEXT,
+    file_exif_gps_altitude TEXT,
+    file_exif_gps_public BOOLEAN DEFAULT false,
+    file_exif_image_direction TEXT,
+    file_exif_make TEXT,
+    file_exif_model TEXT,
+    file_exif_xresolution TEXT,
+    file_exif_yresolution TEXT,
+    file_exif_resolution_unit TEXT,
+    file_exif_exposure_time TEXT,
+    file_exif_fnumber TEXT,
+    file_exif_iso TEXT,
+    file_exif_metering_mode TEXT,
+    file_exif_flash TEXT,
+    file_exif_exposure_compensation TEXT,
+    file_exif_focal_length TEXT,
+    file_exif_color_space TEXT
 );
 
 -- userテーブルの作成
@@ -198,4 +220,7 @@ CREATE TABLE IF NOT EXISTS "tasks-task_categories" (
     task_category_id NUMERIC REFERENCES task_category(task_category_id),
     PRIMARY KEY (task_id, task_category_id)
 );
+
+-- file_exif_datetimeのインデックスを追加（日時でのソート高速化用）
+CREATE INDEX drive_file_exif_datetime_idx ON drive(file_exif_datetime);
 
