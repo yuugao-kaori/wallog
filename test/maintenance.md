@@ -1,16 +1,19 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0031'
-- Diaryにおいてテキストフォームの内容を保持するように" && git push -u origin nextjs_test
+'Dev 2025.03.04.0034a'
+- ビルドに伴うエラーを修正" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 
 # appだけ再起動
-docker compose stop app && docker compose rm -f app && docker compose up -d app
+docker compose stop app && docker compose rm -f app && docker compose up -d app && docker logs -f app_unique
+docker compose stop app && docker compose rm -f app && docker compose up -d app 
+
 docker compose stop backend && docker compose rm -f backend && docker compose up -d backend
 docker compose stop nginx && docker compose rm -f nginx && docker compose up -d nginx
 docker logs --tail 500 backend_unique
 
+docker exec -it app_unique sh
 
 # コンテナでコード実行
 docker exec -i app-afm sh -c "node import_note_menu.js"

@@ -1,5 +1,5 @@
 'use client'
-const version = 'Dev 2025.03.04.0034'
+const version = 'Build 2025.03.27.0000'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
@@ -11,7 +11,7 @@ import { IoMail  } from 'react-icons/io5'
 import { TbWorld,TbBadgeVrFilled  } from 'react-icons/tb'
 import { useTheme } from './ThemeProvider'
 
-// APIインスタンスをメモ化
+// APIインスタンスをメモ化                                                                                                                                                                                                                                                                                                
 const useApi = () => {
   return useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',

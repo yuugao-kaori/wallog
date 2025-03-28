@@ -247,7 +247,7 @@ export function processPostText(
   // タグがあれば追加処理を行う
   if (allTags.length > 0) {
     return textWithoutTags 
-      ? `${textWithoutTags}\n\n${allTags.join(' ')}`
+      ? `${textWithoutTags}\n${allTags.join(' ')}`
       : allTags.join(' ');
   }
   
@@ -1466,6 +1466,24 @@ export function usePostText(initialText: string = '') {
       scheduleDelayedSave();
     } else {
       console.log('Text unchanged or empty, not scheduling save');
+      
+      // 空テキストの場合は即座にローカルストレージから削除
+      if (value.trim() === '') {
+        localStorage.removeItem(POST_TEXT_STORAGE_KEY);
+        console.log('Text is empty, removed draft from localStorage');
+        
+        // キャッシュも更新
+        postTextCache.data = null;
+        postTextCache.lastSaveTime = Date.now();
+        
+        // 現在の保存値を更新
+        setLastSavedText('');
+        
+        // グローバルイベントを発火して他のコンポーネントに変更を通知
+        window.dispatchEvent(new CustomEvent('post_text_updated', { 
+          detail: { text: '', timestamp: Date.now(), source: 'cleared' } 
+        }));
+      }
     }
   }, [lastSavedText, scheduleDelayedSave]);
   

@@ -67,12 +67,14 @@ const PostForm: React.FC<PostFormProps> = ({
   handleDeletePermanently,
 }) => {
   // usePostTextフックを使用して投稿テキストを管理
-  // 空文字列で初期化し、すぐにローカルストレージからロードする
+  // 空文字列で初期化し、ローカルストレージからロードする優先順位を高く設定
   const postTextState = usePostText(''); 
   // 静的な値として初期読み込み済みかを判断するフラグ
   const isInitialSync = useRef(true);
   // ローカルストレージからのデータロード完了フラグ
   const [hasLoadedFromLocalStorage, setHasLoadedFromLocalStorage] = useState(false);
+  // APIから復元された可能性のあるテキストを追跡するフラグ
+  const hasApiProvidedText = useRef(!!postText);
 
   // コンポーネント初回マウント時にローカルストレージからデータをロード
   useEffect(() => {
@@ -82,16 +84,21 @@ const PostForm: React.FC<PostFormProps> = ({
       postTextState.loadPostText().then((loadedText: string | null) => {
         if (loadedText) {
           console.log('Loaded text from localStorage in PostForm:', loadedText);
-          // 読み込んだテキストで親の状態も更新する
+          // ローカルストレージから読み込んだテキストを優先し、親の状態も更新する
           setPostText(loadedText);
+          // テキスト入力欄にも反映
+          postTextState.setPostTextWithoutSave(loadedText);
+        } else if (postText && hasApiProvidedText.current) {
+
         }
         setHasLoadedFromLocalStorage(true);
       }).catch((error: Error) => {
         console.error('Failed to load text from localStorage:', error);
+
         setHasLoadedFromLocalStorage(true); // エラー時もロード完了とマーク
       });
     }
-  }, [postTextState, setPostText, hasLoadedFromLocalStorage]);
+  }, [postTextState, setPostText, hasLoadedFromLocalStorage, postText]);
 
   // 親コンポーネントとテキスト状態を同期する - ローカルストレージ読み込み後のみ実行
   useEffect(() => {
@@ -100,10 +107,10 @@ const PostForm: React.FC<PostFormProps> = ({
       return;
     }
     
-    // 初回マウント時または親からの値が変更された場合のみ実行
-    if (postTextState.postText !== postText) {
-      // 親コンポーネントからの変更時はusePostTextの状態を更新（保存なし）
-      postTextState.setPostTextWithoutSave(postText);
+
+    // 初期同期フラグをクリア（最初の一度だけ実行）
+    if (isInitialSync.current) {
+      isInitialSync.current = false;
     }
   }, [postText, postTextState, hasLoadedFromLocalStorage]);
 
@@ -112,8 +119,17 @@ const PostForm: React.FC<PostFormProps> = ({
     const newValue = e.target.value;
     // 親コンポーネントに通知
     setPostText(newValue);
-    // usePostText内の状態も更新（デバウンスされた保存を含む）
-    postTextState.handlePostTextChange(e);
+    
+    // イベントオブジェクトの型をチェックして適切に処理
+    if (e.target instanceof HTMLTextAreaElement) {
+      // TextAreaからのイベントとして処理
+      const textAreaEvent = e as React.ChangeEvent<HTMLTextAreaElement>;
+      postTextState.handlePostTextChange(textAreaEvent);
+    } else if (e.target instanceof HTMLInputElement) {
+      // Inputからのイベントとして処理
+      const inputEvent = e as React.ChangeEvent<HTMLInputElement>;
+      postTextState.handlePostTextChange(inputEvent);
+    }
   }, [setPostText, postTextState.handlePostTextChange]);
 
   // 共通ハッシュタグフック - 親コンポーネントから受け取った値を初期値として使用
@@ -344,7 +360,7 @@ const PostForm: React.FC<PostFormProps> = ({
           <div className="relative">
             <textarea
               value={postTextState.postText}
-              onChange={handleTextChange} // ここを修正：handlePostTextChangeではなくhandleTextChangeを使用
+              onChange={handleTextChange}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
