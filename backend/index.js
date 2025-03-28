@@ -31,13 +31,12 @@ app.use((req, res, next) => {
 import fileCreateRoute from './api/drive/file_create.js';  // 変更: インポート名を変更
 import fileListRoute from './api/drive/file_list.js';  // 変更: インポート名を変更
 import fileReadRoute from './api/drive/file_read.js';  // 変更: インポート名を変更
+import fileUpdateRoute from './api/drive/file_update.js';  // 変更: インポート名を変更
 import fileDeleteRoute from './api/drive/file_delete.js';  // 変更: インポート名を変更
 import post_createRoute from './api/post/post_create.js';
 import post_deleteRoute from './api/post/post_delete.js';
 import post_sseRoute from './api/post/post_sse.js';
 import post_listRoute from './api/post/post_list.js';
-import post_searchRoute from './api/post/post_search.js';
-import tag_searchRoute from './api/post/tag_search.js';
 import post_readRoute from './api/post/post_read.js';
 import loginRoute from './api/user/login.js';
 import logoutRoute from './api/user/logout.js';
@@ -61,19 +60,23 @@ import blog_updateRoute from './api/blog/blog_update.js';
 import blog_deleteRoute from './api/blog/blog_delete.js';
 import blog_listRoute from './api/blog/blog_list.js';
 import hashtagRankRoute from './api/hashtag/hashtag_rank.js';
+import sitecardGetRoute from './api/sitecard/sitecard_get.js'; // New: サイトカード取得ルート
+import sitecardUpdateRoute from './api/sitecard/sitecard_update.js'; // New: サイトカード更新ルート
 import { startMaintenanceScheduler } from './maintenance/maintenanceScheduler.js';
 import logs_readRoute from './api/logs/logs_read.js';
 import logs_createRoute from './api/logs/logs_create.js';
-
-
+import all_search from './api/search/all_search.js';
+import todo_createRoute from './api/todo/todo_create.js'; // New: TODO作成ルート追加
+import todo_updateRoute from './api/todo/todo_update.js'; // New: TODO更新ルート追加
+import todo_listRoute from './api/todo/todo_list.js'; // New: TODOリスト取得ルート追加
 
 // blog2のtest
 // スケジューラーを実際に起動
 startMaintenanceScheduler();
 
 // ファイルアップロードルートの設定（file_create.js を使用）
-app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute);  // 変更: useメソッドを使用
-app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute, post_searchRoute, tag_searchRoute, post_listRoute, post_sseRoute);
+app.use('/api/drive', fileCreateRoute, fileListRoute, fileReadRoute, fileDeleteRoute, fileUpdateRoute);  // 変更: useメソッドを使用
+app.use('/api/post', post_createRoute, post_deleteRoute, post_readRoute,  post_listRoute, post_sseRoute);
 app.use('/api/user', loginRoute, logoutRoute, login_checkRoute, user_readRoute, user_updateRoute);
 app.use('/api/test', test1Route, test2Route, test3Route, test4Route);
 app.use('/api/settings', settings_readRoute, settings_updateRoute, settings_writeRoute);
@@ -81,6 +84,82 @@ app.use('/api/sticky_note', sticky_note_createRoute, sticky_note_readRoute, stic
 app.use('/api/blog', blog_createRoute, blog_readRoute, blog_updateRoute, blog_deleteRoute, blog_listRoute);
 app.use('/api/hashtag', hashtagRankRoute); 
 app.use('/api/logs', logs_readRoute, logs_createRoute);
+app.use('/api/search', all_search);
+app.use('/api/sitecard', sitecardGetRoute, sitecardUpdateRoute); // New: サイトカードAPIのルートを追加
+app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_listRoute); // TODOリスト取得ルートを追加
+
+// サイトマップへのアクセスを処理
+app.get('/sitemap.xml', (req, res) => {
+    // サイトマップファイルのパスを指定
+    const sitemapPath = './public/sitemap/sitemap.xml';
+    
+    // ファイルが存在するか確認
+    fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.error(`[${new Date().toISOString()}] Sitemap file not found:`, err);
+        return res.status(404).send('Sitemap not found');
+      }
+      
+      // Content-Typeを設定してファイルを送信
+      res.setHeader('Content-Type', 'application/xml');
+      res.sendFile(sitemapPath, { root: process.cwd() });
+    });
+  });
+
+// DiaryのRSSへのアクセスを処理
+app.get('/diary/feed.xml', (req, res) => {
+  // サイトマップファイルのパスを指定
+  const sitemapPath = './public/rss/diary/feed.xml';
+  
+  // ファイルが存在するか確認
+  fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] feed file not found:`, err);
+      return res.status(404).send('diary_feed not found');
+    }
+    
+    // Content-Typeを設定してファイルを送信
+    res.setHeader('Content-Type', 'application/xml');
+    res.sendFile(sitemapPath, { root: process.cwd() });
+  });
+});
+
+
+// BlogのRSSへのアクセスを処理
+app.get('/blog/feed.xml', (req, res) => {
+  // サイトマップファイルのパスを指定
+  const sitemapPath = './public/rss/blog/feed.xml';
+  
+  // ファイルが存在するか確認
+  fs.access(sitemapPath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] feed file not found:`, err);
+      return res.status(404).send('blog_feed not found');
+    }
+    
+    // Content-Typeを設定してファイルを送信
+    res.setHeader('Content-Type', 'application/xml');
+    res.sendFile(sitemapPath, { root: process.cwd() });
+  });
+});
+
+// robots.txtへのアクセスを処理
+app.get('/robots.txt', (req, res) => {
+    // robots.txtファイルのパスを指定
+    const robotsPath = './public/robots/robots.txt';
+    
+    // ファイルが存在するか確認
+    fs.access(robotsPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.error(`[${new Date().toISOString()}] robots.txt file not found:`, err);
+        return res.status(404).send('robots.txt not found');
+      }
+      
+      // Content-Typeを設定してファイルを送信
+      res.setHeader('Content-Type', 'text/plain');
+      res.sendFile(robotsPath, { root: process.cwd() });
+    });
+});
 
 // 404エラーハンドリング
 app.use((req, res, next) => {

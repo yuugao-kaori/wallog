@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS "post" (
     misskey_create_at  TIMESTAMP,
     misskey_hashtag TEXT[],
     misskey_file_name TEXT[],
-    misskey_attitude NUMERIC DEFAULT 1,
+    misskey_attitude NUMERIC DEFAULT 1
 );
 
 CREATE INDEX post_post_id_idx ON post(post_id);
@@ -79,15 +79,29 @@ CREATE TABLE IF NOT EXISTS "blog" (
     blog_description TEXT
 );
 
-
+-- todoテーブルの作成
+CREATE TABLE IF NOT EXISTS "todo" (
+    todo_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    todo_text TEXT,
+    todo_priority INTEGER CHECK (todo_priority BETWEEN 1 AND 5) DEFAULT 3,
+    todo_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_limitat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    todo_category TEXT,
+    todo_attitude NUMERIC DEFAULT 1,
+    todo_public BOOLEAN DEFAULT true,
+    todo_complete BOOLEAN DEFAULT false
+);
 
 -- site-cardテーブルの作成
 CREATE TABLE IF NOT EXISTS "site-card" (
-    site_card_id NUMERIC PRIMARY KEY,
+    site_card_id TEXT PRIMARY KEY,
     url_text TEXT NOT NULL,
     site_card_title TEXT,
     site_card_text TEXT,
-    site_card_thumbnail TEXT
+    site_card_thumbnail TEXT,
+    site_card_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- driveテーブルの作成
@@ -99,7 +113,29 @@ CREATE TABLE IF NOT EXISTS "drive" (
     file_format CHARACTER VARYING,
     file_createat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_updateat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    file_attitude NUMERIC DEFAULT 1
+    file_attitude NUMERIC DEFAULT 1,
+    file_exif_public BOOLEAN DEFAULT false,
+    file_exif_datetime TIMESTAMP WITH TIME ZONE,
+    file_exif_title TEXT,
+    file_exif_description TEXT,
+    file_exif_gps_latitude TEXT,
+    file_exif_gps_longitude TEXT,
+    file_exif_gps_altitude TEXT,
+    file_exif_gps_public BOOLEAN DEFAULT false,
+    file_exif_image_direction TEXT,
+    file_exif_make TEXT,
+    file_exif_model TEXT,
+    file_exif_xresolution TEXT,
+    file_exif_yresolution TEXT,
+    file_exif_resolution_unit TEXT,
+    file_exif_exposure_time TEXT,
+    file_exif_fnumber TEXT,
+    file_exif_iso TEXT,
+    file_exif_metering_mode TEXT,
+    file_exif_flash TEXT,
+    file_exif_exposure_compensation TEXT,
+    file_exif_focal_length TEXT,
+    file_exif_color_space TEXT
 );
 
 -- userテーブルの作成
@@ -117,6 +153,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     user_failcount SMALLSERIAL,
     user_token TEXT,
     user_hashtag text[],
+    user_post_text text,
     user_auto_hashtag text[]
 );
 
@@ -183,4 +220,7 @@ CREATE TABLE IF NOT EXISTS "tasks-task_categories" (
     task_category_id NUMERIC REFERENCES task_category(task_category_id),
     PRIMARY KEY (task_id, task_category_id)
 );
+
+-- file_exif_datetimeのインデックスを追加（日時でのソート高速化用）
+CREATE INDEX drive_file_exif_datetime_idx ON drive(file_exif_datetime);
 

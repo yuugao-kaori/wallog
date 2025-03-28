@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PostCard from '@/components/PostCard';
+import BlogCard from '@/components/BlogCard'; // Import the BlogCard component
 import axios from 'axios';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { format } from 'date-fns'; // 追加
+import { format } from 'date-fns';
+import { FaSearch } from "react-icons/fa"; // React Iconsからの検索アイコンをインポート
 
 interface Post {
   post_id: string;
@@ -15,6 +17,87 @@ interface Post {
   created_at: string;
   user_id: string;
 }
+
+// Blog interface for blog search results
+interface Blog {
+  blog_id: string;
+  blog_text: string;
+  blog_title: string;
+  blog_createat: string;
+  blog_thumbnail?: string;
+  blog_description?: string;
+}
+
+// Union type for search results
+type SearchResultItem = Post | Blog;
+
+// 新しいAPIレスポンス型定義
+interface SearchResponse {
+  success: boolean;
+  data: SearchResultItem[];
+  meta: {
+    total: number;
+    limit: number;
+    next_search_after: string | null;
+  };
+  error?: string;
+}
+
+// メタデータ表示用のコンポーネント
+interface SearchMetadataProps {
+  total: number;
+  currentPage: number;
+  hasMore: boolean;
+  searchTerm: string;
+  searchType: string;
+  sinceDate: string | null;
+  untilDate: string | null;
+}
+
+const SearchMetadata: React.FC<SearchMetadataProps> = ({
+  total,
+  currentPage,
+  hasMore,
+  searchTerm,
+  searchType,
+  sinceDate,
+  untilDate
+}) => {
+  const getSearchTypeLabel = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'post_full_text': 'Diary-全文検索',
+      'post_hashtag': 'Diary-タグ検索',
+      'blog_full_text': 'Blog-全文検索',
+      'blog_hashtag': 'Blog-タグ検索',
+      'blog_title': 'Blog-タイトル検索'
+    };
+    return typeMap[type] || type;
+  };
+
+  return (
+    <div className="p-4 mb-4 rounded-lg shadow">
+      <h3 className="text-s font-semibold mb-2 dark:text-white">検索結果</h3>
+      <div className="text-sm text-gray-600 dark:text-gray-300">
+        <p>総件数: {total}件  現在のページ: {currentPage}</p>
+        {searchTerm && (
+          <p>検索キーワード: 『<span className="font-medium">{searchTerm}</span>』</p>
+        )}
+        {searchTerm && (
+          <p>検索モード： ({getSearchTypeLabel(searchType)})</p>
+        )}
+        {(sinceDate || untilDate) && (
+          <p>
+            期間: 
+            {sinceDate ? <span className="font-medium">{sinceDate}</span> : '指定なし'}
+            {' 〜 '}
+            {untilDate ? <span className="font-medium">{untilDate}</span> : '指定なし'}
+          </p>
+        )}
+        {hasMore && <p className="text-blue-500">※ さらに結果があります</p>}
+      </div>
+    </div>
+  );
+};
 
 export default function SearchPage() {
   // 日付変換用の関数を改善
@@ -47,46 +130,83 @@ export default function SearchPage() {
     }
   };
 
+
+  // ログイン状態の管理
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const response = await axios.get('/api/user/login_check');
+        setIsLoggedIn(response.status === 200);
+      } catch (err) {
+        setIsLoggedIn(false);
+      }
+    };
+
+    checkLogin();
+  }, []);
+
+
   const searchParams = useSearchParams();
   const router = useRouter();
   
   const urlSearchText = searchParams.get('searchText') || '';
-  const urlSearchType = searchParams.get('searchType') || 'full_text';
+  const urlSearchType = searchParams.get('searchType') || 'post_full_text';
   const urlSinceDate = searchParams.get('since') || '';
   const urlUntilDate = searchParams.get('until') || '';
 
   const [searchText, setSearchText] = useState(urlSearchText);
   const [searchType, setSearchType] = useState(urlSearchType);
-  const [results, setResults] = useState<Post[]>([]);
-  const [offset, setOffset] = useState<string | null>(null);
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [nextSearchAfter, setNextSearchAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const isLoggedIn = true;
   // 初期値にURLパラメータを設定
   const [sinceDate, setSinceDate] = useState<string>(convertPostIdToDateString(urlSinceDate));
   const [untilDate, setUntilDate] = useState<string>(convertPostIdToDateString(urlUntilDate));
+  // モーダル状態
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const formatDate = (date: Date): string => {
+  const formatDate = (date: Date | string): string => {
+    if (typeof date === 'string') {
+      date = new Date(date);
+    }
     const pad = (n: number): string => String(n).padStart(2, '0');
     return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
-  // 追加: 日時をpost_idに変換する関数
+  // 日時をpost_idに変換する関数
   const convertDateToPostId = (dateStr: string, isStart: boolean): string => {
-    const date = new Date(dateStr);
-    const formatString = format(date, 'yyyyMMddHHmmss');
-    const randomDigits = isStart ? '000000' : '999999';
-    return `${formatString}${randomDigits}`;
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
+      const formatString = format(date, 'yyyyMMddHHmmss');
+      const randomDigits = isStart ? '000000' : '999999';
+      return `${formatString}${randomDigits}`;
+    } catch (error) {
+      console.error('Date conversion error:', error);
+      return '';
+    }
   };
 
-  // 追加: オフセットの履歴を保持
-  const [offsetHistory, setOffsetHistory] = useState<string[]>([]);
-  const [currentOffsetIndex, setCurrentOffsetIndex] = useState<number>(-1);
+  // Helper function to check if a search result is a blog
+  const isBlog = (item: SearchResultItem): item is Blog => {
+    return 'blog_title' in item;
+  };
+
+  // 検索履歴を保持（検索後メタデータを使用）
+  const [searchHistory, setSearchHistory] = useState<Array<string | null>>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
+
+  // メタデータ用の状態変数
+  const [totalResults, setTotalResults] = useState<number>(0);
 
   const performSearch = useCallback(
-    async (searchTerm: string, searchMode: string, initial = true) => {
-      // 検索条件の検証を修正
+    async (searchTerm: string, searchMode: string, initial = true, customSearchAfter?: string | null) => {
+      // 検索条件の検証
       if (searchTerm.trim() === '' && !sinceDate && !untilDate) {
         alert('検索文字を入力するか、日時を指定してください。');
         return;
@@ -94,162 +214,159 @@ export default function SearchPage() {
 
       if (loading) return;
 
-      if (initial) {
-        setLoading(true);
-        setError(null);
-        setResults([]);
-        setOffset(null);
-        setHasMore(false);
-        setOffsetHistory([]);
-        setCurrentOffsetIndex(-1);
-      }
-
       try {
-        // 基本のAPIエンドポイントを設定
-        const baseUrl = '/api/post/search';
-        let apiUrl = searchTerm.trim() !== '' 
-          ? `${baseUrl}/${encodeURIComponent(searchTerm)}`
-          : baseUrl;
+        setLoading(true);
+        if (initial) {
+          setError(null);
+          setResults([]);
+          setNextSearchAfter(null);
+          setHasMore(false);
+          setSearchHistory([]);
+          setCurrentSearchIndex(-1);
+          setTotalResults(0); // メタデータをリセット
+        }
 
-        // パラメータの構築を修正
+        // APIエンドポイント
+        const apiUrl = '/api/search/all_search';
+        
+        // パラメータの構築
         const params: Record<string, string> = {
-          searchType: searchMode,
-          limit: '10'  // limitパラメータを常に含める
+          limit: '10'
         };
         
-        // offset, since, untilの処理を修正
-        if (offset) params.offset = offset;
-        if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
-        if (untilDate) params.until = convertDateToPostId(untilDate, false);
+        // 検索条件の追加
+        if (searchTerm.trim() !== '') {
+          params.q = searchTerm;
+          params.type = searchMode;
+        }
+        
+        // search_afterパラメータの追加
+        const searchAfterParam = customSearchAfter !== undefined ? customSearchAfter : (initial ? null : nextSearchAfter);
+        if (searchAfterParam) {
+          params.search_after = searchAfterParam;
+        }
+        
+        // 日付範囲パラメータ
+        if (sinceDate) {
+          const sinceDateId = convertDateToPostId(sinceDate, true);
+          if (sinceDateId) params.since = sinceDateId;
+        }
+        
+        if (untilDate) {
+          const untilDateId = convertDateToPostId(untilDate, false);
+          if (untilDateId) params.until = untilDateId;
+        }
 
-        const queryString = new URLSearchParams(params).toString();
-        const fullUrl = `${apiUrl}${queryString ? `?${queryString}` : ''}`;
-
-        const response = await axios.get(fullUrl, {
+        // API呼び出し
+        const response = await axios.get(apiUrl, {
+          params,
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
         });
 
-        // レスポンスデータの型チェックと変換を明示的に行う
-        const data = response.data;
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid response format');
+        // レスポンス処理
+        const responseData = response.data as SearchResponse;
+        
+        if (!responseData.success || !responseData.data) {
+          throw new Error(responseData.error || '検索結果の取得に失敗しました');
         }
 
-        const cleanData = data.map((post: Post) => ({
-          post_id: post.post_id,
-          post_createat: post.post_createat,
-          post_text: post.post_text,
-          post_tag: post.post_tag,
-          post_file: post.post_file,
-          created_at: post.created_at,
-          user_id: post.user_id
-        }));
+        // 結果とメタデータを更新
+        setResults(responseData.data);
+        setNextSearchAfter(responseData.meta.next_search_after);
+        setHasMore(Boolean(responseData.meta.next_search_after));
+        setTotalResults(responseData.meta.total); // 総件数を保存
         
-        setResults(cleanData); // 置き換えに変更（追加ではなく）
-        
-        if (data.length === 10) {
-          const lastPost = data[data.length - 1];
-          setOffset(lastPost.post_id);
-          setHasMore(true);
-          
-          // オフセット履歴を更新
+        // 履歴更新
+        if (responseData.meta.next_search_after) {
           if (initial) {
-            setOffsetHistory([lastPost.post_id]);
-            setCurrentOffsetIndex(0);
+            setSearchHistory([responseData.meta.next_search_after]);
+            setCurrentSearchIndex(0);
           } else {
-            setOffsetHistory(prev => [...prev, lastPost.post_id]);
-            setCurrentOffsetIndex(prev => prev + 1);
+            setSearchHistory(prev => [...prev, responseData.meta.next_search_after as string]);
+            setCurrentSearchIndex(prev => prev + 1);
           }
-        } else {
-          setHasMore(false);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました。');
+        console.error('Search error:', err);
+        setError(err instanceof Error ? err.message : '検索中にエラーが発生しました。');
       } finally {
         setLoading(false);
       }
     },
-    [loading, sinceDate, untilDate]
+    [loading, sinceDate, untilDate, nextSearchAfter]
   );
 
-  // 追加: 前のページに移動
+  // 前のページに移動
   const handlePrevPage = useCallback(() => {
-    if (currentOffsetIndex <= 0) return;
+    if (currentSearchIndex <= 0) return;
     
-    const newIndex = currentOffsetIndex - 1;
-    const prevOffset = newIndex === 0 ? null : offsetHistory[newIndex - 1];
-    setOffset(prevOffset);
-    setCurrentOffsetIndex(newIndex);
-    performSearch(searchText, searchType, false);
-  }, [currentOffsetIndex, offsetHistory, searchText, searchType]);
+    const newIndex = currentSearchIndex - 1;
+    const prevSearchAfter = newIndex === 0 ? null : searchHistory[newIndex - 1];
+    
+    // 前のページを検索
+    performSearch(searchText, searchType, true, prevSearchAfter);
+    
+    // 状態を更新
+    setCurrentSearchIndex(newIndex);
+  }, [currentSearchIndex, searchHistory, searchText, searchType, performSearch]);
 
-  // 追加: 次のページに移動
-  const handleNextPage = useCallback(async () => {
+  // 次のページに移動
+  const handleNextPage = useCallback(() => {
     if (!hasMore || loading) return;
     
-    const baseUrl = '/api/post/search';
-    const apiUrl = searchText.trim() !== ''
-      ? `${baseUrl}/${encodeURIComponent(searchText)}`
-      : baseUrl;
+    // 次のページを検索
+    performSearch(searchText, searchType, false);
+  }, [hasMore, loading, searchText, searchType, performSearch]);
 
-    const params: Record<string, string> = {
-      searchType: searchType,
-      limit: '10'
-    };
-
-    // offset, since, untilの処理を追加
-    if (offset) params.offset = offset;
-    if (sinceDate) params.since = convertDateToPostId(sinceDate, true);
-    if (untilDate) params.until = convertDateToPostId(untilDate, false);
-
-    try {
-      setLoading(true);
-      const response = await axios.get(`${apiUrl}?${new URLSearchParams(params).toString()}`);
-      const data = response.data;
-
-      if (data && Array.isArray(data)) {
-        setResults(data);
-        
-        if (data.length === 10) {
-          const lastPost = data[data.length - 1];
-          setOffset(lastPost.post_id);
-          setHasMore(true);
-          setOffsetHistory(prev => [...prev, lastPost.post_id]);
-          setCurrentOffsetIndex(prev => prev + 1);
-        } else {
-          setHasMore(false);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました。');
-    } finally {
-      setLoading(false);
-    }
-  }, [hasMore, loading, offset, searchText, searchType, sinceDate, untilDate]);
-
-  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, post_id: string): Promise<boolean> => {
-    event.stopPropagation();  // イベントの伝播を停止
+  // 投稿削除処理
+  const handleDelete = async (event: React.MouseEvent<Element, MouseEvent>, id: string): Promise<boolean> => {
+    event.stopPropagation();
     if (!window.confirm('本当に削除しますか？')) return false;
 
     try {
-      const response = await axios.delete('/api/post/post_delete', {
-        data: { post_id },
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 200) {
-        setResults((prevResults) => prevResults.filter(post => post.post_id !== post_id));
-        alert('投稿が削除されました。');
-        return true;
+      // Determine if we're deleting a post or blog based on the search type
+      const isBlogSearch = ['blog_full_text', 'blog_hashtag', 'blog_title'].includes(searchType);
+      
+      if (isBlogSearch) {
+        // Blog deletion
+        const response = await axios.post('/api/blog/blog_delete', {
+          file_id: id
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.status === 200) {
+          setResults((prevResults) => prevResults.filter(item => 
+            isBlog(item) ? item.blog_id !== id : true
+          ));
+          alert('ブログが削除されました。');
+          return true;
+        }
       } else {
-        alert('削除に失敗しました。');
-        return false;
+        // Post deletion (diary)
+        const response = await axios.delete('/api/post/post_delete', {
+          data: { post_id: id },
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.status === 200) {
+          setResults((prevResults) => prevResults.filter(item => 
+            !isBlog(item) ? item.post_id !== id : true
+          ));
+          alert('投稿が削除されました。');
+          return true;
+        }
       }
+      
+      alert('削除に失敗しました。');
+      return false;
     } catch (error) {
       console.error('削除エラー:', error);
       alert('エラーが発生しました。');
@@ -257,11 +374,11 @@ export default function SearchPage() {
     }
   };
 
-  // handleSearch関数の日付パラメータ処理を修正
+  // 検索実行
   const handleSearch = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void => {
     event.preventDefault();
     
-    // 検索条件の検証を修正
+    // 検索条件の検証
     if (searchText.trim() === '' && !sinceDate && !untilDate) {
       alert('検索文字を入力するか、日時を指定してください。');
       return;
@@ -274,14 +391,13 @@ export default function SearchPage() {
       queryParams.set('searchType', searchType);
     }
     
-    // 日付パラメータの検証と設定を改善
+    // 日付パラメータの設定
     if (sinceDate && sinceDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
       queryParams.set('since', sinceDate);
     }
     if (untilDate && untilDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
       queryParams.set('until', untilDate);
     }
-    queryParams.set('limit', '10');  // limitパラメータを追加
 
     // URLを更新
     const queryString = queryParams.toString();
@@ -290,62 +406,90 @@ export default function SearchPage() {
     // 検索を実行
     performSearch(searchText, searchType, true);
     
-    // モバイル用モーダルを閉じる
+    // モーダルを閉じる
     setIsModalOpen(false);
   };
 
-  // URLパラメータの変更を監視して検索を実行するuseEffectを修正
+  // URLパラメータが変更されたときに検索を実行
   useEffect(() => {
-    let isInitialMount = true;
-
-    if (isInitialMount) {
+    // コンポーネントがマウントされた時だけ実行する
+    const executeInitialSearch = () => {
+      // URLパラメーターから値を設定
       setSearchText(urlSearchText);
       setSearchType(urlSearchType);
       
-      try {
-        // 日付パラメータの処理を改善
-        if (urlSinceDate) {
-          const normalizedSinceDate = convertPostIdToDateString(urlSinceDate);
-          if (normalizedSinceDate) {
-            setSinceDate(normalizedSinceDate);
-          } else {
-            console.warn('Invalid since date format:', urlSinceDate);
-          }
+      // 日付パラメータの処理
+      if (urlSinceDate) {
+        const normalizedSinceDate = convertPostIdToDateString(urlSinceDate);
+        if (normalizedSinceDate) {
+          setSinceDate(normalizedSinceDate);
         }
-        
-        if (urlUntilDate) {
-          const normalizedUntilDate = convertPostIdToDateString(urlUntilDate);
-          if (normalizedUntilDate) {
-            setUntilDate(normalizedUntilDate);
-          } else {
-            console.warn('Invalid until date format:', urlUntilDate);
-          }
-        }
-        
-        // 検索条件が存在する場合は検索を実行
-        if (urlSearchText || (urlSinceDate && convertPostIdToDateString(urlSinceDate)) || (urlUntilDate && convertPostIdToDateString(urlUntilDate))) {
-          performSearch(urlSearchText, urlSearchType, true);
-        }
-      } catch (error) {
-        console.error('Date parameter processing error:', error);
-        setError('日付の形式が正しくありません');
       }
-    }
-
-    return () => {
-      isInitialMount = false;
+      
+      if (urlUntilDate) {
+        const normalizedUntilDate = convertPostIdToDateString(urlUntilDate);
+        if (normalizedUntilDate) {
+          setUntilDate(normalizedUntilDate);
+        }
+      }
+      
+      // 検索条件があれば検索実行
+      if (urlSearchText || urlSinceDate || urlUntilDate) {
+        // 少し遅延させて実行（状態が完全に更新された後）
+        setTimeout(() => {
+          performSearch(urlSearchText, urlSearchType, true);
+        }, 0);
+      }
     };
+    
+    executeInitialSearch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlSearchText, urlSearchType, urlSinceDate, urlUntilDate]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
+  // モーダル表示時のスクロール制御
   useEffect(() => {
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
+    
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
   }, [isModalOpen]);
+
+  // Check if the search type is for blogs
+  const isBlogSearch = searchType.startsWith('blog_');
+
+  // Render a search result item based on its type
+  const renderSearchResultItem = (item: SearchResultItem, index: number) => {
+    // For blog search types, render BlogCard
+    if (isBlog(item)) {
+      return (
+        <BlogCard
+          key={item.blog_id}
+          blog={item}
+          isLoggedIn={isLoggedIn}
+          onDelete={isLoggedIn ? handleDelete : undefined}
+          formatDate={(date) => formatDate(date)}
+        />
+      );
+    }
+    // For post search types, render PostCard
+    else {
+      return (
+        <PostCard
+          key={item.post_id}
+          post={item as Post}
+          isLoggedIn={isLoggedIn}
+          onDelete={handleDelete}
+          handleDeleteClick={handleDelete}
+          formatDate={(date) => formatDate(date)}
+        />
+      );
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -360,17 +504,21 @@ export default function SearchPage() {
             <div className="text-center text-red-500">エラー: {error}</div>
           )}
 
-          <div className="flex flex-col space-y-4">
-            {results.map((post) => (
-              <PostCard
-                key={post.post_id}
-                post={post}
-                isLoggedIn={isLoggedIn}
-                onDelete={handleDelete}
-                handleDeleteClick={handleDelete}
-                formatDate={(date: string) => formatDate(new Date(date))}
-              />
-            ))}
+          {/* 検索結果メタデータの表示 */}
+          {!loading && results.length > 0 && (
+            <SearchMetadata 
+              total={totalResults}
+              currentPage={currentSearchIndex + 1}
+              hasMore={hasMore}
+              searchTerm={searchText}
+              searchType={searchType}
+              sinceDate={sinceDate}
+              untilDate={untilDate}
+            />
+          )}
+
+          <div className="flex flex-col">
+            {results.map((item, index) => renderSearchResultItem(item, index))}
           </div>
 
           {loading && (
@@ -381,19 +529,19 @@ export default function SearchPage() {
             <div className="text-center text-gray-500 mt-4">結果が見つかりませんでした。</div>
           )}
 
-          {/* 追加: ページネーションボタン */}
+          {/* ページネーションボタン */}
           {results.length > 0 && (
             <div className="flex justify-center space-x-4 my-4">
               <button
                 onClick={handlePrevPage}
-                disabled={currentOffsetIndex <= 0}
+                disabled={currentSearchIndex <= 0}
                 className={`px-4 py-2 rounded-md ${
-                  currentOffsetIndex <= 0
+                  currentSearchIndex <= 0
                     ? 'bg-gray-300 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-600 text-white'
                 }`}
               >
-                ＜
+                前へ
               </button>
               <button
                 onClick={handleNextPage}
@@ -404,7 +552,7 @@ export default function SearchPage() {
                     : 'bg-blue-500 hover:bg-blue-600 text-white'
                 }`}
               >
-                ＞
+                次へ
               </button>
             </div>
           )}
@@ -428,8 +576,11 @@ export default function SearchPage() {
               onChange={(e) => setSearchType(e.target.value)}
               className="w-full border border-gray-300 dark:bg-gray-800 px-4 py-2 rounded-md"
             >
-              <option value="full_text">全文検索</option>
-              <option value="hashtag">タグ検索</option>
+              <option value="post_full_text">Diary-全文検索</option>
+              <option value="post_hashtag">Diary-タグ検索</option>
+              <option value="blog_full_text">Blog-全文検索</option>
+              <option value="blog_hashtag">Blog-タグ検索</option>
+              <option value="blog_title">Blog-タイトル検索</option>
             </select>
             <input
               type="date"
@@ -458,7 +609,7 @@ export default function SearchPage() {
         className="md:hidden fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50"
         onClick={() => setIsModalOpen(true)}
       >
-        🔍
+        <FaSearch />
       </button>
 
       {/* モーダル内検索フォーム */}
@@ -479,10 +630,12 @@ export default function SearchPage() {
                 onChange={(e) => setSearchType(e.target.value)}
                 className="w-full border border-gray-300 dark:bg-gray-800 px-4 py-2 rounded-md"
               >
-                <option value="full_text">全文検索</option>
-                <option value="hashtag">タグ検索</option>
+                <option value="post_full_text">投稿-全文検索</option>
+                <option value="post_hashtag">投稿-タグ検索</option>
+                <option value="blog_full_text">ブログ-全文検索</option>
+                <option value="blog_hashtag">ブログ-タグ検索</option>
+                <option value="blog_title">ブログ-タイトル検索</option>
               </select>
-              {/* 追加: 日時入力 */}
               <input
                 type="date"
                 value={sinceDate}

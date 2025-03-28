@@ -8,8 +8,9 @@ import { FaTimes } from 'react-icons/fa';
 import PostFormPopup from '@/components/PostFormPopup';
 import NotificationComponent from '@/components/Notification';
 import Tagcloud from '@/components/Tagcloud';
-import { getTags, type TagData } from '@/lib/api';  // 追加
-import { FileItem } from '@/types';  // 追加
+import { getTags, type TagData } from '@/lib/api';
+// FileItemのインポートを変更
+import type { FileItem } from '@/components/PostFormCommon';  // PostFormCommonから直接インポート
 
 // 型定義
 interface Post {
@@ -19,6 +20,10 @@ interface Post {
   post_createat: string;
   title?: string;
   created_at: string;
+  repost_id?: string; // 追加: 引用元投稿ID 
+  reply_id?: string;  // 追加: 返信先投稿ID
+  repost_grant_id?: string;
+  reply_grant_id?: string;
 }
 
 // DriveFile インターフェースを修正
@@ -33,6 +38,11 @@ interface NotificationItem {
   id: string;
   message: string;
   action?: { label: string; onClick: () => void }; // 追加
+}
+
+// FileItemを拡張した型を作成
+interface ExtendedFileItem extends FileItem {
+  isExisting?: boolean;
 }
 
 const api = axios.create({
@@ -52,7 +62,7 @@ function Diary() {
   const [status, setStatus] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const [files, setFiles] = useState<FileItem[]>([]);
+  const [files, setFiles] = useState<ExtendedFileItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -64,6 +74,7 @@ function Diary() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [fixedHashtags, setFixedHashtags] = useState<string>('');  // 追加
+  // ハッシュタグ自動付与設定をデフォルトでfalseに設定
   const [autoAppendTags, setAutoAppendTags] = useState<boolean>(false);  // 追加
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [repostData, setRepostData] = useState<Post | null>(null);
@@ -76,6 +87,63 @@ function Diary() {
   const bottomBoundaryRef = useRef<HTMLDivElement>(null);
   const lastRequestTimeRef = useRef<number>(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+
+  // 引用・返信投稿を処理する関数を修正
+  const handleQuoteSubmit = async (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => {
+    try {
+      // 使用するファイル配列を決定 (引数で渡されたファイルがあればそれを使い、なければグローバルのfilesを使用)
+      const filesToUse = attachedFiles && attachedFiles.length > 0 ? attachedFiles : files;
+      
+      console.log(`handleQuoteSubmit called with:`, {
+        text,
+        type,
+        targetPostId,
+        attachedFiles,
+        filesToUse
+      });
+      
+      // ファイルIDを取得し、クリーニングする
+      const fileIds = filesToUse.map(file => typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id);
+      
+      console.log('handleQuoteSubmit with files:', filesToUse, 'cleaned IDs:', fileIds);
+      
+      // 引用投稿または返信投稿用のペイロードを作成
+      const payload = {
+        post_text: text,
+        // 重要: fileIdsが空でない場合のみpost_fileを追加
+        ...(fileIds.length > 0 && { post_file: fileIds }),
+        // 引用投稿の場合はrepost_idを追加
+        ...(type === 'quote' && { repost_id: targetPostId }),
+        // 返信投稿の場合はreply_idを追加
+        ...(type === 'reply' && { reply_id: targetPostId })
+      };
+
+      console.log(`Submitting ${type} post with payload:`, payload);
+
+      // APIリクエスト
+      const response = await api.post('/api/post/post_create', payload);
+      
+      // 成功メッセージ
+      addNotification(`${type === 'quote' ? '引用' : '返信'}投稿が成功しました！`);
+      
+      // 新しい投稿をリストに追加
+      if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+        setPosts(prevPosts => [response.data, ...prevPosts]);
+      }
+      
+      // 投稿後にファイルリストをクリア
+      if (!attachedFiles) {
+        setFiles([]);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error in ${type} submission:`, error);
+      addNotification(`${type === 'quote' ? '引用' : '返信'}投稿に失敗しました`);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -259,41 +327,6 @@ function Diary() {
     };
   }, []); // 依存配列を空に
 
-  const handleFiles = async (selectedFiles: FileList | null) => {
-    if (!selectedFiles) return;
-    const fileArray = Array.from(selectedFiles);
-    for (const file of fileArray) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const uploadResponse = await api.post('/api/drive/file_create', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        const metadataResponse = await api.get('/api/drive/file_list');
-        const fileMetadata = metadataResponse.data.files.find(
-          (f: DriveFile) => f.file_id === uploadResponse.data.file_id
-        );
-        
-        const fileId = uploadResponse.data.file_id;
-        const fileFormat = fileMetadata?.file_format?.toLowerCase() || '';
-        const isImage = !NON_IMAGE_TYPES.includes(fileFormat);
-        const url = `${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${fileId}`;
-        
-        setFiles(prev => [...prev, { 
-          id: fileId, 
-          url, 
-          isImage,
-          contentType: fileFormat,
-          isExisting: false  // 追加: 新規アップロードファイルとしてマー��
-        }]);
-      } catch (error) {
-        setStatus('ファイルのアップロードに失敗��ました。');
-      }
-    }
-  };
-
   const addNotification = useCallback((
     message: string,
     action?: { label: string; onClick: () => void },
@@ -310,41 +343,123 @@ function Diary() {
     }
   }, []);
 
+  // handleFiles関数を強化して、ファイルの処理を確実に行う
+  const handleFiles = useCallback((selectedFiles: FileList | null) => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    console.log('Files were handed to the parent component:', selectedFiles);
+    
+    // 既にアップロードされたファイルデータを持っている可能性があるので
+    // APIから詳細情報を取得
+    const checkExistingFiles = async () => {
+      // 現在files状態にあるIDのリスト
+      const existingIds = files.map(f => f.id);
+      
+      try {
+        // 最新のファイルリストを取得
+        const response = await api.get('/api/drive/file_list');
+        const apiFiles = response.data.files || [];
+        
+        console.log('API file_list response:', apiFiles);
+        
+        // 新しいファイルのみ追加
+        for (let i = 0; i < selectedFiles.length; i++) {
+          // ファイル名から対応するAPIレスポンスのファイルを検索
+          // ここでは新しくアップロードされたファイルを検出するためにタイムスタンプで並び替え
+          const apiFile = apiFiles
+            .sort((a: any, b: any) => new Date(b.file_createat).getTime() - new Date(a.file_createat).getTime())
+            .find((f: any) => f.file_name === selectedFiles[i].name);
+          
+          if (apiFile && !existingIds.includes(apiFile.file_id)) {
+            // 新しいファイルを追加
+            const fileType = selectedFiles[i].type;
+            const isImage = fileType.startsWith('image/');
+            
+            const newFile = {
+              id: apiFile.file_id,
+              name: selectedFiles[i].name,
+              size: selectedFiles[i].size,
+              contentType: fileType,
+              isImage,
+              isExisting: false
+            };
+            
+            setFiles(prev => [...prev, newFile]);
+            console.log(`Added new file: ${newFile.name} with ID: ${newFile.id}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking file list:', error);
+      }
+    };
+    
+    // 非同期処理の実行
+    checkExistingFiles();
+  }, [api, files, setFiles]);
+
   const removeNotification = (id: string) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   };
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent, finalText?: string) => {
-      e.preventDefault();
-      try {
-        const payload = {
-          post_text: finalText || postText,
-          ...(files.length > 0 && { post_file: files.map(file => file.id) })
-        };
+  const handleSubmit = useCallback(async (
+    e: React.FormEvent, finalText?: string, targetPostId?: string, mode?: string, submitFiles?: FileItem[], 
+    originalRepostId?: string, originalReplyId?: string  // 追加：元の引用/返信IDを受け取る
+  ) => {
+    e.preventDefault();
+    try {
+      // finalTextが渡された場合はそれを使う（既に子コンポーネントで処理済み）
+      // 渡されなかった場合は、processPostTextを使って親コンポーネントで処理する
+      let processedText = finalText;
 
-        const response = await api.post('/api/post/post_create', payload);
-        addNotification('投稿が成功しました！');
-        setPostText('');
-        setFiles([]); // 既存のファイル配列をクリア
-        
-        if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
-          setPosts(prevPosts => [response.data, ...prevPosts]);
-        }
-        
-        // モーダルを閉じる
-        setIsModalOpen(false);
-
-        // ファイル選択状態をリセット
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } catch (error) {
-        addNotification('投稿に失敗しました。');
+      if (!processedText) {
+        // processPostTextをインポートして使用する必要があります
+        const { processPostText } = await import('../../components/PostFormCommon');
+        processedText = processPostText(
+          postText,
+          new Set(), // 選択されたタグがない場合は空のSetを渡す
+          autoAppendTags, // 自動付与設定を渡す
+          fixedHashtags // 固定ハッシュタグを渡す
+        );
       }
-    },
-    [postText, files, addNotification]
-  );
+  
+      const payload = {
+        post_text: processedText || postText,
+        ...(files.length > 0 && { post_file: files.map(file => file.id) }),
+        ...(originalRepostId && { repost_id: originalRepostId }),
+        ...(originalReplyId && { reply_id: originalReplyId })
+      };
+      console.log('handleSubmit Payload:', payload);
+      
+      const response = await api.post('/api/post/post_create', payload);
+      
+      // 投稿成功時にローカルストレージの下書きをクリア
+      try {
+        // ローカルストレージから直接クリア
+        localStorage.removeItem('wallog_draft_post_text');
+        console.log('Post created successfully - localStorage draft cleared');
+      } catch (error) {
+        console.error('Failed to clear post text draft:', error);
+      }
+      
+      addNotification('投稿が成功しました！');
+      setPostText('');
+      setFiles([]); // 既存のファイル配列をクリア
+      
+      if (response.data.post_text && response.data.post_createat !== 'Date unavailable') {
+        setPosts(prevPosts => [response.data, ...prevPosts]);
+      }
+      
+      // モーダルを閉じる
+      setIsModalOpen(false);
+
+      // ファイル選択状態をリセット
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      addNotification('投稿に失敗しました。');
+    }
+  }, [addNotification, files, postText, setFiles, setPosts, setPostText, setIsModalOpen, fileInputRef, autoAppendTags, fixedHashtags]);
 
 // ファイル削除用の関数を修正
 const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
@@ -377,6 +492,12 @@ const handleDeleteFile = async (fileId: string | number): Promise<boolean> => {
 
 // 投稿削除用の関数を修正
 const handleDeletePost = async (event: React.MouseEvent, postId: string): Promise<boolean> => {
+  event.preventDefault();
+  event.stopPropagation();
+  return deletePost(postId);
+}
+
+const deletePost = async (postId: string): Promise<boolean> => {
   try {
     const response = await api.delete('/api/post/post_delete', {
       data: { post_id: postId }
@@ -387,13 +508,14 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       addNotification('投稿を削除しました');
       return true;
     }
-    throw new Error('削除に失敗しました');
+    addNotification('投稿の削除に失敗しました');
+    return false;
   } catch (error) {
     console.error('Error deleting post:', error);
     addNotification('投稿の削除に失敗しました');
     return false;
   }
-}
+};
 
   const handleCancelAttach = (fileId: string | number) => {
     setFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
@@ -513,6 +635,53 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
     openModal(true);
   };
 
+  // ユーザー設定を読み込む関数を修正
+  const loadUserSettings = useCallback(async () => {
+    if (!isLoggedIn) return;
+
+    try {
+      const response = await api.get('/api/user/user_read');
+      if (response.status === 200) {
+        const data = response.data;
+        console.log('User settings loaded in Diary component:', data);
+
+        // ハッシュタグ配列を半角スペース区切り文字列に変換
+        if (data.user_auto_hashtag && Array.isArray(data.user_auto_hashtag)) {
+          const hashtagsString: string = data.user_auto_hashtag
+            .filter((tag: string): boolean => typeof tag === 'string' && tag.trim() !== '')
+            .join(' ');
+          console.log('Setting fixed hashtags in Diary:', hashtagsString);
+          setFixedHashtags(hashtagsString);
+          // 自動付与はデフォルトでオフ - 設定がある場合も自動付与はオフのまま
+          setAutoAppendTags(false);
+        } else {
+          setFixedHashtags('');
+          setAutoAppendTags(false);
+        }
+
+        // 保存されていた投稿テキストがあれば復元する
+        if (data.user_post_text) {
+          console.log('Restoring saved post text:', data.user_post_text);
+          setPostText(data.user_post_text);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load user settings:', error);
+    }
+  }, [isLoggedIn, api, setFixedHashtags, setAutoAppendTags, setPostText]);
+
+  // ユーザー設定の読み込み状態を管理
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+
+  // ログイン状態が変更されたときにユーザー設定を読み込む
+  useEffect(() => {
+    if (isLoggedIn && !hasLoadedSettings) {
+      loadUserSettings().then(() => {
+        setHasLoadedSettings(true);
+      });
+    }
+  }, [isLoggedIn, loadUserSettings, hasLoadedSettings]);
+
   return (
     <div className="fixed inset-0 flex bg-white dark:bg-gray-900 duration-300">
       {/* メインコンテンツ */}
@@ -527,6 +696,17 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           hasMore={hasMore}
           loadMorePosts={loadMorePosts}
           onRepost={handleRepost}  // 追加
+          onQuoteSubmit={handleQuoteSubmit} // 追加
+          onCorrect={(post) => {
+            console.log('Correct mode initiated from PostFeed for post:', {
+              post_id: post.post_id,
+              repost_id: post.repost_id,
+              reply_id: post.reply_id
+            });
+            setRepostData(post);
+            setRepostText(post.post_text);
+            setIsModalOpen(true);
+          }}
         />
         </div>
       </div>
@@ -567,6 +747,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
                     setPostText={setPostText}
                     handleSubmit={handleSubmit}
                     files={files}
+                    setFiles={setFiles}
                     handleFiles={handleFiles}
                     handleDelete={handleDeleteFile}
                     onSelectExistingFiles={handleSelectExistingFiles}
@@ -600,36 +781,94 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       </button>
       )}
 
-      {/* ��バイル用モーダルをPostFormPopupに置き換え */}
+      {/* モバイル用モーダルをPostFormPopupに置き換え */}
       <PostFormPopup
       isOpen={isModalOpen}
       onClose={closeModal}
       postText={repostData ? repostText : postText}  // 変更: repostText を使用
       setPostText={repostData ? setRepostText : setPostText}  // 変更: repostData に応じて setter を切り替え
-      setFiles={(files: FileItem[]) => setFiles(files)}
-      handleSubmit={async (e, finalText) => {
+      setFiles={setFiles} // anyキャストを削除
+      handleSubmit={async (e, finalText, targetPostId, mode, submitFiles, originalRepostId, originalReplyId) => {
         e.preventDefault();
+
         try {
+          // デバッグ出力を強化
+          console.log('Submit called with enhanced debug:', {
+            finalText,
+            targetPostId,
+            mode,
+            hasRepostData: !!repostData,
+            files: submitFiles || files,
+            originalRepostId: originalRepostId || repostData?.repost_id,
+            originalReplyId: originalReplyId || repostData?.reply_id,
+            repostData: repostData ? {
+              post_id: repostData.post_id,
+              repost_id: repostData.repost_id,
+              reply_id: repostData.reply_id
+            } : null,
+            targetPost: targetPostId ? posts.find(p => p.post_id === targetPostId) : null
+          });
+          
+          // 使用するファイル配列を決定
+          const filesToUse = submitFiles || files;
+          
+          // repostDataがある場合はそこから元の投稿情報を取得
+          // これは引用/返信情報の継承に重要
+          const effectiveRepostId = originalRepostId || repostData?.repost_id;
+          const effectiveReplyId = originalReplyId || repostData?.reply_id;
+          
           if (repostData) {
-            // 古い投稿を削除
+            const originalFiles = filesToUse.slice();
+            
             const deleteSuccess = await handleDeletePost(
-              { stopPropagation: () => {} } as React.MouseEvent,
+              { preventDefault: () => {}, stopPropagation: () => {} } as React.MouseEvent,
               repostData.post_id
             );
             
-            if (!deleteSuccess) {
-              addNotification('古い投稿の削除に失敗しました');
-              return;
+            if (deleteSuccess) {
+              setFiles(originalFiles);
             }
           }
 
-          // 新しい投稿を作成
+          // 引用または返信モードの場合は特別な処理
+          if ((mode === 'quote' || mode === 'reply') && targetPostId) {
+            await handleQuoteSubmit(finalText, mode, targetPostId, filesToUse);
+            
+            // 引用・返信の場合もローカルストレージをクリア
+            try {
+              // ローカルストレージから直接クリア
+              localStorage.removeItem('wallog_draft_post_text');
+              console.log('Quote/reply post created - localStorage draft cleared');
+            } catch (error) {
+              console.error('Failed to clear post text draft after quote/reply:', error);
+            }
+            
+            closeModal();
+            return;
+          }
+
+          // payload構築時にcorrectモードの場合は特別処理を追加
           const payload = {
             post_text: finalText,
-            ...(files.length > 0 && { post_file: files.map(file => file.id) })
+            ...(filesToUse.length > 0 && { post_file: filesToUse.map(file => file.id) }),
+            // 元の投稿が引用または返信の場合、その情報を引き継ぐ
+            ...(effectiveRepostId && { repost_id: effectiveRepostId }),
+            ...(effectiveReplyId && { reply_id: effectiveReplyId })
           };
 
+          console.log('Sending API request with final payload:', payload);
+
           const response = await api.post('/api/post/post_create', payload);
+          
+          // 投稿成功時にローカルストレージの下書きをクリア
+          try {
+            // ローカルストレージから直接クリア
+            localStorage.removeItem('wallog_draft_post_text');
+            console.log('Post created successfully from modal - localStorage draft cleared');
+          } catch (error) {
+            console.error('Failed to clear post text draft from modal:', error);
+          }
+          
           addNotification('投稿が成功しました！');
           setPostText('');
           setFiles([]);
@@ -645,6 +884,7 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
           addNotification('投稿に失敗しました');
         }
       }}
+
       files={files}
       handleFiles={handleFiles}
       handleDeletePermanently={handleDeletePermanently} // 追加
@@ -653,10 +893,11 @@ const handleDeletePost = async (event: React.MouseEvent, postId: string): Promis
       onSelectExistingFiles={handleSelectExistingFiles}
       fixedHashtags={fixedHashtags}
       setFixedHashtags={setFixedHashtags}
-      autoAppendTags={autoAppendTags}  // ���加
+      autoAppendTags={autoAppendTags}  // 追加
       setAutoAppendTags={setAutoAppendTags}  // 追加
       repostMode={!!repostData}  // 追加
       handleCancelAttach={handleCancelAttach} // 追加
+      handleDelete={deletePost}  // 新しい関数を渡す
       />
 
       {/* ファ���ル選択モーダル */}

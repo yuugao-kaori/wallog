@@ -1,43 +1,89 @@
 'use client';
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';  // useState を追加
-import { Post } from './PostFeed'; // Add this line to import Post type
-import { getTags } from '../lib/api';  // Add this import
-import { FileItem } from '@/types';  // 型をインポート
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Post } from './PostFeed';
+import { 
+  FileItem, 
+  useHashtags, 
+  useFileUpload,
+  processPostText,
+  FilePreview,
+  cleanFileId,
+  isImageFile,
+  HashtagSelector,
+  usePostText // 新たに追加したフックをインポート
+} from './PostFormCommon';
 
-interface HashtagRank {  // 追加
-  post_tag_id: number;
-  post_tag_text: string;
-  use_count: number;
-}
+// Define PostMode type locally since it's not exported from PostFormCommon
+type PostMode = 'normal' | 'quote' | 'reply' | 'correct';
 
+/**
+ * PostFormPopupコンポーネントのプロパティ
+ */
 interface PostFormPopupProps {
+  /** ポップアップが表示されているかどうか */
   isOpen: boolean;
+  /** ポップアップを閉じる処理 */
   onClose: () => void;
+  /** 投稿テキスト */
   postText: string;
+  /** 投稿テキストを設定する関数 */
   setPostText: (text: string) => void;
-  handleSubmit: (e: React.FormEvent, finalPostText: string) => void;
+  /** フォーム送信時の処理 */
+  handleSubmit: (
+    e: React.FormEvent, 
+    finalPostText: string, 
+    targetPostId?: string, 
+    mode?: PostMode, 
+    files?: FileItem[],
+    originalRepostId?: string, // 追加: 元の引用投稿ID
+    originalReplyId?: string   // 追加: 元の返信投稿ID
+  ) => void;
+  /** 添付ファイルのリスト */
   files: FileItem[];
+  /** ファイル追加時の処理 */
   handleFiles: (files: FileList | null) => void;
+  /** ログイン状態 */
   isLoggedIn: boolean;
+  /** 投稿状態メッセージ（エラーなど） */
   status: string;
+  /** 既存ファイルを選択する処理 */
   onSelectExistingFiles: () => void;
+  /** 固定ハッシュタグ（カンマ区切り） */
   fixedHashtags: string;
+  /** 固定ハッシュタグを設定する関数 */
   setFixedHashtags: (tags: string) => void;
-  autoAppendTags: boolean;  // 追加
-  setAutoAppendTags: (value: boolean) => void;  // 追加
-  repostMode?: boolean;  // 追加
-  initialText?: string;  // 追加
-  onRepostComplete?: () => void;  // 追加: repostMode をリセットするための関数
-  mode?: 'normal' | 'quote' | 'reply' | 'correct';  // 'correct' を追加
-  targetPost?: Post;  // 追加: 引用/返信対象の投稿
-  handlePostDelete?: (event: React.MouseEvent, postId: string) => Promise<boolean>;  // 追加
-  setFiles: (files: FileItem[]) => void;  // 追加: ファイル状態を更新する関数
-  handleCancelAttach: (fileId: string | number) => void;     // 追加
-  handleDeletePermanently: (fileId: string | number) => void; // 追加
-  handleDelete?: (postId: string) => Promise<boolean>;   // オプショナルに変更
+  /** ハッシュタグを自動的に投稿に追加するかどうか */
+  autoAppendTags: boolean;
+  /** 自動追加の設定を変更する関数 */
+  setAutoAppendTags: (value: boolean) => void;
+  /** リポストモードかどうか */
+  repostMode?: boolean;
+  /** 初期テキスト値 */
+  initialText?: string;
+  /** リポスト完了時のコールバック */
+  onRepostComplete?: () => void;
+  /** 投稿モード（通常、引用、返信、修正） */
+  mode?: PostMode;
+  /** 対象の投稿（引用や返信時に使用） */
+  targetPost?: Post;
+  /** 投稿削除処理（非推奨、handleDeleteを使用） */
+  handlePostDelete?: (event: React.MouseEvent, postId: string) => Promise<boolean>;
+  /** ファイルリストを設定する関数 */
+  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>;
+  /** ファイル添付をキャンセルする関数 */
+  handleCancelAttach: (fileId: string | number) => void;
+  /** ファイルを完全に削除する関数 */
+  handleDeletePermanently: (fileId: string | number) => void;
+  /** 投稿を削除する関数 */
+  handleDelete?: (postId: string) => Promise<boolean>;
 }
 
+/**
+ * 投稿作成のポップアップコンポーネント
+ * 
+ * 新規投稿、引用投稿、返信投稿、投稿修正などの機能を提供する
+ */
 const PostFormPopup: React.FC<PostFormPopupProps> = ({
   isOpen,
   onClose,
@@ -45,274 +91,585 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
   setPostText,
   handleSubmit,
   files,
-  handleFiles,
   isLoggedIn,
   status,
   onSelectExistingFiles,
   fixedHashtags,
   setFixedHashtags,
-  autoAppendTags,  // 追加
-  setAutoAppendTags,  // 追加
-  repostMode = false,  // 追加
-  onRepostComplete,  // 追加
-  mode = 'normal',  // 追加
-  targetPost,      // 追加
-  handleDelete,    // オプショナル
-  setFiles,  // 追加
-  handleCancelAttach,        // 追加
-  handleDeletePermanently,   // 追加
+  autoAppendTags,
+  setAutoAppendTags,
+  repostMode = false,
+  onRepostComplete,
+  mode = 'normal',
+  targetPost,
+  handleDelete,
+  setFiles,
+  handleCancelAttach,
+  handleDeletePermanently,
+  handleFiles,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+  // usePostTextフックを使用 - 空文字列で初期化し、ローカルストレージから優先読み込み
+  const postTextState = usePostText('');
+  
+  // 親コンポーネントのテキスト状態と同期するが、無限ループを避ける
+  const [isInitialSync, setIsInitialSync] = useState(true);
+  
+  // ファイル選択関連の状態
+  const [hasLoadedFiles, setHasLoadedFiles] = useState(false);
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<any[]>([]);
+  
+  // ローカルストレージからテキストを読み込んだかどうかのフラグ
+  const [hasLoadedFromLocalStorage, setHasLoadedFromLocalStorage] = useState(false);
 
-  // ハッシュタグ関連の状態を追加
-  const [hashtagRanking, setHashtagRanking] = useState<HashtagRank[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedHashtags, setSelectedHashtags] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);  // 追加: ローディング状態
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);  // 追加: 初回ロード完了フラグ
-
-  // ハッシュタグランキングの取得を修正
+  // 初回マウント時にローカルストレージからデータをロード
   useEffect(() => {
-    const fetchHashtags = async () => {
-      if (!isDropdownOpen || hasLoadedOnce) return;
-      
-      setIsLoading(true);
-      try {
-        const data = await getTags();
-        setHashtagRanking(data);
-        setHasLoadedOnce(true);
-      } catch (error) {
-        console.error('Error fetching hashtag ranking:', error);
-      } finally {
-        setIsLoading(false);
+    if (isOpen && !hasLoadedFromLocalStorage) {
+      // ローカルストレージからデータを読み込む
+      postTextState.loadPostText().then((loadedText: string | null) => {
+        if (loadedText) {
+          console.log('Loaded text from localStorage in PostFormPopup:', loadedText);
+          // 読み込んだテキストで親の状態も更新
+          setPostText(loadedText);
+        }
+        setHasLoadedFromLocalStorage(true);
+      }).catch((error: Error) => {
+        console.error('Failed to load text from localStorage:', error);
+        setHasLoadedFromLocalStorage(true); // エラー時もロード完了とマーク
+      });
+    }
+    
+    // ポップアップが表示された時に確実にisPostedフラグがリセットされるようにする
+    if (isOpen) {
+      // 既にスケジュールされている保存処理を確実に実行するため、即座に保存を試みる
+      if (postTextState.postText.trim() !== '') {
+        console.log('Popup opened, forcing immediate save of any pending text');
+        postTextState.savePostText()
+          .catch((error: Error): void => {
+            console.error('Failed to save text on popup open:', error);
+          });
       }
-    };
+    }
+  }, [isOpen, postTextState, setPostText, hasLoadedFromLocalStorage]);
 
-    fetchHashtags();
-  }, [isDropdownOpen, hasLoadedOnce]);
-
-  // ハッシュタグの選択処理を追加
-  const handleHashtagSelect = (tagText: string) => {
-    setSelectedHashtags(prev => {
-      const next = new Set(prev);
-      const tag = tagText.startsWith('#') ? tagText : `#${tagText}`;
-      if (next.has(tag)) {
-        next.delete(tag);
+  // ポップアップが閉じられる時の処理を分離
+  useEffect(() => {
+    // ポップアップが開いている状態から閉じられる時
+    if (!isOpen && hasLoadedFromLocalStorage) {
+      // 未保存の変更があれば確実に保存
+      if (postTextState.postText.trim() !== '') {
+        console.log('Popup closing - saving changes to localStorage');
+        postTextState.savePostText()
+          .then((): void => {
+            console.log('Successfully saved text before popup close');
+            // 保存完了後にフラグをリセット
+            setHasLoadedFromLocalStorage(false);
+          })
+          .catch((error: Error): void => {
+            console.error('Failed to save text before popup close:', error);
+            setHasLoadedFromLocalStorage(false);
+          });
       } else {
-        next.add(tag);
+        // 空テキストの場合はそのままリセット
+        setHasLoadedFromLocalStorage(false);
       }
-      return next;
-    });
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (dropRef.current) {
-      dropRef.current.classList.add('drag-over');
     }
-  };
+  }, [isOpen, hasLoadedFromLocalStorage, postTextState]);
 
-  const handleDragLeave = () => {
-    if (dropRef.current) {
-      dropRef.current.classList.remove('drag-over');
+  // 親コンポーネントとテキスト状態を同期する - ローカルストレージ読み込み後のみ
+  useEffect(() => {
+    if (!isOpen || !hasLoadedFromLocalStorage) {
+      return;
     }
-  };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (dropRef.current) {
-      dropRef.current.classList.remove('drag-over');
+    // 親からの明示的な変更がある場合のみ同期する
+    if (postText !== postTextState.postText) {
+      console.log('Syncing text from parent in PostFormPopup:', postText);
+      postTextState.setPostTextWithoutSave(postText);
     }
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
-      e.dataTransfer.clearData();
+    
+    // 初回同期フラグをリセット
+    if (isInitialSync) {
+      setIsInitialSync(false);
     }
-  };
+  }, [isOpen, postText, postTextState, hasLoadedFromLocalStorage, isInitialSync]);
+  
+  // テキスト変更を親コンポーネントへ反映するカスタムハンドラ
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>) => {
+    const newText = e.target.value;
+    
+    // 親コンポーネントに通知
+    setPostText(newText);
+    
+    // usePostText内の状態を更新（自動保存機能付き）
+    postTextState.handlePostTextChange(e);
+    
+    // デバッグログを追加して実行を確認
+    console.log('Text changed in PostFormPopup, length:', newText.length, 'empty:', newText.trim() === '');
+  }, [setPostText, postTextState.handlePostTextChange]);
 
+  // 共通ハッシュタグフック - autoInitializeSelectedをfalseに設定
+  const hashtagsState = useHashtags(fixedHashtags, autoAppendTags, false);
+  // selectedHashtagsとそのセッターを取得
+  const { selectedHashtags, setSelectedHashtags } = hashtagsState;
+
+  // 親から渡された値が変更された時に再設定するuseEffect
+  // いくつかの重要な防御措置を追加
+  useEffect(() => {
+    // 初期化中や初期同期時は何もしない（無限ループ防止）
+    if (isInitialSync) {
+      return;
+    }
+    
+    // 値が変わった時のみ更新（無限ループ防止のための重要な条件）
+    if (fixedHashtags !== hashtagsState.fixedHashtags) {
+      console.log('Sync fixedHashtags from parent to hook state:', fixedHashtags);
+      hashtagsState.setFixedHashtags(fixedHashtags);
+    }
+    
+    // 値が変わった時のみ更新（無限ループ防止のための重要な条件）
+    if (autoAppendTags !== hashtagsState.autoAppendTags) {
+      console.log('Sync autoAppendTags from parent to hook state:', autoAppendTags);
+      // 直接設定することで無限ループを防止
+      hashtagsState.setAutoAppendTags(autoAppendTags);
+    }
+    // 依存配列に注意：hashtagsState全体ではなく個別のプロパティを使用
+  }, [fixedHashtags, autoAppendTags, isInitialSync, hashtagsState.fixedHashtags, hashtagsState.autoAppendTags, hashtagsState.setFixedHashtags, hashtagsState.setAutoAppendTags]);
+
+  // 固定ハッシュタグの変更をハンドリング（カスタムフックから親コンポーネントへ）
+  // 防御的チェックと節流措置を追加
+  const handleFixedHashtagsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === fixedHashtags) {
+      return;
+    }
+    
+    setFixedHashtags(value);
+    if (hashtagsState.saveUserHashtags) {
+      if (window.hashtagSaveTimer) clearTimeout(window.hashtagSaveTimer);
+      window.hashtagSaveTimer = setTimeout(() => {
+        hashtagsState.saveUserHashtags();
+      }, 2000); // 2秒のデバウンス時間
+    }
+  }, [setFixedHashtags, fixedHashtags, hashtagsState.saveUserHashtags]);
+
+  // 自動付与設定の変更をハンドリング（カスタムフックから親コンポーネントへ）
+  // 防御的チェックを追加
+  const handleAutoAppendTagsChange = useCallback((value: boolean) => {
+    // 現在の値と同じなら何もしない（無限ループ防止）
+    if (value === autoAppendTags) {
+      return;
+    }
+    
+    setAutoAppendTags(value);
+    // APIの節流（スロットリング）処理
+    if (hashtagsState.saveUserHashtags) {
+      if (window.hashtagAutoSaveTimer) clearTimeout(window.hashtagAutoSaveTimer);
+      window.hashtagAutoSaveTimer = setTimeout(() => {
+        hashtagsState.saveUserHashtags();
+      }, 2000); // 2秒のデバウンス時間に延長
+    }
+  }, [setAutoAppendTags, autoAppendTags, hashtagsState.saveUserHashtags]);
+
+  // 既存ファイル選択モーダル用の状態は上部で既に宣言されています
+
+  // 既存ファイル選択用の関数
+  const loadDriveFiles = useCallback(async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file_list`);
+      if (response.ok) {
+        const data = await response.json();
+        setDriveFiles(data.files || []);
+      } else {
+        console.error('Failed to load drive files');
+      }
+    } catch (error) {
+      console.error('Error loading drive files:', error);
+    }
+  }, []);
+
+  // 既存ファイル選択ハンドラ
+  const handleSelectFile = useCallback((fileId: number) => {
+    try {
+      const fileMetadata = driveFiles.find((file) => file.file_id === fileId);
+      if (!fileMetadata) {
+        console.error('File metadata not found');
+        return;
+      }
+      
+      const contentType = fileMetadata.content_type || 'application/octet-stream';
+      // isImageFile関数を使用するよう修正
+      const isImage = isImageFile(fileMetadata);
+      
+      if (!files.some(file => file.id === fileId)) {
+        setFiles(prev => [...prev, { 
+          id: fileId, 
+          name: fileMetadata.file_name || `file-${fileId}`,
+          contentType,
+          isImage,
+          isExisting: true
+        }]);
+      }
+      setShowFileSelector(false);
+    } catch (error) {
+      console.error('Failed to select file:', error);
+    }
+  }, [driveFiles, files, setFiles]);
+
+  useEffect(() => {
+    if (isOpen && mode === 'correct' && targetPost && targetPost.post_file && !hasLoadedFiles) {
+      const fileIds = Array.isArray(targetPost.post_file)
+        ? targetPost.post_file.map(id => cleanFileId(id))
+        : typeof targetPost.post_file === 'string'
+          ? targetPost.post_file.split(',').map(id => cleanFileId(id.trim()))
+          : [];
+          
+      const fetchFileMetadata = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file_list`);
+          if (!response.ok) {
+            console.error('Failed to fetch file metadata:', response.statusText);
+            return;
+          }
+          
+          const data = await response.json();
+          console.log('File metadata response:', data);
+          
+          const fileItems = fileIds
+            .map(fileId => {
+              const cleanId = cleanFileId(fileId);
+              const fileInfo = data.files.find((file: any) => 
+                String(file.file_id) === String(cleanId)
+              );
+              
+              if (fileInfo) {
+                // サーバーから提供されたContent-Typeを取得
+                const contentType = fileInfo.content_type || 
+                  fileInfo.contentType ||
+                  'application/octet-stream';
+                
+                // isImageFile関数を使用して画像かどうかを判定
+                // ファイル情報を渡し、一貫した判定ロジックを適用
+                const isImage = isImageFile(fileInfo);
+                  
+                console.log(`File ${cleanId}: contentType=${contentType}, isImage=${isImage}, originalContentType=${fileInfo.content_type || 'none'}`);
+                
+                return {
+                  id: cleanId,
+                  name: fileInfo.file_name || `file-${cleanId}`,
+                  contentType: contentType,
+                  isImage: isImage,
+                  isExisting: true
+                };
+              }
+              return null;
+            })
+            .filter(Boolean) as FileItem[];
+            
+          if (fileItems.length > 0) {
+            console.log('Setting files for correct mode:', fileItems);
+            setFiles(fileItems);
+            setHasLoadedFiles(true);
+          }
+        } catch (error) {
+          console.error('Failed to load file metadata:', error);
+        }
+      };
+      
+      fetchFileMetadata();
+    }
+    
+    if (!isOpen) {
+      setHasLoadedFiles(false);
+      setShowFileSelector(false);
+    }
+  }, [isOpen, mode, targetPost, setFiles, hasLoadedFiles]);
+
+  /**
+   * テキストエリアでのキー入力ハンドラ
+   * Shift+Enterで投稿を送信する
+   * 
+   * @param e - キーボードイベント
+   */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      if (postText.trim() !== '' || files.length > 0) {
+      if (postTextState.postText.trim() !== '' || files.length > 0) {
         handleFormSubmit(e as any);
       }
     }
   };
 
-  // クリップボードからの画像添付処理を追加
-  const handlePaste = async (e: React.ClipboardEvent) => {
+  /**
+   * ファイル入力変更ハンドラ
+   * 
+   * @param e - 入力変更イベント
+   */
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      console.log('Files selected via input in PostFormPopup:', e.target.files);
+      
+      // まずアップロード自体を行う - これはuseFileUpload内で実装
+      handleFilesWithProgress(e.target.files)
+        .then(uploadedFiles => {
+          console.log('Files processed after upload in PostFormPopup:', uploadedFiles, 'with IDs:', uploadedFiles.map(f => f.id));
+          // 既にuseFileUpload内のコールバックでhandleFilesを呼び出しているため、ここでは何もしない
+        })
+        .catch(error => {
+          console.error('Error during file upload:', error);
+        });
+    }
+  };
+  
+  /**
+   * クリップボードからファイルがペーストされた場合の処理
+   */
+  const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-
+    
+    const fileItems: File[] = [];
+    
     for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.indexOf('image') !== -1) {
-        const file = item.getAsFile();
-        if (file) {
-          handleFiles(new DataTransfer().files);
-          const dataTransfer = new DataTransfer();
-          dataTransfer.items.add(file);
-          handleFiles(dataTransfer.files);
-        }
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) fileItems.push(file);
       }
+    }
+    
+    if (fileItems.length > 0) {
+      e.preventDefault();
+      console.log('Files pasted in PostFormPopup:', fileItems);
+      
+      // DataTransferを使用してFileListを作成
+      const dataTransfer = new DataTransfer();
+      fileItems.forEach(file => dataTransfer.items.add(file));
+      const fileList = dataTransfer.files;
+      
+      // useFileUploadフックを使ってアップロード処理を行う
+      handleFilesWithProgress(fileList)
+        .then(uploadedFiles => {
+          console.log('Pasted files processed after upload:', uploadedFiles, 'with IDs:', uploadedFiles.map(f => f.id));
+          // コールバックがあれば追加呼び出しは不要（useFileUpload内で実行される）
+        })
+        .catch(error => {
+          console.error('Error processing pasted files:', error);
+        });
     }
   };
 
-  // handleFormSubmitを修正
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (mode === 'correct') {
-        console.log('Mode is correct:', { handleDelete, targetPost }); // デバッグログを追加
-        if (handleDelete && targetPost) {
-          console.log('Deleting post with ID:', targetPost.post_id);
-          const deleted = await handleDelete(targetPost.post_id);
-          
-          if (!deleted) {
-            return;
-          }
-        } else {
-          console.log('handleDelete または targetPost が未定義です'); // 条件未満の場合のログ
-        }
+  /**
+   * フォーム送信ハンドラ
+   * 投稿の作成、修正、引用、返信などの処理を行う
+   * 
+   * @param e - フォームイベント
+   */
+const handleFormSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    // 修正モードの場合、先に元の投稿を削除
+    if (mode === 'correct') {
+      if (!handleDelete) {
+        console.error('handleDelete function is not provided');
+        return;
       }
-
-      console.log('Submitting form in mode:', mode);
-      // 新規投稿の作成処理
-      let finalPostText = postText.trim();
-      let additionalTags = [];
-
-      // ハッシュタグの処理
-      if (selectedHashtags.size > 0) {
-        additionalTags.push(Array.from(selectedHashtags).join(' '));
+      
+      if (!targetPost) {
+        console.error('targetPost is not provided');
+        return;
       }
-
-      if (autoAppendTags && fixedHashtags.trim()) {
-        const processedTags = fixedHashtags
-          .trim()
-          .split(/\s+/)
-          .map(tag => tag.startsWith('#') ? tag : `#${tag}`)
-          .join(' ');
-        additionalTags.push(processedTags);
-      }
-
-      // タグを投稿本文の末尾に追加
-      if (additionalTags.length > 0) {
-        finalPostText += '\n' + additionalTags.join(' ');
-      }
-
-      // モードに応じてAPIに送信するデータを構築
-      const submitData: any = {
-        post_text: finalPostText,
-      };
-
-      // files配列が空でない場合のみpost_fileを追加
-      if (files.length > 0) {
-        submitData.post_file = files.map(file => file.id);
-      }
-
-      // 引用/返信モードの場合、対応するIDを追加
-      if (mode === 'quote' && targetPost?.post_id) {
-        submitData.repost_id = targetPost.post_id;
-      }
-      if (mode === 'reply' && targetPost?.post_id) {
-        submitData.reply_id = targetPost.post_id;
-      }
-
-      // post_createに送信
-      const response = await fetch('/api/post/post_create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submitData)
+      
+      // 元投稿のrepost_grant_idとreply_grant_idを保持
+      const originalRepostId = targetPost.repost_grant_id;
+      const originalReplyId = targetPost.reply_grant_id;
+      
+      // デバッグログを追加 - フルオブジェクト情報も出力
+      console.log('Correct mode - original post:', {
+        post_id: targetPost.post_id,
+        repost_id: originalRepostId,
+        reply_id: originalReplyId,
+        has_repost_body: !!targetPost.repost_body,
+        has_reply_body: !!targetPost.reply_body,
+        fullPost: targetPost
       });
-
-      if (!response.ok) {
-        throw new Error('投稿の作成に失敗しました');
+      
+      console.log('Attempting to delete post:', targetPost.post_id);
+      const deleted = await handleDelete(targetPost.post_id);
+      
+      if (!deleted) {
+        console.error('Failed to delete post');
+        return;
       }
+      
+      console.log('Post successfully deleted, proceeding with repost');
+      
+      // 最終的な投稿テキストを作成
+      // 選択されたハッシュタグは常に追加し、固定ハッシュタグは自動付与設定がONの場合のみ追加
+      const finalPostText = processPostText(
+        postTextState.postText,
+        hashtagsState.selectedHashtags, // hashtagsStateから参照
+        autoAppendTags,
+        fixedHashtags
+      );
 
-      // 成功時の処理
-      setPostText('');  // 投稿テキストをクリア
-      setFiles([]);    // ファイル状態をリセット
-      setSelectedHashtags(new Set());
-      setIsDropdownOpen(false);
+      // 全てのファイルIDをクリーニング
+      const cleanFiles = files.map(file => ({
+        ...file,
+        id: cleanFileId(file.id)
+      }));
+      
+      // ファイルIDをクリーニングしてからsetFilesに渡す
+      setFiles(cleanFiles);
+
+      // デバッグログ追加
+      console.log('Submitting post with:', {
+        mode,
+        targetPostId: targetPost?.post_id,
+        originalRepostId,
+        originalReplyId,
+        finalPostText,
+        files: cleanFiles,
+        selectedHashtags: Array.from(hashtagsState.selectedHashtags), // hashtagsStateから参照
+        fixedHashtags,
+        autoAppendTags
+      });
+      
+      // handleSubmit を呼び出し（引数にクリーニング済みファイル配列とrepost_id、reply_idを追加）
+      await handleSubmit(
+        e, 
+        finalPostText, 
+        targetPost?.post_id, 
+        mode, 
+        cleanFiles, 
+        originalRepostId, 
+        originalReplyId
+      );
+      
+      // 投稿完了をフックに通知（重要）
+      postTextState.markAsPosted();
+      console.log('Post submitted - marked as posted');
+      
+      // 成功時の状態リセット
+      postTextState.setPostTextWithoutSave('');
+      // 親のsetPostTextも呼び出して同期を維持
+      setPostText('');
+      setFiles([]);
+      hashtagsState.setSelectedHashtags(new Set()); // hashtagsStateから参照
+      hashtagsState.setIsDropdownOpen(false); // hashtagsStateから参照
       onClose();
+      
+      // リポストモードの場合はコールバックを実行
       if (repostMode && onRepostComplete) {
         onRepostComplete();
       }
-
-    } catch (error) {
-      console.error('Error in form submission:', error);
-    }
-  };
-
-  const updateAutoHashtags = useCallback(async (tags: string) => {
-    try {
-      const tagsArray = tags.trim().split(/\s+/).filter(tag => tag);
-      await fetch('/api/user/user_update', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_auto_hashtag: tagsArray
-        })
-      });
-    } catch (error) {
-      console.error('Error updating hashtags:', error);
-    }
-  }, []);
-
-  const handleHashtagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setFixedHashtags(newValue);
-
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
+      
+      return;
     }
 
-    updateTimeoutRef.current = setTimeout(() => {
-      updateAutoHashtags(newValue);
-    }, 15000);
-  };
+    // 修正モード以外の処理（既存のコード）
+    // 最終的な投稿テキストを作成
+    const finalPostText = processPostText(
+      postTextState.postText,
+      hashtagsState.selectedHashtags, // hashtagsStateから参照
+      autoAppendTags,
+      fixedHashtags
+    );
 
-  useEffect(() => {
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
-  }, []);
+    // 全てのファイルIDをクリーニング
+    const cleanFiles = files.map(file => ({
+      ...file,
+      id: cleanFileId(file.id)
+    }));
+    
+    // ファイルIDをクリーニングしてからsetFilesに渡す
+    setFiles(cleanFiles);
 
+    // デバッグログ追加
+    console.log('Submitting post with:', {
+      mode,
+      targetPostId: targetPost?.post_id,
+      finalPostText,
+      files: cleanFiles,
+      selectedHashtags: Array.from(hashtagsState.selectedHashtags), // hashtagsStateから参照
+      fixedHashtags,
+      autoAppendTags
+    });
+    
+    // handleSubmit を呼び出し（引数にクリーニング済みファイル配列を追加）
+    await handleSubmit(e, finalPostText, targetPost?.post_id, mode, cleanFiles);
+    
+    // 投稿完了をフックに通知（重要）
+    postTextState.markAsPosted();
+    console.log('Post submitted - marked as posted');
+    
+    // 成功時の状態リセット - setPostTextWithSaveをsetPostTextWithoutSaveに変更
+    postTextState.setPostTextWithoutSave('');
+    // 親のsetPostTextも呼び出して同期を維持
+    setPostText('');
+    setFiles([]);
+    hashtagsState.setSelectedHashtags(new Set()); // hashtagsStateから参照
+    hashtagsState.setIsDropdownOpen(false); // hashtagsStateから参照
+    onClose();
+    
+    // リポストモードの場合はコールバックを実行
+    if (repostMode && onRepostComplete) {
+      onRepostComplete();
+    }
+  } catch (error) {
+    console.error('Error in form submission:', error);
+  }
+};
+  // フォーカス設定（特にリポストモード時）
   useEffect(() => {
     if (isOpen && repostMode) {
-      // フォーカスを設定
       const textarea = document.querySelector('textarea');
       if (textarea) {
         textarea.focus();
-        // カーソルを末尾に移動
         const length = textarea.value.length;
         textarea.setSelectionRange(length, length);
       }
     }
   }, [isOpen, repostMode]);
 
+  // 既存ファイル選択のハンドラーを拡張
+  const handleSelectExistingFilesWrapper = useCallback(() => {
+    setShowFileSelector(true);
+    loadDriveFiles();
+  }, [loadDriveFiles]);
+
+  // 共通ファイルアップロードフック
+  const {
+    uploadProgress,
+    isUploading,
+    fileInputRef,
+    dropRef, // ここでdropRefを受け取る
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFilesWithProgress,
+    handlePaste: handlePasteInternal
+  } = useFileUpload(files, setFiles);
+
+  // ポップアップが閉じられている場合は何もレンダリングしない
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
       <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-md p-6 relative max-h-[90vh] flex flex-col">
+        {/* 閉じるボタン */}
         <button
           className="absolute top-2 right-2 text-gray-600 dark:text-gray-300"
           onClick={onClose}
         >
           ×
         </button>
+
+        {/* タイトル - モードに応じて表示を変える */}
         <h2 className="text-xl font-bold mb-4">
           {mode === 'quote' ? "引用投稿" : 
            mode === 'reply' ? "返信投稿" : 
-           mode === 'correct' ? "削除して再投稿" :  // correct モードの表示を追加
+           mode === 'correct' ? "削除して再投稿" :
            "新規投稿"}
         </h2>
 
@@ -328,85 +685,35 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
         {isLoggedIn ? (
           <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-2">
+              {/* 投稿テキスト入力エリア - カスタムハンドラを使用 */}
               <textarea
-                id="postText" // 追加: textareaにidを追加
+                id="postText"
                 className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                value={postText}
-                onChange={(e) => setPostText(e.target.value)}
+                value={postTextState.postText}
+                onChange={handleTextChange} // カスタムハンドラを使用
                 onKeyDown={handleKeyDown}
-                onPaste={handlePaste}  // ペーストイベントハンドラを追加
+                onPaste={handlePaste}
                 placeholder="ここに投稿内容を入力してください"
                 rows={4}
               />
-              {/* 字数カウンターを追加 */}
+              
+              {/* 字数カウンター */}
               <div className="text-right text-sm text-gray-500 mt-1">
-                {postText.length}/140
+                {postTextState.postText.length}/140
               </div>
-              {/* ハッシュタグドロップダウンを追加 */}
-              <div className="relative mt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center gap-2"
-                >
-                  <span>人気のハッシュタグ</span>
-                  {selectedHashtags.size > 0 && (
-                    <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
-                      {selectedHashtags.size}
-                    </span>
-                  )}
-                </button>
-                
-                {isDropdownOpen && (
-                  <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md shadow-lg">
-                    <div className="py-1 max-h-48 overflow-y-auto">
-                      {isLoading ? (
-                        <div className="p-4 text-center text-gray-500">読み込み中...</div>
-                      ) : (
-                        hashtagRanking.map((tag) => (
-                          <button
-                            key={tag.post_tag_id}
-                            type="button"
-                            onClick={() => handleHashtagSelect(tag.post_tag_text)}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center ${
-                              selectedHashtags.has(tag.post_tag_text) ? 'bg-blue-50 dark:bg-blue-900' : ''
-                            }`}
-                          >
-                            <span>{tag.post_tag_text}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500">({tag.use_count})</span>
-                              {selectedHashtags.has(tag.post_tag_text) && (
-                                <span className="text-blue-500 text-sm">✓</span>
-                              )}
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              
+              {/* ハッシュタグドロップダウン */}
+              <HashtagSelector
+                hashtagsState={hashtagsState}
+                fixedHashtags={fixedHashtags}
+                autoAppendTags={autoAppendTags}
+                onFixedHashtagsChange={handleFixedHashtagsChange}
+                onAutoAppendChange={handleAutoAppendTagsChange}
+              />
 
-              {/* 選択されたタグの表示を追加 */}
-              {selectedHashtags.size > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {Array.from(selectedHashtags).map(tag => (
-                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-sm rounded">
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => handleHashtagSelect(tag)}
-                        className="text-blue-500 hover:text-blue-700"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
+              {/* ファイルドロップエリア */}
               <div
-                ref={dropRef}
+                ref={dropRef} // ここでdropRefを使用
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -419,83 +726,50 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
                   multiple
                   ref={fileInputRef}
                   className="hidden"
-                  onChange={(e) => handleFiles(e.target.files)}
+                  onChange={handleInputChange}
                 />
               </div>
-              {files.length > 0 && (
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {files.map((file) => (
-                    <div key={file.id} className="border rounded p-2 relative bg-white dark:bg-gray-800">
-                      <div className="w-full aspect-[4/3] mb-2 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
-                        {file.isImage ? (
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.id}`}
-                            alt={`File ${file.id}`}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              target.parentElement!.innerHTML = '<span class="text-gray-500">読み込みエラー</span>';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-2xl text-gray-500">
-                              {file.contentType ? file.contentType.split('/')[1].toUpperCase() : 'ファイル'}
-                            </span>
-                          </div>
-                        )}
+
+              {/* アップロード進捗表示 */}
+              {isUploading && Object.keys(uploadProgress).length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h3 className="font-medium text-sm">アップロード中...</h3>
+                  {Object.entries(uploadProgress).map(([fileName, progress]) => (
+                    <div key={fileName} className="flex flex-col">
+                      <div className="flex justify-between text-xs">
+                        <span className="truncate max-w-[75%]">{fileName}</span>
+                        <span>{progress < 0 ? 'エラー' : `${progress}%`}</span>
                       </div>
-                      <div className="text-sm truncate dark:text-gray-300">
-                        ファイルID: {file.id}
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                        <div 
+                          className={`h-2.5 rounded-full ${progress < 0 ? 'bg-red-500' : 'bg-blue-500'}`}
+                          style={{ width: `${progress < 0 ? 100 : progress}%` }}
+                        ></div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCancelAttach(file.id)}
-                        className="absolute top-2 right-10 text-white bg-gray-500 hover:bg-gray-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                        title="添付を取り消す"
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePermanently(file.id)}
-                        className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
-                        title="ファイルを削除する"
-                      >
-                        ×
-                      </button>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="mt-4 space-y-2">  {/* space-y-2 を追加 */}
-                <input
-                  type="text"
-                  value={fixedHashtags}
-                  onChange={handleHashtagChange}
-                  className="w-full p-2 border rounded dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                  placeholder="ハッシュタグの固定"
-                />
-                <div className="flex items-center">  {/* ml-2 を削除し、flex を追加 */}
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={autoAppendTags}
-                      onChange={(e) => setAutoAppendTags(e.target.checked)}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                      ハッシュタグを自動付与
-                    </span>
-                  </label>
+
+              {/* 添付ファイル一覧 - FilePreviewコンポーネントを使用 */}
+              {files.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {files.map((file) => (
+                  <FilePreview
+                    key={file.id}
+                    file={file}
+                    onCancel={handleCancelAttach}
+                    onDelete={handleDeletePermanently}
+                  />
+                  ))}
                 </div>
-              </div>
+              )}
+
+              {/* 既存ファイル選択ボタン */}
               <div className="mt-4">
                 <button
                   type="button"
-                  onClick={onSelectExistingFiles}
+                  onClick={handleSelectExistingFilesWrapper}
                   className="w-full p-2 text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors dark:bg-blue-600 dark:hover:bg-blue-700"
                 >
                   アップロード済みファイルから選択
@@ -503,18 +777,18 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
               </div>
             </div>
 
-            {/* 投稿ボタン部分を固定 */}
+            {/* 投稿ボタン */}
             <div className="mt-4 pt-4 border-t sticky bottom-0 bg-white dark:bg-gray-800">
               <button
                 type="submit"
                 className={`w-full p-2 text-white rounded transition-colors ${
-                  postText.trim() === '' && files.length === 0
+                  (postTextState.postText.trim() === '' && files.length === 0) || isUploading
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800'
                 }`}
-                disabled={postText.trim() === '' && files.length === 0}
+                disabled={(postTextState.postText.trim() === '' && files.length === 0) || isUploading}
               >
-                投稿
+                {isUploading ? 'アップロード中...' : '投稿'}
               </button>
               {status && <p className="mt-2 text-red-500">{status}</p>}
             </div>
@@ -523,8 +797,57 @@ const PostFormPopup: React.FC<PostFormPopupProps> = ({
           <p className="text-gray-500">投稿を作成するにはログインしてください</p>
         )}
       </div>
+
+      {/* 既存ファイル選択モーダル - ファイルプレビューもFilePreviewコンポーネントを使用 */}
+      {showFileSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <button
+              className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
+              onClick={() => setShowFileSelector(false)}
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">ファイルを選択（試験）</h2>
+            {driveFiles.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {driveFiles.map((file) => {
+                  // ファイルがイメージかどうか判定
+                  const fileItem: FileItem = {
+                    id: file.file_id,
+                    name: file.file_name || `file-${file.file_id}`,
+                    contentType: file.content_type || 'application/octet-stream',
+                    isImage: isImageFile(file)
+                  };
+                  
+                  return (
+                    <div
+                      key={file.file_id}
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => handleSelectFile(file.file_id)}
+                    >
+                      <FilePreview
+                        file={fileItem}
+                        showActions={false}
+                        className="border-0"
+                      />
+                      <div className="text-sm truncate mt-1 dark:text-gray-300 p-2">
+                        <div className="font-medium">{file.file_name || `ファイル ${file.file_id}`}</div>
+                        <div className="text-xs text-gray-500">ID: {file.file_id}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 dark:text-gray-400">ファイルが見つかりません</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default PostFormPopup;
+

@@ -54,7 +54,7 @@ async function getOrCreateTagId(client, tag) {
     return selectResult.rows[0].blog_tag_id;
   } else {
     const insertQuery = 'INSERT INTO blog_tag (blog_tag_id, blog_tag_text) VALUES ($1, $2) RETURNING blog_tag_id';
-    const insertResult = await client.query(insertQuery, [cleanedTag, tag]);
+    const insertResult = await client.query(insertQuery, [cleanedTag, cleanedTag]);
     return insertResult.rows[0].blog_tag_id;
   }
 }
@@ -192,8 +192,12 @@ router.post('/blog_create', async (req, res) => {
     const now = date.getTime().toString();
     const randomDigits = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     const blog_id = 'bl_' + now + randomDigits;
-
-    const tags = (req.body.blog_text.match(/(?<=\s|^)#\S+(?=\s|$)/g) || []);
+    
+    // フロントエンドから送られてきたタグを優先的に使う
+    // blog_tagsがある場合はそれを使い、なければテキストから抽出
+    const tags = req.body.blog_tags || (req.body.blog_text.match(/(?<=\s|^)#\S+(?=\s|$)/g) || []);
+    
+    console.log('タグ処理:', tags);
 
     const newBlog = await insertBlogAndTags(
       blog_id,
@@ -208,10 +212,14 @@ router.post('/blog_create', async (req, res) => {
 
     // ElasticSearchに登録
     await indexBlogToElasticsearch(newBlog);
-    return res.status(200).json({ created_blog: newBlog });
+    return res.status(200).json({ 
+      message: 'ブログが正常に作成されました',
+      blog_id: blog_id, 
+      created_blog: newBlog 
+    });
 
   } catch (error) {
-    console.error('Error while retrieving session from Redis:', error);
+    console.error('Error while creating blog:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

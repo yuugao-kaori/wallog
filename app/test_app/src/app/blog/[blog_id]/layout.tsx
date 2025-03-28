@@ -19,8 +19,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   // 非同期に params を解決
   const resolvedParams = await params;
+  const currentUrl = `https://wallog.seitendan.com/blog/${resolvedParams.blog_id}`;
   const blog = await getBlogData(resolvedParams.blog_id);
-
+  
   return {
     title: `${blog.blog_title} | Wallog`,
     description: blog.blog_description,
@@ -28,6 +29,7 @@ export async function generateMetadata({
       title: blog.blog_title,
       description: blog.blog_description,
       type: 'article',
+      url: currentUrl,
     },
     twitter: {
       card: 'summary_large_image',
@@ -36,6 +38,7 @@ export async function generateMetadata({
     },
   };
 }
+
 
 export default function BlogLayout({
   children,

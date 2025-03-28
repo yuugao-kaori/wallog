@@ -49,9 +49,12 @@ const esClient = new ESClient({
 
 // post_idの削除API
 app.delete('/post_delete', async (req, res) => {
+    const startTime = Date.now(); // 開始時間を記録
     const postId = req.body.post_id; // リクエストボディからpost_idを取得
 
     if (!postId) {
+        const endTime = Date.now();
+        console.log(`実行時間: ${endTime - startTime}ms - Invalid request (no post_id)`);
         return res.status(400).json({ error: 'post_id is required' });
     }
 
@@ -131,16 +134,22 @@ app.delete('/post_delete', async (req, res) => {
 
             // トランザクションコミット
             await client.query('COMMIT');
+            const endTime = Date.now();
+            console.log(`実行時間: ${endTime - startTime}ms - Successfully deleted post ${postId}`);
             return res.status(200).json({ message: 'Post deleted successfully', deleted_post: result.rows[0] });
         } else {
             // トランザクションロールバック
             await client.query('ROLLBACK');
+            const endTime = Date.now();
+            console.log(`実行時間: ${endTime - startTime}ms - Post ${postId} not found`);
             return res.status(404).json({ error: 'Post not found' });
         }
     } catch (err) {
         // エラー発生時はトランザクションをロールバック
         await client.query('ROLLBACK');
         console.error('Error:', err);
+        const endTime = Date.now();
+        console.log(`実行時間: ${endTime - startTime}ms - Error deleting post ${postId}`);
         return res.status(500).json({ error: 'Failed to delete post' });
     } finally {
         await client.end();

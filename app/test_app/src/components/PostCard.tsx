@@ -8,11 +8,31 @@ import PostCardPopup from './PostCardPopup';
 import { useInView } from 'react-intersection-observer';
 import { Post as PostFeedPost } from '@/components/PostFeed';  // 追加
 import PostFormPopup from './PostFormPopup';  // PostFormModalの代わりに使用
+import SiteCard from './SiteCard';
+import { FileItem } from './PostFormCommon';  // FileItem型をインポート
+import { FaRetweet, FaReply, FaQuoteRight, FaTrash } from 'react-icons/fa';
 
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
-// 既存のPostインターフェースを削除し、PostFeedのものを使用
+
+/**
+ * 投稿カードコンポーネントのプロパティインターフェース
+ * @interface Props
+ * 
+ * @property {PostFeedPost} post - 表示する投稿データ
+ * @property {boolean} isLoggedIn - ユーザーのログイン状態
+ * @property {Function} handleDeleteClick - 削除ボタンクリック時のハンドラー
+ * @property {Function} formatDate - 日付フォーマット関数
+ * @property {string} [className] - 追加のCSSクラス名
+ * @property {Function} onDelete - 投稿削除時のコールバック
+ * @property {Function} [onRepost] - 再投稿時のコールバック
+ * @property {Function} [onQuote] - 引用投稿時のコールバック
+ * @property {Function} [onReply] - 返信投稿時のコールバック
+ * @property {Function} [onQuoteSubmit] - 引用・返信投稿送信時のコールバック
+ * @property {Function} [handleDelete] - 投稿削除のハンドラー
+ * @property {Function} [onCorrect] - 修正モードを開始するためのコールバック
+ */
 interface Props {
   post: PostFeedPost;
   isLoggedIn: boolean;
@@ -23,10 +43,20 @@ interface Props {
   onRepost?: (post: PostFeedPost) => Promise<void>;
   onQuote?: (post: PostFeedPost) => void;
   onReply?: (post: PostFeedPost) => void;
-  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string) => Promise<void>;
+  onQuoteSubmit?: (text: string, type: 'quote' | 'reply', targetPostId: string, attachedFiles?: FileItem[]) => Promise<void>;
   handleDelete?: (postId: string) => Promise<boolean>;
+  onCorrect?: (post: PostFeedPost) => void; // 追加: 修正モードを開始するためのコールバック
 }
 
+/**
+ * 投稿の画像データを管理するインターフェース
+ * @interface ImageData
+ * 
+ * @property {string} fileId - 画像ファイルの一意識別子
+ * @property {string | null} thumbnailUrl - サムネイル画像のURL
+ * @property {string | null} fullUrl - フル解像度画像のURL
+ * @property {boolean} loading - 画像の読み込み状態
+ */
 interface ImageData {
   fileId: string;
   thumbnailUrl: string | null;
@@ -34,6 +64,17 @@ interface ImageData {
   loading: boolean;
   status: 'idle' | 'loading' | 'error';
 }
+
+interface SiteCardData {
+  site_card_id: string;
+  url_text: string;
+  site_card_title: string;
+  site_card_text: string;
+  site_card_thumbnail: string | null;
+}
+
+// URL extraction regex
+const urlRegex = /(https?:\/\/[^\s]+)/g;
 
 // YouTube URLからビデオIDを抽出する関数を修正
 const extractYoutubeVideoId = (url: string): string | null => {
@@ -76,7 +117,8 @@ const Card = memo(({
   onQuote, 
   onReply, 
   onQuoteSubmit, 
-  handleDelete 
+  handleDelete,
+  onCorrect // 追加: パラメータとして受け取る
 }: Props) => {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -87,6 +129,7 @@ const Card = memo(({
 
   // hydration errorを防ぐため、useEffectで初期化
   const [imageData, setImageData] = useState<Record<string, ImageData>>({});
+  const [siteCards, setSiteCards] = useState<SiteCardData[]>([]);
   const [uiState, setUiState] = useState({
     menuOpen: false,
     deleteModalOpen: false, // 削除モーダル用の状態
@@ -107,7 +150,8 @@ const Card = memo(({
 
   const [formState, setFormState] = useState({
     postText: '',
-    mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct'
+    mode: 'normal' as 'normal' | 'quote' | 'reply' | 'correct',
+    files: [] as FileItem[]
   });
 
   // 追加: テキストの展開状態を管理
@@ -125,6 +169,59 @@ const Card = memo(({
     const searchText = hashtag.slice(1); // # を除去
     router.push(`/search?searchText=${encodeURIComponent(searchText)}&searchType=hashtag`);
   }, [router]);
+
+  // Extract URLs from post text
+  const extractUrls = useCallback((text: string): string[] => {
+    return text.match(urlRegex) || [];
+  }, []);
+
+  // Fetch site card data for a URL
+  const fetchSiteCard = useCallback(async (url: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/sitecard/sitecard_get`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch site card:', response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.site_card;
+    } catch (error) {
+      console.error('Error fetching site card:', error);
+      return null;
+    }
+  }, []);
+
+  // Load site cards when post is visible
+  useEffect(() => {
+    if (!inView || !post.post_text) return;
+
+    const loadSiteCards = async () => {
+      const urls = extractUrls(post.post_text);
+      if (urls.length === 0) return;
+
+      // Only process the first URL to avoid too many requests
+      const firstUrl = urls[0];
+      
+      // Don't fetch for YouTube URLs as they're already handled by the embedded player
+      if (extractYoutubeVideoId(firstUrl)) return;
+      
+      const siteCardData = await fetchSiteCard(firstUrl);
+      if (siteCardData) {
+        setSiteCards([siteCardData]);
+      }
+    };
+
+    loadSiteCards();
+  }, [inView, post.post_text, extractUrls, fetchSiteCard]);
 
   // renderText関数を更新
   const renderText = (text: string | null): React.ReactNode => {
@@ -190,6 +287,16 @@ const Card = memo(({
         </div>
         {youtubeVideos.map((videoId, index) => (
           <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
+        ))}
+        {/* サイトカードを表示 */}
+        {siteCards.map((card, index) => (
+          <SiteCard
+            key={`site-card-${index}`}
+            title={card.site_card_title}
+            description={card.site_card_text}
+            thumbnailId={card.site_card_thumbnail}
+            url={card.url_text}
+          />
         ))}
         {shouldTruncate ? (
           <div className="flex justify-center mt-2">
@@ -418,39 +525,67 @@ const Card = memo(({
 
   const handleRepost = async (event: React.MouseEvent) => {
     event.stopPropagation();
+    
+    const fileIds = post.post_file 
+      ? Array.isArray(post.post_file)
+        ? post.post_file
+        : post.post_file.split(',').map(file => file.trim().replace(/^"|"$/g, ''))
+      : [];
+      
+    const fileItems: FileItem[] = fileIds.map(fileId => ({
+      id: fileId,
+      isImage: true,
+      contentType: '',
+      name: `file-${fileId}`
+    }));
+    
     setUiState(prev => ({
       ...prev,
       repostModalOpen: false,
       menuOpen: false,
-      postFormModalOpen: true  // フォームを開く
+      postFormModalOpen: true
     }));
+    
     setFormState({
-      postText: post.post_text,  // 元の投稿テキストを設定
-      mode: 'correct'  // correct モードを設定
+      postText: post.post_text,
+      mode: 'correct',
+      files: fileItems
     });
   };
 
   // 引用投稿ハンドラーの更新
   const handleQuote = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
     event.stopPropagation();
-    setFormState({ postText: '', mode: 'quote' });
+    console.log('Quote mode triggered');
+    setFormState({ postText: '', mode: 'quote', files: [] });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
-      postFormModalOpen: true
+      postFormModalOpen: true,
+      postFormType: 'quote'
     }));
   }, []);
 
   // 返信投稿ハンドラーの更新
   const handleReply = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
     event.stopPropagation();
-    setFormState({ postText: '', mode: 'reply' });
+    console.log('Reply mode triggered');
+    setFormState({ postText: '', mode: 'reply', files: [] });
     setUiState(prev => ({
       ...prev,
       menuOpen: false,
-      postFormModalOpen: true
+      postFormModalOpen: true,
+      postFormType: 'reply'
     }));
   }, []);
+
+  // 修正モード処理を追加
+  const handleCorrectClick = () => {
+    console.log('Correct mode triggered for post:', post);
+    onCorrect && onCorrect(post);
+  };
 
   const renderImages = useCallback(() => {
     if (!post.post_file) return null;
@@ -462,7 +597,9 @@ const Card = memo(({
     return (
       <div className={`mt-4 ${files.length === 1 ? 'w-full' : 'grid grid-cols-2 gap-2'}`}>
         {files.map(file => {
-          const fileId = typeof file === "string" ? file.replace(/^\{?"|"?\}$/g, '') : file;
+          const rawFileId = typeof file === "string" ? file : String(file);
+          const fileId = rawFileId.replace(/[{}"\[\]]/g, '');
+          
           const data = imageData[fileId];
 
           return (
@@ -531,32 +668,96 @@ const Card = memo(({
   }, [post.reply_body, formatDate]);
 
   // renderRepostBodyを修正
-const renderRepostBody = useCallback(() => {
-  // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
-  if (!post.repost_body || !post.repost_body.post_id) return null;
+  const renderRepostBody = useCallback(() => {
+    // repost_bodyがnullまたはpost_idがnullの場合は何も表示しない
+    if (!post.repost_body || !post.repost_body.post_id) return null;
 
-  return (
-    <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
-      <div className="text-sm">
-        {renderText(post.repost_body.post_text)}
+    return (
+      <div className="mt-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg">
+        <div className="text-sm">
+          {renderText(post.repost_body.post_text)}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
+        </div>
       </div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {post.repost_body.post_createat && formatDate(new Date(post.repost_body.post_createat).toISOString())}
-      </div>
-    </div>
-  );
-}, [post.repost_body, formatDate]);
+    );
+  }, [post.repost_body, formatDate]);
 
   const [posts, setPosts] = useState<PostFeedPost[]>([]);
+
+  // handleFiles関数を追加
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    console.log('Files selected in PostCard:', files);
+    
+    // ファイル選択時の処理
+    // 実際のファイル処理はPostFormPopup内で行われるため、
+    // 必要に応じてここに追加の処理を記述
+  }, []);
+
+  // 既存ファイル選択用のハンドラを追加
+  const [existingFileSelector, setExistingFileSelector] = useState<boolean>(false);
+  const [driveFiles, setDriveFiles] = useState<any[]>([]);
+
+  // 既存ファイル選択ハンドラ
+  const handleSelectExistingFiles = useCallback(async () => {
+    try {
+      setExistingFileSelector(true);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file_list`);
+      if (response.ok) {
+        const data = await response.json();
+        setDriveFiles(data.files || []);
+      } else {
+        console.error('Failed to fetch file list');
+      }
+    } catch (error) {
+      console.error('Error fetching file list:', error);
+    }
+  }, []);
+
+  // 既存ファイル選択時のハンドラ
+  const handleSelectFile = useCallback((fileId: string | number) => {
+    const file = driveFiles.find(f => f.file_id === fileId);
+    const contentType = file?.content_type || 'application/octet-stream';
+    const isImage = contentType.startsWith('image/');
+    
+    setFormState(prev => {
+      if (prev.files.some(f => f.id === fileId)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        files: [
+          ...prev.files,
+          {
+            id: fileId,
+            name: file?.file_name || `file-${fileId}`,
+            contentType,
+            isImage,
+            isExisting: true
+          }
+        ]
+      };
+    });
+    
+    setExistingFileSelector(false);
+  }, [driveFiles]);
+  
   return (
     <>
+      {/* メインの投稿カードコンテナ - Intersection Observer用のref付与 */}
       <div ref={ref} className="w-full">
+        {/* 投稿カード - ホバー効果とダークモード対応付き */}
         <div className={`block bg-white dark:bg-gray-800 shadow-md rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 relative mt-4 w-full max-w-md mx-auto break-words text-[color:rgb(var(--foreground))]`}>
+          {/* 通知コンポーネント - 一時的なメッセージ表示用 */}
           <Notification 
             notifications={notifications} 
             onClose={removeNotification}
           />
 
+          {/* メニューボタン - 右上に配置 */}
           <div className="absolute top-1 right-4 z-10">
             <button onClick={toggleMenu} className="p-1 text-gray-700 dark:text-gray-300"> {/* p-2 を p-1 に変更 */}
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"> {/* w-8 h-8 を w-6 h-6 に変更 */}
@@ -565,9 +766,11 @@ const renderRepostBody = useCallback(() => {
             </button>
           </div>
 
+          {/* ドロップダウンメニュー - メニューボタンクリック時に表示 */}
           {uiState.menuOpen && (
             <div ref={menuRef} className="absolute top-11 right-4 bg-white shadow-lg rounded-lg p-2 z-20 dark:bg-gray-900">
               <ul>
+                {/* 共通機能 - すべてのユーザーが利用可能 */}
                 <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
                     onClick={copyLink}>
                   リンクをコピー
@@ -576,6 +779,7 @@ const renderRepostBody = useCallback(() => {
                     onClick={navigateToDetail}>
                   詳細
                 </li>
+                {/* ログインユーザー専用機能 */}
                 {isLoggedIn && (
                   <>
                     <li className="text-sm py-2 px-4 hover:bg-gray-100 hover:rounded-lg cursor-pointer dark:text-gray-100 dark:hover:bg-gray-800"
@@ -606,13 +810,14 @@ const renderRepostBody = useCallback(() => {
             </div>
           )}
 
+          {/* モーダルコンポーネント群 - 各種操作用のポップアップ */}
           <DeleteConfirmModal
             isOpen={uiState.deleteModalOpen}
             onClose={() => setUiState(prev => ({
               ...prev,
               deleteModalOpen: false
             }))}
-            onDelete={() => { // 修正: 引数を1つに変更
+            onDelete={() => {
               if (handleDelete) {
                 handleDelete(post.post_id).catch(error => {
                   console.error('Error handling delete:', error);
@@ -621,6 +826,7 @@ const renderRepostBody = useCallback(() => {
             }}
           />
 
+          {/* 再投稿確認モーダル */}
           <DeleteConfirmModal
             isOpen={uiState.repostModalOpen}
             onClose={() => setUiState(prev => ({
@@ -633,29 +839,37 @@ const renderRepostBody = useCallback(() => {
             confirmText="再投稿"
           />
 
+          {/* 画像表示モーダル - z-indexを高めに設定して最前面表示 */}
           <ImageModal
             isOpen={uiState.imageModalOpen}
             imageUrl={uiState.selectedImage}
             onClose={handleCloseModal}
-            className="z-[10000]"  // z-indexを10000に変更
+            className="z-[10000]"
           />
 
+          {/* 投稿本文エリア */}
           <div>
-            {renderReplyBody()} {/* 返信元投稿を表示、「Create at:」の表示*/}
+            {/* 返信元投稿の表示 */}
+            {renderReplyBody()}
+            {/* 投稿日時の表示 */}
             <div className="text-gray-500 text-sm break-words">
               {formatDate(post.post_createat)}
             </div>
 
+            {/* メイン投稿テキストの表示 */}
             <div className="mt-2 break-words">
               {renderText(post.post_text)}
             </div>
 
+            {/* 画像の表示 - Intersection Observerと連動 */}
             {inView && renderImages()}
-            {renderRepostBody()} {/* 引用元投稿を表示 */}
+            {/* 引用元投稿の表示 */}
+            {renderRepostBody()}
           </div>
         </div>
       </div>
       
+      {/* 投稿詳細ポップアップ */}
       <PostCardPopup
         isOpen={uiState.detailModalOpen}
         onClose={() => setUiState(prev => ({ ...prev, detailModalOpen: false }))}
@@ -669,84 +883,262 @@ const renderRepostBody = useCallback(() => {
         onReply={onReply}
       />
 
+      {/* 投稿フォームポップアップ - 引用・返信投稿用 */}
       <PostFormPopup
         isOpen={uiState.postFormModalOpen}
-        onClose={() => setUiState(prev => ({ 
-          ...prev, 
-          postFormModalOpen: false
-        }))}
+        onClose={() => setUiState(prev => ({ ...prev, postFormModalOpen: false }))}
         postText={formState.postText}
         setPostText={(text) => setFormState(prev => ({ ...prev, postText: text }))}
-        setFiles={() => {}} // Add empty function as placeholder
-        handleSubmit={async (e, finalText) => {
+        handleSubmit={async (e, finalText, targetPostId, mode, originalReplyId, originalRepostId) => {
           e.preventDefault();
+          console.log('PostCard: handleSubmit called with:', { finalText, targetPostId, mode, originalReplyId, originalRepostId});
           try {
-            // correct モードの場合、まず投稿を削除
-            if (formState.mode === 'correct') {
-              // 削除処理を post_delete エンドポイントを使用するように修正
-              const deleteResponse = await fetch('/api/post/post_delete', {
-                method: 'DELETE',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ post_id: post.post_id }),
-              });
-
-              if (!deleteResponse.ok) {
-                addNotification('削除に失敗しました');
+            if (mode === 'correct') {
+              // 元の投稿を削除
+              if (!handleDelete) {
+                console.error('handleDelete function is not provided');
                 return;
               }
+              
+              if (!post) {
+                console.error('targetPost is not provided');
+                return;
+              }
+              
+              // 投稿を削除前に現在のファイル情報を保持
+              const currentFiles = [...formState.files];
+              
+              console.log('Starting repost process in correct mode');
+              
 
-              // 投稿一覧からも削除
-              setPosts(prevPosts => prevPosts.filter(p => p.post_id !== post.post_id));
+              // 修正バージョン - より安全な型チェックと変換を行う
 
+              const payload = {
+                post_text: finalText,
+                // ファイルIDの配列を追加（存在する場合のみ）
+                ...(currentFiles.length > 0 && { 
+                  post_file: currentFiles.map(file => {
+                    // ファイルIDを適切にクリーニング
+                    return typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id;
+                  }) 
+                }),
+                // originalRepostIdの処理を改善 - 安全な型チェックと変換
+                ...(originalRepostId ? { 
+                  repost_id: Array.isArray(originalRepostId) 
+                    ? (originalRepostId.length > 0 && originalRepostId[0] != null)
+                      ? String(originalRepostId[0])  // Stringコンストラクタで明示的に変換
+                      : null 
+                    : (originalRepostId != null)
+                      ? String(originalRepostId)  // Stringコンストラクタで明示的に変換
+                      : null
+                } : {}),
+
+                // originalReplyIdの処理を改善 - より安全な型変換とnull/undefined処理
+                ...(originalReplyId ? (() => {
+                  // originalReplyIdが配列の場合
+                  if (Array.isArray(originalReplyId)) {
+                    // 配列が空でなく、最初の要素がnullでない場合
+                    if (originalReplyId.length > 0 && originalReplyId[0] != null) {
+                      // 最初の要素がオブジェクトでない場合のみ使用
+                      if (typeof originalReplyId[0] !== 'object') {
+                        return { reply_id: String(originalReplyId[0]) };
+                      }
+                    }
+                    // それ以外の場合は何も追加しない
+                    return {};
+                  } 
+                  // 配列でなく、nullでなく、オブジェクトでない場合
+                  else if (originalReplyId != null && typeof originalReplyId !== 'object') {
+                    return { reply_id: String(originalReplyId) };
+                  }
+                  // それ以外の場合は何も追加しない
+                  return {};
+                })() : {})
+              };
+
+
+              console.log('Sending repost payload with files:', payload);
+              
               // 新規投稿を作成
-              const createResponse = await fetch('/api/post/post_create', {
+              const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/post/post_create`, {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
+                  'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  post_text: finalText
-                })
+                body: JSON.stringify(payload),
+                credentials: 'include'
               });
-
-              if (!createResponse.ok) {
-                throw new Error('新規投稿の作成に失敗しました');
+              
+              if (!response.ok) {
+                throw new Error('Failed to create repost');
               }
-
+              
+              const newPost = await response.json();
               addNotification('投稿を修正しました');
+              console.log('New post created as correction:', newPost);
+              
+              // モーダルを閉じて状態をリセット
               setUiState(prev => ({ ...prev, postFormModalOpen: false }));
-            } else if (onQuoteSubmit && (formState.mode === 'quote' || formState.mode === 'reply')) {
-              // 引用と返信の処理
-              await onQuoteSubmit(finalText, formState.mode, post.post_id);
+              setFormState({ postText: '', mode: 'normal', files: [] });
+              
+              // 親コンポーネントにページの更新を通知するなどの処理が必要な場合はここに追加
+              
+            } else if (onQuoteSubmit && (mode === 'quote' || mode === 'reply') && post.post_id) {
+              // ファイル情報を含めて引用・返信投稿を作成
+              const payload = {
+                post_text: finalText,
+                // 添付ファイルがある場合は追加
+                ...(formState.files.length > 0 && {
+                  post_file: formState.files.map(file => {
+                    return typeof file.id === 'string' ? file.id.replace(/[{}"\[\]]/g, '') : file.id;
+                  })
+                })
+              };
+              
+              console.log(`Sending ${mode} payload with files:`, payload);
+              
+              // 親コンポーネントの引用・返信処理を呼び出し
+              await onQuoteSubmit(finalText, mode, post.post_id, formState.files);
+              addNotification(`${mode === 'quote' ? '引用' : '返信'}投稿を作成しました`);
+              
+              // モーダルを閉じて状態をリセット
               setUiState(prev => ({ ...prev, postFormModalOpen: false }));
+              setFormState({ postText: '', mode: 'normal', files: [] });
             }
           } catch (error) {
             console.error('Error in form submission:', error);
-            addNotification('処理に失敗しました');
+            const modeText = mode === 'correct' ? '再投稿' : mode === 'quote' ? '引用投稿' : '返信投稿';
+            addNotification(`${modeText}の作成に失敗しました`);
           }
         }}
         mode={formState.mode}
         targetPost={post}
-        handleDelete={handleDelete} // 追加
+        files={formState.files}
         isLoggedIn={isLoggedIn}
-        files={[]}
-        handleFiles={() => {}}
-        handlePostDelete={async (fileId) => {
-          // Assuming fileId is a number, we create a dummy event
-          const dummyEvent = new MouseEvent('click') as unknown as React.MouseEvent;
-          return await onDelete(dummyEvent, fileId.toString());
-        }}
         status=""
-        onSelectExistingFiles={() => {}}
+        onSelectExistingFiles={handleSelectExistingFiles} // 既存ファイル選択ハンドラを渡す
         fixedHashtags=""
         setFixedHashtags={() => {}}
         autoAppendTags={false}
         setAutoAppendTags={() => {}}
-        handleCancelAttach={() => {}} // 追加: ファイル添付のキャンセル処理
-        handleDeletePermanently={() => {}} // 追加: ファイルの完全削除処理
+        handleCancelAttach={(fileId) => {
+          setFormState(prev => ({
+            ...prev,
+            files: prev.files.filter(f => f.id !== fileId)
+          }))
+        }}
+        handleDeletePermanently={(fileId) => {
+          setFormState(prev => ({
+            ...prev,
+            files: prev.files.filter(f => f.id !== fileId)
+          }))
+        }}
+        setFiles={(newFiles) => setFormState(prev => ({ 
+          ...prev, 
+          files: Array.isArray(newFiles) ? newFiles : newFiles(prev.files) 
+        }))}
+        handleDelete={handleDelete}
+        handleFiles={handleFiles}  // 必須のhandleFilesプロパティを追加
       />
+
+
+      {/* 既存ファイル選択モーダルを追加 */}
+      {existingFileSelector && (
+        
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-2xl p-6 relative max-h-[80vh] overflow-y-auto">
+            <button
+              className="absolute top-4 right-4 text-gray-600 dark:text-gray-300"
+              onClick={() => setExistingFileSelector(false)}
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4">ファイルを選択（試験）</h2>
+            {driveFiles.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {driveFiles.map((file) => (
+                  <div
+                    key={file.file_id}
+                    className="border rounded p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSelectFile(file.file_id)}
+                  >
+                    <div className="w-full aspect-video bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    {(() => {
+                      // ファイルが画像かどうかを判定するヘルパー関数
+                      {console.log('File selector modal opened', driveFiles)}
+                      const isImageFile = (file: any) => {
+                        // デバッグ情報を常に出力
+                        console.log('Checking file type:', file.file_id, 'file_name:', file.file_name, 'content_type:', file.content_type);
+                        
+                        // 1. content_typeプロパティを確認
+                        if (file.content_type && file.content_type.startsWith('image/')) {
+                          return true;
+                        }
+                        
+                        // 2. file_nameから拡張子で判定
+                        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'heif', 'heic'];
+                        if (file.file_name) {
+                          const ext = file.file_name.split('.').pop()?.toLowerCase();
+                          if (ext && imageExtensions.includes(ext)) {
+                            return true;
+                          }
+                        }
+                        
+                        // 3. file_idに拡張子が含まれている場合
+                        if (typeof file.file_id === 'string') {
+                          const ext = file.file_id.split('.').pop()?.toLowerCase();
+                          if (ext && imageExtensions.includes(ext)) {
+                            return true;
+                          }
+                        }
+                        
+                        console.log('Not an image file: file_id:', file.file_id, 'file_name:', file.file_name, 'content_type:', file.content_type);
+                        return false;
+                      };
+
+                      return isImageFile(file) ? (
+                      <img
+                        src={`${process.env.NEXT_PUBLIC_SITE_DOMAIN}/api/drive/file/${file.file_id}/thumbnail`}
+                        alt={`File ${file.file_id}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                        // エラー時のフォールバック表示
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        
+                        // 親要素のクリア
+                        const parent = target.parentElement;
+                        if (parent) {
+                          // フォールバック表示用の要素を追加
+                          const fallback = document.createElement('div');
+                          fallback.className = 'flex h-full w-full items-center justify-center';
+                          fallback.innerHTML = '<span class="text-gray-500">プレビューを読み込めません</span>';
+                          {parent.appendChild(fallback);}
+                        }
+                        }}
+                        loading="lazy"
+                      />
+                      ) : (
+                      <div className="text-gray-500 text-center p-2 w-full h-full flex items-center justify-center">
+                        {(file.file_name || `ファイル`).split('.').pop()?.toUpperCase() || 'FILE'}
+                      </div>
+                      );
+                    })()}
+                    </div>
+                    <div className="text-sm truncate mt-1">
+                      <div className="font-medium">{file.file_name || `ファイル ${file.file_id}`}</div>
+                      <div className="text-xs text-gray-500">ID: {file.file_id}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center">ファイルが見つかりません</p>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 });

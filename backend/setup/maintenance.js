@@ -52,12 +52,42 @@ async function setupElasticSearchWithRetry(retries) {
                 _tier_preference: "data_hot,data_content"
               }
             }
+          },
+          analysis: {
+            analyzer: {
+              kuromoji_analyzer: {
+                type: "custom",
+                tokenizer: "kuromoji_tokenizer"
+              },
+              ngram_analyzer: {
+                type: "custom",
+                tokenizer: "ngram_tokenizer",
+                filter: ["lowercase"]
+              }
+            },
+            tokenizer: {
+              ngram_tokenizer: {
+                type: "ngram",
+                min_gram: 2,
+                max_gram: 3,
+                token_chars: ["letter", "digit"]
+              }
+            }
           }
         },
         mappings: {
           properties: {
             post_id: { type: 'keyword'},
-            post_text: { type: 'text', analyzer: 'kuromoji' }, // Apply the analyzer here instead
+            post_text: { 
+              type: 'text', 
+              analyzer: 'kuromoji_analyzer',
+              fields: {
+                ngram: {
+                  type: "text",
+                  analyzer: "ngram_analyzer"
+                }
+              }
+            }, 
             post_createat: { type: 'date' },
             post_tag: { type: 'keyword' }
           }
@@ -85,7 +115,79 @@ async function setupElasticSearchWithRetry(retries) {
           }
         }
       });
-      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました��`);
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX}' のレプリカ数とティア設定を更新しました。`);
+    }
+    
+    // blogインデックスのセットアップ
+    const blog_indexExists = await esClient.indices.exists({ index: ELASTICSEARCH_INDEX2 });
+    
+    if (!blog_indexExists) {
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX2}' が存在しません。作成します。`);
+      const blogIndexSettings = {
+        settings: {
+          number_of_replicas: 0,
+          routing: {
+            allocation: {
+              include: {
+                _tier_preference: "data_hot,data_content"
+              }
+            }
+          },
+          analysis: {
+            analyzer: {
+              kuromoji_analyzer: {
+                type: "custom",
+                tokenizer: "kuromoji_tokenizer"
+              },
+              ngram_analyzer: {
+                type: "custom",
+                tokenizer: "ngram_tokenizer",
+                filter: ["lowercase"]
+              }
+            },
+            tokenizer: {
+              ngram_tokenizer: {
+                type: "ngram",
+                min_gram: 2,
+                max_gram: 3,
+                token_chars: ["letter", "digit"]
+              }
+            }
+          }
+        },
+        mappings: {
+          properties: {
+            blog_id: { type: 'keyword'},
+            blog_title: { 
+              type: 'text', 
+              analyzer: 'kuromoji_analyzer',
+              fields: {
+                ngram: {
+                  type: "text",
+                  analyzer: "ngram_analyzer"
+                }
+              }
+            },
+            blog_text: { 
+              type: 'text', 
+              analyzer: 'kuromoji_analyzer',
+              fields: {
+                ngram: {
+                  type: "text",
+                  analyzer: "ngram_analyzer"
+                }
+              }
+            },
+            blog_createat: { type: 'date' },
+            blog_tag: { type: 'keyword' }
+          }
+        }
+      };
+      await esClient.indices.create({
+        index: ELASTICSEARCH_INDEX2,
+        body: blogIndexSettings
+      });
+      console.log(`ElasticSearchインデックス '${ELASTICSEARCH_INDEX2}' が作成されました。`);
     }
   } catch (error) {
     console.error('ElasticSearchのセットアップ中にエラーが発生しました:', error);
@@ -279,7 +381,7 @@ async function bulkInsertToElasticSearch(data) {
       post_text: doc.post_text,
       post_createat: doc.post_createat,
       post_tag: doc.post_tag
-      // ��要に応じて他のフ���ールドも追加
+      // 必要に応じて他のフィールドも追加
     });
   });
 

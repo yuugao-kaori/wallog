@@ -45,7 +45,7 @@ async function getUserInfo(username) {
   try {
     await client.connect();
     // より具体的なカラムを指定し、user_hashtagを含める
-    const query = 'SELECT user_id, user_prof, user_icon, user_hashtag::text[], user_auto_hashtag::text[] FROM "user" WHERE user_id = $1';
+    const query = 'SELECT user_id, user_prof, user_icon, user_hashtag::text[], user_auto_hashtag::text[], user_post_text::text FROM "user" WHERE user_id = $1';
     const result = await client.query(query, [username]);
     return result.rows[0];
   } finally {

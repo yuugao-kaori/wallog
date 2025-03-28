@@ -1,6 +1,9 @@
 */wallog_next/*
 **/db_data/**
 **/minio/**
+sitemap.xml
+feed.xml
+.vscode/**
 
 *.gz
 # Logs

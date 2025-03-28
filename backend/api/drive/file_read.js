@@ -6,7 +6,7 @@ import mime from 'mime-types';
 import pkg from 'pg';
 import dotenv from 'dotenv';
 import sharp from 'sharp';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 const { Client } = pkg;
 dotenv.config();
@@ -49,6 +49,40 @@ router.get('/file/:file_id', async (req, res) => {
         return res.status(400).send('Invalid file ID');
     }
 
+    // サイトカードのサムネイルの場合は直接返す
+    if (fileId.startsWith('thumbnail-card-') || fileId.startsWith('thumbnail-')) {
+        try {
+            // オブジェクトのメタデータを取得
+            const metadata = await getObjectMetadata('publicdata', fileId);
+            
+            // 拡張子からContent-Typeを推測
+            let contentType;
+            if (fileId.includes('.')) {
+                const extension = fileId.substring(fileId.lastIndexOf('.') + 1).toLowerCase();
+                contentType = mime.lookup(extension) || metadata?.contentType || 'image/png';
+            } else {
+                contentType = metadata?.contentType || 'image/png'; // デフォルトはpng
+            }
+
+            const command = new GetObjectCommand({
+                Bucket: 'publicdata',
+                Key: fileId,
+            });
+
+            const s3Response = await s3Client.send(command);
+            
+            // ヘッダーを設定してストリームを直接返す
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
+            res.setHeader('Content-Type', contentType);
+            s3Response.Body.pipe(res);
+            return;
+        } catch (error) {
+            console.error('Error fetching thumbnail:', error);
+            return res.status(404).send('Thumbnail not found');
+        }
+    }
+
+    // 通常のファイルの処理（既存のコード）
     const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_NAME } = process.env;
 
     const client = new Client({
@@ -62,15 +96,40 @@ router.get('/file/:file_id', async (req, res) => {
     try {
         await client.connect();
         
-        // ファイル情報をDBから取得
-        const query = 'SELECT file_format FROM drive WHERE file_id = $1';
+        // ファイル情報をDBから取得（EXIF情報を含む）
+        const query = `
+            SELECT 
+                drive.*
+            FROM drive 
+            WHERE file_id = $1`;
         const result = await client.query(query, [fileId]);
         
         if (result.rows.length === 0) {
             return res.status(404).send('File not found in database');
         }
 
-        const { file_format } = result.rows[0];
+        const fileData = result.rows[0];
+        const { file_format } = fileData;
+        
+        // EXIF情報をヘッダーに設定
+        // EXIFの公開設定がtrueの場合のみ、EXIF情報をヘッダーに追加
+        if (fileData.file_exif_public) {
+            if (fileData.file_exif_datetime) res.setHeader('X-EXIF-DateTime', fileData.file_exif_datetime);
+            if (fileData.file_exif_make) res.setHeader('X-EXIF-Make', fileData.file_exif_make);
+            if (fileData.file_exif_model) res.setHeader('X-EXIF-Model', fileData.file_exif_model);
+            if (fileData.file_exif_exposure_time) res.setHeader('X-EXIF-ExposureTime', fileData.file_exif_exposure_time);
+            if (fileData.file_exif_fnumber) res.setHeader('X-EXIF-FNumber', fileData.file_exif_fnumber);
+            if (fileData.file_exif_iso) res.setHeader('X-EXIF-ISO', fileData.file_exif_iso);
+            if (fileData.file_exif_focal_length) res.setHeader('X-EXIF-FocalLength', fileData.file_exif_focal_length);
+        }
+        
+        // GPS情報の公開設定がtrueの場合、GPS情報もヘッダーに追加
+        if (fileData.file_exif_gps_public) {
+            if (fileData.file_exif_gps_latitude) res.setHeader('X-EXIF-GPS-Latitude', fileData.file_exif_gps_latitude);
+            if (fileData.file_exif_gps_longitude) res.setHeader('X-EXIF-GPS-Longitude', fileData.file_exif_gps_longitude);
+            if (fileData.file_exif_gps_altitude) res.setHeader('X-EXIF-GPS-Altitude', fileData.file_exif_gps_altitude);
+            if (fileData.file_exif_image_direction) res.setHeader('X-EXIF-Image-Direction', fileData.file_exif_image_direction);
+        }
         
         // MinIOからファイルを取得
         const command = new GetObjectCommand({
@@ -81,7 +140,12 @@ router.get('/file/:file_id', async (req, res) => {
         const s3Response = await s3Client.send(command);
         
         // Content-Typeをfile_formatから判定
-        const contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        let contentType = 'application/octet-stream';
+        if (file_format === 'webp') {
+            contentType = 'image/webp';
+        } else {
+            contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        }
         res.setHeader('Cache-Control', 'public, max-age=31536000');
         res.setHeader('Content-Type', contentType);
         res.setHeader('X-File-Format', file_format || 'unknown');
@@ -138,7 +202,12 @@ router.get('/file_download/:file_id', async (req, res) => {
         const s3Response = await s3Client.send(command);
         
         // Content-Typeをfile_formatから判定
-        const contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        let contentType = 'application/octet-stream';
+        if (file_format === 'webp') {
+            contentType = 'image/webp';
+        } else {
+            contentType = mime.lookup(`.${file_format}`) || 'application/octet-stream';
+        }
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${fileId}.${file_format}"`);
 
@@ -153,11 +222,58 @@ router.get('/file_download/:file_id', async (req, res) => {
     }
 });
 
+// MinIOからオブジェクトのメタデータを取得する関数
+async function getObjectMetadata(bucket, key) {
+    try {
+        const command = new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key
+        });
+        const response = await s3Client.send(command);
+        return {
+            contentType: response.ContentType,
+            lastModified: response.LastModified,
+            contentLength: response.ContentLength,
+            metadata: response.Metadata
+        };
+    } catch (error) {
+        console.error(`Error getting metadata for ${key}:`, error);
+        return null;
+    }
+}
+
 router.get('/file/:fileId/thumbnail', async (req, res) => {
     const fileId = req.params.fileId;
 
     try {
-        // MinIOからファイルを取得
+        // サイトカードのサムネイルの場合は直接返す（パターンマッチング）
+        if (fileId.startsWith('thumbnail-card-') || fileId.startsWith('thumbnail-')) {
+            // 拡張子からContent-Typeを推測
+            let contentType;
+            if (fileId.includes('.')) {
+                const extension = fileId.substring(fileId.lastIndexOf('.') + 1).toLowerCase();
+                contentType = mime.lookup(extension) || 'image/png';
+            } else {
+                // まずオブジェクトのメタデータを取得して、ContentTypeを確認
+                const metadata = await getObjectMetadata('publicdata', fileId);
+                contentType = metadata?.contentType || 'image/png'; // デフォルトはpng
+            }
+
+            const command = new GetObjectCommand({
+                Bucket: 'publicdata',
+                Key: fileId,
+            });
+
+            const s3Response = await s3Client.send(command);
+            
+            // ストリームを直接返す
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
+            res.setHeader('Content-Type', contentType);
+            s3Response.Body.pipe(res);
+            return;
+        }
+
+        // 以下は通常のファイルの処理
         const command = new GetObjectCommand({
             Bucket: 'publicdata',
             Key: fileId,
@@ -173,23 +289,33 @@ router.get('/file/:fileId/thumbnail', async (req, res) => {
         const fileBuffer = Buffer.concat(chunks);
         
         // 画像フォーマットを検出
-        const image = sharp(fileBuffer);
-        const metadata = await image.metadata();
-        
-        if (metadata.format && ['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
-            // 画像の場合は圧縮して返す
-            const thumbnail = await image
-                .resize(300, 300, {
-                    fit: 'inside',
-                    withoutEnlargement: true
-                })
-                .jpeg({ quality: 60 })
-                .toBuffer();
+        try {
+            const image = sharp(fileBuffer);
+            const metadata = await image.metadata();
+            
+            if (metadata.format && ['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
+                // 画像の場合は圧縮して返す
+                const thumbnail = await image
+                    .resize(300, 300, {
+                        fit: 'inside',
+                        withoutEnlargement: true
+                    })
+                    .jpeg({ quality: 60 })
+                    .toBuffer();
 
-            res.setHeader('Content-Type', 'image/jpeg');
-            res.send(thumbnail);
-        } else {
-            // 画像以外はそのまま返す
+                res.setHeader('Cache-Control', 'public, max-age=31536000');
+                res.setHeader('Content-Type', 'image/jpeg');
+                res.send(thumbnail);
+            } else {
+                // 画像以外はそのまま返す
+                res.setHeader('Cache-Control', 'public, max-age=31536000');
+                res.setHeader('Content-Type', mime.lookup(fileId) || 'application/octet-stream');
+                res.send(fileBuffer);
+            }
+        } catch (imageError) {
+            // sharp処理に失敗した場合はそのままファイルを返す
+            console.error('Image processing error:', imageError);
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
             res.setHeader('Content-Type', mime.lookup(fileId) || 'application/octet-stream');
             res.send(fileBuffer);
         }

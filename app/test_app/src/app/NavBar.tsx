@@ -1,5 +1,5 @@
 'use client'
-const version = 'Build 2025.01.17.0001'
+const version = 'Build 2025.03.27.0000'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
@@ -11,7 +11,7 @@ import { IoMail  } from 'react-icons/io5'
 import { TbWorld,TbBadgeVrFilled  } from 'react-icons/tb'
 import { useTheme } from './ThemeProvider'
 
-// APIインスタンスをメモ化
+// APIインスタンスをメモ化                                                                                                                                                                                                                                                                                                
 const useApi = () => {
   return useMemo(() => axios.create({
     baseURL: 'https://wallog.seitendan.com',
@@ -275,7 +275,9 @@ const NavBarClient = () => {
         <div className="flex flex-col space-y-4">
           <MenuLink href="/diary">Diary</MenuLink>
           <MenuLink href="/blog">Blog</MenuLink>
+          <MenuLink href="/photo">Photo</MenuLink>
           <MenuLink href="/search">Search</MenuLink>
+          <MenuLink href="/todo">ToDo & Done</MenuLink>
           {isLoggedIn && <MenuLink href="/drive">Drive</MenuLink>}
           {isLoggedIn && <MenuLink href="/private">Private</MenuLink>}
           {settings.pined_page_name_A && <MenuLink href={settings.pined_page_url_A}>{settings.pined_page_name_A}</MenuLink>}

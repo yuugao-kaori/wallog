@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Post } from './PostFeed';
+
+interface FileUploadProgress {
+  [key: string]: number;
+}
 
 interface PostFormModalProps {
   isOpen: boolean;
@@ -17,14 +21,110 @@ const PostFormModal: React.FC<PostFormModalProps> = ({
   onSubmit
 }) => {
   const [postText, setPostText] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<FileUploadProgress>({});
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(postText, type, post.post_id);
-    setPostText('');
-    onClose();
+    if (isUploading) return; // アップロード中は投稿を防止
+
+    try {
+      // API呼び出しを行う
+      await onSubmit(postText, type, post.post_id);
+      
+      // 投稿成功時にテキストをクリアしてモーダルを閉じる
+      setPostText('');
+      onClose();
+    } catch (error) {
+      console.error('Error submitting post:', error);
+      // エラーハンドリング - 実際のアプリケーションではエラーメッセージの表示などを行うべき
+    }
+  };
+
+  // ファイルアップロード機能を追加する場合は以下のようなハンドラを実装
+  const handleFilesWithProgress = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    
+    setIsUploading(true);
+    
+    // ファイルごとに進捗初期化
+    const newProgress: FileUploadProgress = {};
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      newProgress[file.name] = 0;
+    }
+    setUploadProgress(prev => ({ ...prev, ...newProgress }));
+    
+    // 各ファイルのアップロード
+    Array.from(fileList).forEach(file => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: percentComplete
+          }));
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.file_id) {
+              // ファイルアップロード成功時の処理
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: 100
+              }));
+              
+              setTimeout(() => {
+                setUploadProgress(prev => {
+                  const updatedProgress = { ...prev };
+                  delete updatedProgress[file.name];
+                  return updatedProgress;
+                });
+              }, 1000);
+            }
+          } catch (error) {
+            console.error('Error parsing response:', error);
+          }
+        } else {
+          console.error('Upload failed with status:', xhr.status);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: -1
+          }));
+        }
+        
+        setTimeout(() => {
+          setIsUploading(Object.keys(uploadProgress).length > 0);
+        }, 500);
+      });
+      
+      xhr.addEventListener('error', () => {
+        console.error('Upload error occurred');
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: -1
+        }));
+        
+        setTimeout(() => {
+          setIsUploading(Object.keys(uploadProgress).length > 0);
+        }, 500);
+      });
+      
+      xhr.open('POST', '/api/drive/file_create');
+      xhr.send(formData);
+    });
   };
 
   return (
@@ -52,6 +152,43 @@ const PostFormModal: React.FC<PostFormModalProps> = ({
             className="w-full h-32 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
             placeholder={type === 'quote' ? '引用コメントを入力...' : '返信を入力...'}
           />
+          
+          {/* ファイルアップロード機能を追加する場合はここに実装 */}
+          {/* 
+          <div className="mt-4 p-3 border-dashed border-2 border-gray-300 text-center cursor-pointer rounded" onClick={() => fileInputRef.current?.click()}>
+            画像を添付する
+            <input 
+              type="file" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={(e) => handleFilesWithProgress(e.target.files)} 
+              multiple
+              accept="image/*"
+            />
+          </div>
+          */}
+          
+          {/* アップロード進捗表示 */}
+          {isUploading && Object.keys(uploadProgress).length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h3 className="font-medium text-sm">アップロード中...</h3>
+              {Object.entries(uploadProgress).map(([fileName, progress]) => (
+                <div key={fileName} className="flex flex-col">
+                  <div className="flex justify-between text-xs">
+                    <span className="truncate max-w-[75%]">{fileName}</span>
+                    <span>{progress < 0 ? 'エラー' : `${progress}%`}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                    <div 
+                      className={`h-2.5 rounded-full ${progress < 0 ? 'bg-red-500' : 'bg-blue-500'}`}
+                      style={{ width: `${progress < 0 ? 100 : progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
           <div className="flex justify-end mt-4">
             <button
               type="button"
@@ -62,9 +199,12 @@ const PostFormModal: React.FC<PostFormModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
+              className={`px-4 py-2 text-white rounded ${
+                isUploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
+              }`}
+              disabled={isUploading}
             >
-              投稿
+              {isUploading ? 'アップロード中...' : '投稿'}
             </button>
           </div>
         </form>

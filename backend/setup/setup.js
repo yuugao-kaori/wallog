@@ -151,6 +151,148 @@ async function setupElasticSearchWithRetry(retries, esClient, ELASTICSEARCH_INDE
   }
 }
 
+// ElasticSearchのセットアップ
+async function setupElasticSearch() {
+  try {
+    const isConnected = await checkElasticsearchConnection();
+    if (!isConnected) {
+      throw new Error("ElasticSearchに接続できません");
+    }
+
+    // インデックスの存在をチェック
+    const indexExists = await esClient.indices.exists({ index: "post" });
+
+    if (!indexExists) {
+      console.log('ElasticSearchインデックス "post" が存在しません。作成します...');
+      
+      // インデックスの作成
+      await esClient.indices.create({
+        index: "post",
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                kuromoji_analyzer: {
+                  type: "custom",
+                  tokenizer: "kuromoji_tokenizer"
+                },
+                ngram_analyzer: {
+                  type: "custom",
+                  tokenizer: "ngram_tokenizer",
+                  filter: ["lowercase"]
+                }
+              },
+              tokenizer: {
+                ngram_tokenizer: {
+                  type: "ngram",
+                  min_gram: 2,
+                  max_gram: 3,
+                  token_chars: ["letter", "digit"]
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              post_id: { type: "keyword" },
+              post_text: { 
+                type: "text", 
+                analyzer: "kuromoji_analyzer",
+                fields: {
+                  ngram: {
+                    type: "text",
+                    analyzer: "ngram_analyzer"
+                  }
+                }
+              },
+              post_createat: { type: "date" },
+              post_tag: { type: "keyword" }
+            }
+          }
+        }
+      });
+      console.log('ElasticSearchインデックス "post" を作成しました');
+    } else {
+      console.log('ElasticSearchインデックス "post" は既に存在します');
+    }
+
+    // blogインデックスの存在をチェック
+    const blogIndexExists = await esClient.indices.exists({ index: "blog" });
+
+    if (!blogIndexExists) {
+      console.log('ElasticSearchインデックス "blog" が存在しません。作成します...');
+      
+      // blogインデックスの作成
+      await esClient.indices.create({
+        index: "blog",
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                kuromoji_analyzer: {
+                  type: "custom",
+                  tokenizer: "kuromoji_tokenizer"
+                },
+                ngram_analyzer: {
+                  type: "custom",
+                  tokenizer: "ngram_tokenizer",
+                  filter: ["lowercase"]
+                }
+              },
+              tokenizer: {
+                ngram_tokenizer: {
+                  type: "ngram",
+                  min_gram: 2,
+                  max_gram: 3,
+                  token_chars: ["letter", "digit"]
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              blog_id: { type: "keyword" },
+              blog_title: { 
+                type: "text", 
+                analyzer: "kuromoji_analyzer",
+                fields: {
+                  ngram: {
+                    type: "text",
+                    analyzer: "ngram_analyzer"
+                  }
+                }
+              },
+              blog_text: { 
+                type: "text", 
+                analyzer: "kuromoji_analyzer",
+                fields: {
+                  ngram: {
+                    type: "text",
+                    analyzer: "ngram_analyzer"
+                  }
+                }
+              },
+              blog_createat: { type: "date" },
+              blog_tag: { type: "keyword" }
+            }
+          }
+        }
+      });
+      console.log('ElasticSearchインデックス "blog" を作成しました');
+    } else {
+      console.log('ElasticSearchインデックス "blog" は既に存在します');
+    }
+
+  } catch (error) {
+    console.error("ElasticSearchのセットアップ中にエラーが発生しました:", error);
+    throw error;
+  }
+}
+
 async function checkTableExists(pgClient, APP_ADMIN_USER, APP_ADMIN_PASSWORD) {
   try {
     // PostgreSQLに接続

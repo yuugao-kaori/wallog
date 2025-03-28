@@ -6,6 +6,28 @@ import { Inter } from 'next/font/google';
 import { Suspense } from 'react';
 import Loading from './Loading';
 
+
+
+
+export const metadata: Metadata = {
+  title: "ホーム | 星天想記",
+  description: "星天想記のホームページです。",
+  openGraph: {
+    title: "ホーム | 星天想記",
+    description: "星天想記のホームページです。",
+    url: "https://wallog.seitendan.com/",
+    siteName: "星天想記",
+    locale: "ja_JP",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ホーム | 星天想記",
+    description: "星天想記のホームページです。",
+  },
+};
+
+
 // フォントの最適化
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
