@@ -5,9 +5,8 @@ import DynamicClientWrapper from './DynamicClientWrapper';
 import { Inter } from 'next/font/google';
 import { Suspense } from 'react';
 import Loading from './Loading';
-
-
-
+// ThemeProviderをインポート (必要に応じて実際のパスに調整してください)
+import { ThemeProvider } from './ThemeProvider';
 
 export const metadata: Metadata = {
   title: "ホーム | 星天想記",
@@ -26,7 +25,6 @@ export const metadata: Metadata = {
     description: "星天想記のホームページです。",
   },
 };
-
 
 // フォントの最適化
 const geistSans = localFont({
@@ -52,7 +50,6 @@ const inter = Inter({
   preload: true,
 });
 
-
 export default function RootLayout({
   children,
 }: {
@@ -60,7 +57,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" suppressHydrationWarning={true}>
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/png" />
+      </head>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ThemeProvider>
           <Suspense fallback={<Loading />}>
             <DynamicClientWrapper>
               <div className="flex flex-col min-h-screen">
@@ -68,6 +69,7 @@ export default function RootLayout({
               </div>
             </DynamicClientWrapper>
           </Suspense>
+        </ThemeProvider>
       </body>
     </html>
   );

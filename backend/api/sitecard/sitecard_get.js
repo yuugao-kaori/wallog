@@ -228,8 +228,8 @@ function determineContentType(imageBuffer, imageUrl) {
   return { contentType: 'image/png', extension: 'png' };
 }
 
-// URLをチェックして既存のサイトカードを取得または作成する関数
-async function getSiteCardByUrl(url) {
+// 既存のサイトカードを検索する関数
+async function findSiteCardByUrl(url) {
   const client = new Client({
     user: process.env.POSTGRES_USER,
     host: process.env.POSTGRES_NAME,
@@ -249,10 +249,32 @@ async function getSiteCardByUrl(url) {
     const searchResult = await client.query(searchQuery, [url]);
     
     if (searchResult.rows.length > 0) {
-      return searchResult.rows[0];
+      return { found: true, siteCard: searchResult.rows[0] };
     }
     
-    // 存在しない場合は新しいサイトカードを作成
+    return { found: false };
+  } catch (error) {
+    console.error('サイトカード検索エラー:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+// 新しいサイトカードを作成する関数
+async function createSiteCard(url) {
+  const client = new Client({
+    user: process.env.POSTGRES_USER,
+    host: process.env.POSTGRES_NAME,
+    database: process.env.POSTGRES_DB,
+    password: process.env.POSTGRES_PASSWORD,
+    port: 5432,
+  });
+  
+  try {
+    await client.connect();
+    
+    // 新しいサイトカードを作成
     const ogTags = await scrapeOgTags(url);
     const siteCardId = generateSiteCardId();
     let thumbnailId = null;
@@ -331,38 +353,30 @@ async function getSiteCardByUrl(url) {
     const result = await client.query(insertQuery, values);
     return result.rows[0];
   } catch (error) {
-    console.error('サイトカード処理エラー:', error);
+    console.error('サイトカード作成エラー:', error);
     throw error;
   } finally {
     await client.end();
   }
 }
 
+// URLをチェックして既存のサイトカードを取得または作成する関数（認証済みユーザー用）
+async function getSiteCardByUrl(url) {
+  // まず既存のサイトカードを検索
+  const result = await findSiteCardByUrl(url);
+  
+  // 既存のサイトカードがあればそれを返す
+  if (result.found) {
+    return result.siteCard;
+  }
+  
+  // なければ新しいサイトカードを作成
+  return await createSiteCard(url);
+}
+
 // サイトカード取得エンドポイント
 router.post('/sitecard_get', async (req, res) => {
-  if (!req.session) {
-    console.error('Session object is not found.');
-    return res.status(401).json({ error: 'Session object not found' });
-  }
-
-  const sessionId = req.sessionID;
-  console.log(`Session ID: ${sessionId}`);
-
   try {
-    const sessionData = await redis.get(`sess:${sessionId}`);
-    
-    if (!sessionData) {
-      console.warn('No session data found in Redis for this session ID.');
-      return res.status(401).json({ error: 'No session data found' });
-    }
-
-    const parsedSession = JSON.parse(sessionData);
-    
-    if (!parsedSession.username) {
-      console.warn('Session exists, but username is not set.');
-      return res.status(401).json({ error: 'User not logged in' });
-    }
-
     const { url } = req.body;
     
     if (!url) {
@@ -375,12 +389,56 @@ router.post('/sitecard_get', async (req, res) => {
     } catch (error) {
       return res.status(400).json({ error: 'Invalid URL format' });
     }
+
+    // まず既存のサイトカードを検索
+    const existingCard = await findSiteCardByUrl(url);
     
-    const siteCard = await getSiteCardByUrl(url);
+    // 既存のサイトカードがあれば、認証の有無にかかわらず返す
+    if (existingCard.found) {
+      return res.status(200).json({
+        message: 'Site card retrieved successfully',
+        site_card: existingCard.siteCard
+      });
+    }
+    
+    // 既存のカードがない場合、セッションを確認
+    if (!req.session) {
+      console.error('Session object is not found.');
+      return res.status(401).json({ 
+        error: 'Authentication required to create new site card',
+        message: 'サイトカードの新規作成には認証が必要です'
+      });
+    }
+
+    const sessionId = req.sessionID;
+    console.log(`Session ID: ${sessionId}`);
+    
+    const sessionData = await redis.get(`sess:${sessionId}`);
+    
+    if (!sessionData) {
+      console.warn('No session data found in Redis for this session ID.');
+      return res.status(401).json({ 
+        error: 'Authentication required to create new site card',
+        message: 'サイトカードの新規作成には認証が必要です'
+      });
+    }
+
+    const parsedSession = JSON.parse(sessionData);
+    
+    if (!parsedSession.username) {
+      console.warn('Session exists, but username is not set.');
+      return res.status(401).json({ 
+        error: 'Authentication required to create new site card',
+        message: 'サイトカードの新規作成には認証が必要です'
+      });
+    }
+
+    // 認証済みユーザーの場合、新しいサイトカードを作成
+    const newSiteCard = await createSiteCard(url);
     
     return res.status(200).json({
-      message: 'Site card retrieved successfully',
-      site_card: siteCard
+      message: 'Site card created successfully',
+      site_card: newSiteCard
     });
   } catch (error) {
     console.error('Error processing site card:', error);
