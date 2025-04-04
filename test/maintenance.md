@@ -1,7 +1,8 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.03.04.0034a'
-- ビルドに伴うエラーを修正" && git push -u origin nextjs_test
+'Build 2025.03.27.0001'
+- Photoとサイトカードの取得においてログイン認証を要求していた問題を修正
+- Faviconを設定" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

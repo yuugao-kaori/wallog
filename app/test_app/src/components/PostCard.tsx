@@ -12,6 +12,22 @@ import SiteCard from './SiteCard';
 import { FileItem } from './PostFormCommon';  // FileItem型をインポート
 import { FaRetweet, FaReply, FaQuoteRight, FaTrash } from 'react-icons/fa';
 
+// Twitter埋め込みウィジェット用の型定義
+declare global {
+  interface Window {
+    twttr: {
+      widgets: {
+        load: (element?: HTMLElement) => void;
+        createTweet: (
+          tweetId: string, 
+          container: HTMLElement, 
+          options?: object
+        ) => Promise<HTMLElement>;
+      };
+    };
+  }
+}
+
 const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'));
 const ImageModal = dynamic(() => import('./ImageModal'));
 const Notification = dynamic(() => import('./Notification'));
@@ -76,9 +92,11 @@ interface SiteCardData {
 // URL extraction regex
 const urlRegex = /(https?:\/\/[^\s]+)/g;
 
+// 半角<>で囲まれた文字列を検出する正規表現
+const bracketedUrlRegex = /<(https?:\/\/[^\s>]+)>/g;
+
 // YouTube URLからビデオIDを抽出する関数を修正
 const extractYoutubeVideoId = (url: string): string | null => {
-
   const patterns = [
     /((?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:shorts|live|embed|watch\?.*v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
   ];
@@ -90,6 +108,169 @@ const extractYoutubeVideoId = (url: string): string | null => {
     }
   }
   return null;
+};
+
+// X (Twitter) URLからツイートIDを抽出する関数
+const extractTweetId = (url: string): string | null => {
+  // Twitter/X URLのパターン
+  const patterns = [
+    /(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/\w+\/status\/(\d+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
+// Twitter埋め込み用コンポーネント
+const TwitterEmbed: React.FC<{ tweetId: string }> = ({ tweetId }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [isScriptLoading, setIsScriptLoading] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    // コンポーネントのマウント状態追跡
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const loadTweet = async () => {
+      try {
+        // 同じIDが複数の要素で読み込まれることを防ぐための処理
+        const existingTweet = document.querySelector(`[data-tweet-id="${tweetId}"]`);
+        if (existingTweet) {
+          console.log(`Tweet ${tweetId} is already loaded elsewhere`);
+          setError(true);
+          return;
+        }
+
+        // コンテナを識別するためにデータ属性を設定
+        if (containerRef.current) {
+          containerRef.current.setAttribute('data-tweet-id', tweetId);
+        } else {
+          return; // コンテナがnullの場合は処理を中止
+        }
+        
+        // すでにスクリプトがロード中であれば待機
+        if (isScriptLoading) {
+          let checkCount = 0;
+          const checkInterval = setInterval(() => {
+            checkCount++;
+            if (window.twttr && window.twttr.widgets) {
+              clearInterval(checkInterval);
+              renderTweet();
+            } else if (checkCount > 50) {  // 最大10秒待機
+              clearInterval(checkInterval);
+              if (mountedRef.current) setError(true);
+              console.error('Timeout waiting for Twitter script to load');
+            }
+          }, 200);
+          return;
+        }
+
+        // Twitter埋め込みスクリプトがない場合は追加
+        if (!window.twttr || !window.twttr.widgets) {
+          setIsScriptLoading(true);
+          const script = document.createElement('script');
+          script.src = 'https://platform.twitter.com/widgets.js';
+          script.async = true;
+          script.charset = 'utf-8';
+          
+          // スクリプト読み込み完了時のハンドラ
+          script.onload = () => {
+            setIsScriptLoading(false);
+            if (mountedRef.current) {
+              renderTweet();
+            }
+          };
+          
+          // エラーハンドリング
+          script.onerror = () => {
+            setIsScriptLoading(false);
+            if (mountedRef.current) setError(true);
+            console.error('Error loading Twitter widgets.js');
+          };
+          
+          document.body.appendChild(script);
+        } else {
+          renderTweet();
+        }
+      } catch (err) {
+        console.error('Unexpected error in loadTweet:', err);
+        if (mountedRef.current) setError(true);
+      }
+    };
+
+    // ツイート埋め込み処理を実行する関数
+    const renderTweet = async () => {
+      if (!containerRef.current || !window.twttr || !window.twttr.widgets) return;
+
+      try {
+        // コンテナ内の既存のツイート要素をクリア
+        while (containerRef.current.firstChild) {
+          containerRef.current.removeChild(containerRef.current.firstChild);
+        }
+
+        // 新しいツイートを作成
+        await window.twttr.widgets.createTweet(tweetId, containerRef.current, {
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+          dnt: true, // Do Not Track
+          // 必要に応じてオプションを追加
+        });
+        if (mountedRef.current) setIsLoaded(true);
+      } catch (err) {
+        console.error('Error creating tweet:', err);
+        if (mountedRef.current) setError(true);
+      }
+    };
+
+    loadTweet();
+  }, [tweetId, isScriptLoading]);
+
+  return (
+    <div className="rounded-lg overflow-hidden">
+      <div 
+        ref={containerRef} 
+        className="min-h-[100px] w-full rounded-lg overflow-hidden"
+      >
+        {!isLoaded && !error && (
+          <div className="flex items-center justify-center h-[200px] py-4">
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="h-8 w-8 rounded-full bg-blue-200 dark:bg-blue-700 mb-2"></div>
+              <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded mb-2"></div>
+              <div className="h-10 w-3/4 bg-gray-100 dark:bg-gray-800 rounded"></div>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-center h-[120px] py-4 px-4">
+            <div className="text-center">
+              <p className="text-gray-500 dark:text-gray-400">ツイートを読み込めませんでした</p>
+              <a 
+                href={`https://x.com/i/status/${tweetId}`}
+                target="_blank"
+                rel="noopener noreferrer" 
+                className="text-blue-500 hover:underline text-sm mt-1 block"
+              >
+                X.comで表示する
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 // YouTube埋め込みプレイヤーコンポーネント
@@ -157,12 +338,6 @@ const Card = memo(({
   // 追加: テキストの展開状態を管理
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // 追加: テキストを制限する関数
-  const truncateText = (text: string, limit: number = 60): string => {
-    if (!text || text.length <= limit) return text;
-    return text.slice(0, limit);
-  };
-
   const handleHashtagClick = useCallback((hashtag: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -211,8 +386,8 @@ const Card = memo(({
       // Only process the first URL to avoid too many requests
       const firstUrl = urls[0];
       
-      // Don't fetch for YouTube URLs as they're already handled by the embedded player
-      if (extractYoutubeVideoId(firstUrl)) return;
+      // Don't fetch for YouTube or Twitter/X URLs as they're already handled by the embedded player
+      if (extractYoutubeVideoId(firstUrl) || extractTweetId(firstUrl)) return;
       
       const siteCardData = await fetchSiteCard(firstUrl);
       if (siteCardData) {
@@ -223,19 +398,28 @@ const Card = memo(({
     loadSiteCards();
   }, [inView, post.post_text, extractUrls, fetchSiteCard]);
 
-  // renderText関数を更新
+  // renderText関数をコンポーネント内に移動
   const renderText = (text: string | null): React.ReactNode => {
     if (!text) return null;
     
     const maxLength = 140;
     const shouldTruncate = !isExpanded && text.length > maxLength;
     const displayText = shouldTruncate ? `${text.slice(0, 60)}...` : text;
+
+    // 半角<>で囲まれたURLを先に処理する
+    const bracketedUrls: string[] = [];
+    const textWithoutBracketed = displayText.replace(bracketedUrlRegex, (match, url) => {
+      bracketedUrls.push(url);
+      return `<${url}>`; // 元の形式を保持
+    });
     
     // パターンを修正して、スペースの前後のルックアラウンドを改善
     const pattern = /(?<=^|\s)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?:^)(#[^\s]+|https?:\/\/[^\s]+)(?=\s|$)|(?<=\s)(#[^\s]+|https?:\/\/[^\s]+)(?:$)/g;
-    const segments = displayText.split(pattern);
+    const segments = textWithoutBracketed.split(pattern);
     const combined: React.ReactNode[] = [];
     const youtubeVideos: string[] = [];
+    const tweetIds: string[] = [];
+    const processedUrls: Set<string> = new Set(); // 処理済みURLを追跡するためのSet
 
     segments.forEach((segment, index) => {
       if (!segment) return;
@@ -257,15 +441,43 @@ const Card = memo(({
           </a>
         );
       } else if (segment.match(/^https?:\/\//)) {
-        // URLの処理
-        const videoId = extractYoutubeVideoId(segment);
-        if (videoId) {
-          youtubeVideos.push(videoId);
+        // URLの処理 - 半角<>で囲まれていない場合のみ埋め込み
+        const isBracketed = bracketedUrls.some(url => segment.includes(url));
+        
+        if (!isBracketed) {
+          // 埋め込み対象：通常のURLのみ処理
+          const videoId = extractYoutubeVideoId(segment);
+          const tweetId = extractTweetId(segment);
+          if (videoId) {
+            youtubeVideos.push(videoId);
+            processedUrls.add(segment); // 処理済みとしてマーク
+          }
+          if (tweetId) {
+            tweetIds.push(tweetId);
+            processedUrls.add(segment); // 処理済みとしてマーク
+          }
         }
+        
+        // 全てのURLはリンクとして表示（埋め込みとして処理されるかどうかに関わらず）
         combined.push(
           <a
             key={`link-${index}`}
             href={segment}
+            className="text-blue-500 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {segment}
+          </a>
+        );
+      } else if (segment.match(/<https?:\/\/[^>]+>/)) {
+        // 半角<>で囲まれたURLの処理 - リンクとして表示するが埋め込まない
+        const url = segment.slice(1, -1); // < > を取り除く
+        combined.push(
+          <a
+            key={`bracketed-link-${index}`}
+            href={url}
             className="text-blue-500 hover:underline"
             target="_blank"
             rel="noopener noreferrer"
@@ -287,6 +499,9 @@ const Card = memo(({
         </div>
         {youtubeVideos.map((videoId, index) => (
           <YouTubeEmbed key={`youtube-${index}`} videoId={videoId} />
+        ))}
+        {tweetIds.map((tweetId, index) => (
+          <TwitterEmbed key={`tweet-${index}`} tweetId={tweetId} />
         ))}
         {/* サイトカードを表示 */}
         {siteCards.map((card, index) => (

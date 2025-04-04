@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link';
+import Script from 'next/script';
 import PostFeed from '@/components/PostFeed';
 
 interface BlogPost {
@@ -22,6 +23,7 @@ export function HomeClient({ randomPosts, blogs, total }: HomeClientProps) {
       <div className="w-full text-center py-4">
         <h1 className="text-xl font-bold dark:text-white mt-4">{process.env.NEXT_PUBLIC_SITE_TITLE}</h1>
         <h2 className="text-l font-bold dark:text-white mt-4">{process.env.NEXT_PUBLIC_SITE_EXPLANATION}</h2>
+
         <div className="pt-8 border-b border-gray-200 "></div>
       </div>
       <div className="flex mt-2">
@@ -60,7 +62,25 @@ export function HomeClient({ randomPosts, blogs, total }: HomeClientProps) {
             </div>
           </div>
         </div>
+        
       </div>
+      <div className="pt-8 border-b border-gray-200 "></div>
+        <div className="my-4 mx-auto max-w-lg w-1/2">
+          <iframe src="https://misskey.seitendan.com/embed/user-timeline/9gw9h2omwq?maxHeight=500"
+          data-misskey-embed-id="v1_acbba312-7ab9-4ff3-b68d-d4d978d4966c"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          style={{
+            border: 'none', 
+            width: '160%',
+            maxWidth: '500px',
+            height: '500px',
+            colorScheme: 'light dark'
+            }}>
+
+            </iframe>
+          <Script src="https://misskey.seitendan.com/embed.js" strategy="lazyOnload" />
+        </div>
     </div>
   );
 }

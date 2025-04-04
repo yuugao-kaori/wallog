@@ -403,7 +403,7 @@ export function useHashtags(
           userSettingsRef.current.isLoadedOnce = true;
         }
       } catch (error) {
-        console.error('Error loading user settings:', error);
+        // console.error('Error loading user settings:', error);
         setUserSettingsError('ユーザー設定の読み込みに失敗しました');
       } finally {
         setIsUserSettingsLoading(false);
