@@ -9,8 +9,8 @@
  * @returns {string} - 設定されたドメイン
  */
 export function getEnvDomain() {
-  // 環境変数からドメインを取得、なければデフォルト値を使用
-  return process.env.DOMAIN || process.env.SERVER_HOST || 'localhost';
+  // 本番環境のドメインを固定値として設定（localhostを上書き）
+  return 'wallog.seitendan.com';
 }
 
 /**

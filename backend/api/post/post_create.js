@@ -11,6 +11,12 @@ import cors from 'cors';
 const router = express.Router();
 const app = express();
 import { Client as ESClient } from '@elastic/elasticsearch';
+// ActivityPub関連のモジュールをインポート
+import { findActorByUsername } from '../../activitypub/models/actor.js';
+import { createNoteActivity, saveOutboxActivity } from '../../activitypub/models/activity.js';
+import { announceNewPost, deliverToFollowers } from '../../activitypub/services/delivery.js';
+// データベースクエリ関数をインポート
+import { query } from '../../db/db.js';
 
 // bodyParserが必要な場合
 app.use(express.json());
@@ -153,7 +159,7 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, 
       tags.length > 0 ? tags : null,  // post_hashtagにタグ配列を設定
       fileId,
       repostId || null,  // repost_idが存在しない場合はnull
-      replyId || null    // reply_idが存在しない場��はnull
+      replyId || null    // reply_idが存在しない場合はnull
 
     ];
 
@@ -272,6 +278,47 @@ router.post('/post_create', async (req, res) => {
         console.log('New post:', newPost);
         // 新しい投稿をElasticsearchにインデックス登録
         await indexPostToElasticsearch(newPost);
+
+        // ActivityPub連携処理
+        try {
+          // 常にadminユーザーからの投稿として処理
+          const actor = await findActorByUsername('admin');
+          if (actor) {
+            console.log('アクター情報:', JSON.stringify(actor));
+            
+            // 投稿データをActivityPub形式に合わせる
+            const postData = {
+              content: newPost.post_text,
+              tags: newPost.post_hashtag || [],
+              url: `https://wallog.seitendan.com/posts/${newPost.post_id}`
+            };
+            
+            // ap_actorsテーブルからデータベースのactor IDを取得
+            const actorResult = await query(
+              'SELECT id FROM ap_actors WHERE username = $1 AND domain = $2',
+              ['admin', 'wallog.seitendan.com']
+            );
+            
+            if (actorResult.rows.length === 0) {
+              throw new Error('Actor ID not found in database');
+            }
+            
+            const actorId = actorResult.rows[0].id;
+            console.log('データベースのactor ID:', actorId);
+            
+            // ActivityPubアクティビティの作成と配信
+            const noteActivity = createNoteActivity(actor, postData);
+            await saveOutboxActivity(noteActivity, actorId, newPost.post_id);
+            await deliverToFollowers(noteActivity, actor);
+            console.log('ActivityPub連携が成功しました。');
+          } else {
+            console.warn('ActivityPub actorが見つかりませんでした。');
+          }
+        } catch (apError) {
+          // ActivityPub連携のエラーは記録するだけで、投稿自体は成功とする
+          console.error('ActivityPub連携中にエラーが発生しました:', apError);
+        }
+
         return res.status(200).json({ created_note: newPost });
       } catch (err) {
         console.error('Error:', err);

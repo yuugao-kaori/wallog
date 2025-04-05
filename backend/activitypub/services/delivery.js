@@ -11,6 +11,7 @@ import { findActorById } from '../models/actor.js';
 import { getAllFollowerInboxes } from '../models/follower.js';
 import { createSignedHeaders } from './signature.js';
 import { getEnvDomain } from '../utils/helpers.js';
+import { query } from '../../db/db.js';
 
 /**
  * フォロワー全員にアクティビティを配信します
@@ -20,8 +21,27 @@ import { getEnvDomain } from '../utils/helpers.js';
  */
 export async function deliverToFollowers(activity, actor) {
   try {
+    // actorオブジェクトからユーザー名とドメイン名を取得
+    const username = actor.preferredUsername || actor.username || 'admin';
+    const domain = 'wallog.seitendan.com'; // 固定値
+    
+    // データベースから数値のアクターIDを取得
+    const actorResult = await query(
+      'SELECT id FROM ap_actors WHERE username = $1 AND domain = $2',
+      [username, domain]
+    );
+    
+    if (actorResult.rows.length === 0) {
+      console.error(`Actor not found in database: ${username}@${domain}`);
+      return;
+    }
+    
+    // データベース内の数値IDを使用
+    const dbActorId = actorResult.rows[0].id;
+    console.log(`配信する投稿のアクターIDを取得: ${dbActorId}`);
+    
     // アクターIDからフォロワーのインボックスURLを取得
-    const followerInboxes = await getAllFollowerInboxes(actor.id);
+    const followerInboxes = await getAllFollowerInboxes(dbActorId);
     
     // フォロワーがいない場合は早期リターン
     if (!followerInboxes || followerInboxes.length === 0) {

@@ -5,9 +5,11 @@
  * 送信したアクティビティの記録や取得機能を提供します。
  */
 
-const { Pool } = require('pg');
-const crypto = require('crypto');
-const { getEnvDomain } = require('../utils/helpers');
+
+import pkg from 'pg';
+const { Pool } = pkg;
+import crypto from 'crypto';
+import { getEnvDomain } from '../utils/helpers.js';
 
 // PostgreSQL接続プール
 const pool = new Pool({
@@ -25,7 +27,7 @@ const pool = new Pool({
  * @param {string} localPostId - ローカルの投稿ID（日記や記事のID）
  * @returns {Promise<object>} - 保存されたアクティビティ
  */
-async function saveOutboxActivity(activity, actorId, localPostId = null) {
+export async function saveOutboxActivity(activity, actorId, localPostId = null) {
   try {
     const query = `
       INSERT INTO ap_outbox (
@@ -69,7 +71,7 @@ async function saveOutboxActivity(activity, actorId, localPostId = null) {
  * @param {boolean} countOnly - trueの場合、件数のみを返す
  * @returns {Promise<object>} - アクティビティ一覧とトータル件数
  */
-async function getOutboxActivities(actorId, page, limit, countOnly = false) {
+export async function getOutboxActivities(actorId, page, limit, countOnly = false) {
   try {
     if (countOnly) {
       const countQuery = `
@@ -122,9 +124,15 @@ async function getOutboxActivities(actorId, page, limit, countOnly = false) {
  * @param {object} postData - 投稿データ
  * @returns {object} - 作成されたCreateアクティビティ
  */
-function createNoteActivity(actorData, postData) {
-  const domain = getEnvDomain();
-  const actorUrl = `https://${domain}/users/${actorData.username}`;
+export function createNoteActivity(actorData, postData) {
+  // 固定ドメインを使用する（getEnvDomainを呼び出すのではなく）
+  const domain = 'wallog.seitendan.com';
+  
+  // actorDataからusernameを取得（undefinedの場合はデフォルト値を使用）
+  const username = actorData.preferredUsername || actorData.username || 'admin';
+  
+  // URLを構築
+  const actorUrl = `https://${domain}/users/${username}`;
   const now = new Date().toISOString();
   
   // オブジェクトIDの生成
@@ -201,7 +209,7 @@ function createNoteActivity(actorData, postData) {
  * @param {string} localPostId - ローカルの投稿ID
  * @returns {Promise<object|null>} - 見つかったアクティビティまたはnull
  */
-async function findActivityByLocalPostId(localPostId) {
+export async function findActivityByLocalPostId(localPostId) {
   try {
     const query = `
       SELECT * FROM ap_outbox
@@ -222,7 +230,8 @@ async function findActivityByLocalPostId(localPostId) {
   }
 }
 
-module.exports = {
+// 互換性のためにCommonJSスタイルのエクスポートも提供
+export default {
   saveOutboxActivity,
   getOutboxActivities,
   createNoteActivity,

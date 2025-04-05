@@ -8,6 +8,7 @@ import { findActorByUsername } from '../models/actor.js';
 import { addFollower } from '../models/follower.js';
 import { sendAcceptFollow } from '../services/delivery.js';
 import { extractHostFromUrl } from '../utils/helpers.js';
+import { query } from '../../db/db.js';
 
 const router = express.Router();
 
@@ -42,7 +43,7 @@ async function handleFollowActivity(activity, targetActor) {
       return false;
     }
     
-    console.log(`[ActivityPub] Processing follow request from ${followerActorUrl} to ${targetActor.username}`);
+    console.log(`[ActivityPub] Processing follow request from ${followerActorUrl} to ${targetActor.preferredUsername}`);
     
     // フォロワーアクター情報を取得
     let followerActor;
@@ -80,10 +81,24 @@ async function handleFollowActivity(activity, targetActor) {
       return false;
     }
     
+    // ap_actorsテーブルからターゲットアクターのデータベースIDを取得
+    const actorResult = await query(
+      'SELECT id FROM ap_actors WHERE username = $1 AND domain = $2',
+      [targetActor.preferredUsername, 'wallog.seitendan.com']
+    );
+    
+    if (actorResult.rows.length === 0) {
+      console.error(`[ActivityPub] Target actor not found in database: ${targetActor.preferredUsername}`);
+      return false;
+    }
+    
+    const targetActorDbId = actorResult.rows[0].id;
+    console.log(`[ActivityPub] Found database actor ID: ${targetActorDbId}`);
+    
     // フォロワーリストに追加
     await addFollower(
-      targetActor.id,
-      followerActor.id,
+      targetActorDbId,
+      followerActorUrl,
       followerUsername,
       followerDomain,
       followerInbox
