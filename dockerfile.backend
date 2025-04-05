@@ -2,7 +2,7 @@
 FROM node:22-alpine
 
 # 必要なビルドツールとPythonをインストール
-RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev jpeg-dev giflib-dev
+RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev jpeg-dev giflib-dev git
 
 # 作業ディレクトリを作成
 WORKDIR /usr/src/backend

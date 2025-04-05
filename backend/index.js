@@ -5,6 +5,8 @@ import http from 'http';
 import post_wsRoute from './api/post/post_ws.js';
 import fs from 'fs' ;
 import dotenv from 'dotenv';
+// ActivityPub機能をインポート
+import * as activityPub from './activitypub/index.js';
 
 const app = express();
 const port = 5000;
@@ -87,6 +89,14 @@ app.use('/api/logs', logs_readRoute, logs_createRoute);
 app.use('/api/search', all_search);
 app.use('/api/sitecard', sitecardGetRoute, sitecardUpdateRoute); // New: サイトカードAPIのルートを追加
 app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_listRoute); // TODOリスト取得ルートを追加
+
+// ActivityPub関連のエンドポイントを初期化
+if (process.env.ACTIVITYPUB_ENABLED === 'true') {
+  console.log('ActivityPub機能を有効化しています...');
+  activityPub.setup(app);
+} else {
+  console.log('ActivityPub機能は無効化されています');
+}
 
 // サイトマップへのアクセスを処理
 app.get('/sitemap.xml', (req, res) => {
@@ -175,7 +185,7 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 
-// WebSocket��ーバーを設定
+// WebSocketサーバーを設定
 post_wsRoute(server);
 
 server.listen(port, () => {
