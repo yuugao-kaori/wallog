@@ -5,6 +5,7 @@
 import express from 'express';
 import { findActorByUsername } from '../models/actor.js';
 import { getFollowers, getFollowing } from '../controllers/follow.js';
+import { getOutbox } from '../controllers/outbox.js';
 
 const router = express.Router();
 
@@ -34,6 +35,12 @@ router.get('/:username', async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * Outbox (アウトボックス) エンドポイント
+ * GET /users/:username/outbox - ユーザーの投稿一覧を返す
+ */
+router.get('/:username/outbox', getOutbox);
 
 /**
  * フォロワー一覧エンドポイント

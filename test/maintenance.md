@@ -1,9 +1,7 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Build 2025.04.01.0002'
-- DiaryのActivityPub対応の初期実装
-  - domain/@adminでフォローを実行できる機能
-- 【既知の問題】投稿ができない" && git push -u origin nextjs_test
+'Dev 2025.04.01.0003'
+- 投稿が行えるように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

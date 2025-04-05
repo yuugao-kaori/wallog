@@ -12,16 +12,64 @@ const app = express();
 const port = 5000;
 const envFilePath = './.env';
 const REACT_APP_SITE_DOMAIN = 'https://wallog.seiteidan.com'
-// CORSの設定
-app.use(cors({
-    origin: [REACT_APP_SITE_DOMAIN, 'http://192.168.1.148:13001'],
-    credentials: true,
-    optionsSuccessStatus: 200
-}));
-app.options('*', cors());
+
+// ActivityPub用のCORS設定
+const corsOptions = {
+  origin: function (origin, callback) {
+    // フロントエンドのオリジンを許可
+    if ([REACT_APP_SITE_DOMAIN, 'http://192.168.1.148:13001'].includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      // ActivityPubリクエストの場合も許可
+      const isActivityPubRequest = 
+        origin && (
+          // Accept ヘッダーに application/activity+json が含まれる場合
+          // または、パスが ActivityPub 関連エンドポイントの場合
+          origin.includes('.well-known') || 
+          origin.includes('/users/') || 
+          origin.includes('/inbox') || 
+          origin.includes('/objects/')
+        );
+      
+      if (isActivityPubRequest) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'User-Agent']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // bodyParserが必要な場合
 app.use(express.json());
+
+// ActivityPub用のレスポンスヘッダーミドルウェア
+app.use((req, res, next) => {
+    // ActivityPub関連のパスへのリクエストの場合、追加のヘッダーを設定
+    if (req.path.includes('/objects/') || 
+        req.path.includes('/users/') || 
+        req.path.includes('/.well-known/') ||
+        req.path.includes('/inbox')) {
+        
+        // Access-Control-Allow-Origin を設定
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        // リクエストタイプがActivityPubの場合、適切なContent-Typeを設定
+        if (req.headers.accept && 
+            (req.headers.accept.includes('application/activity+json') || 
+             req.headers.accept.includes('application/ld+json'))) {
+            res.setHeader('Content-Type', 'application/activity+json; charset=utf-8');
+        }
+    }
+    
+    next();
+});
 
 // リクエストログミドルウェア
 app.use((req, res, next) => {

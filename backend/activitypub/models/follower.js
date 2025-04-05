@@ -104,7 +104,7 @@ export async function removeFollower(targetActorId, followerActorId) {
 
 /**
  * フォロワーのリストを取得する
- * @param {string} actorId - アクターID
+ * @param {string|number} actorId - アクターID（データベースのID番号またはアクターのURL）
  * @param {number} page - ページ番号（0ベース）
  * @param {number} limit - 1ページあたりの件数
  * @param {boolean} countOnly - 件数のみを返すかどうか
@@ -112,10 +112,39 @@ export async function removeFollower(targetActorId, followerActorId) {
  */
 export async function getFollowers(actorId, page = 0, limit = 50, countOnly = false) {
   try {
+    // アクターIDがURL形式の場合はデータベースIDに変換
+    let dbActorId = actorId;
+    
+    if (typeof actorId === 'string' && actorId.startsWith('http')) {
+      // URLからユーザー名とドメインを抽出
+      try {
+        const url = new URL(actorId);
+        const pathParts = url.pathname.split('/');
+        const username = pathParts[pathParts.length - 1];
+        const domain = url.hostname;
+
+        // ユーザー名とドメインからデータベースのアクターIDを取得
+        const actorResult = await query(
+          'SELECT id FROM ap_actors WHERE username = $1 AND domain = $2',
+          [username, domain]
+        );
+        
+        if (actorResult.rows.length > 0) {
+          dbActorId = actorResult.rows[0].id;
+        } else {
+          console.error(`Actor not found for URL: ${actorId}`);
+          return { items: [], totalItems: 0 };
+        }
+      } catch (e) {
+        console.error(`Invalid actor URL format: ${actorId}`, e);
+        return { items: [], totalItems: 0 };
+      }
+    }
+    
     if (countOnly) {
       const countResult = await query(
         'SELECT COUNT(*) as total FROM ap_followers WHERE actor_id = $1',
-        [actorId]
+        [dbActorId]
       );
       
       return { totalItems: parseInt(countResult.rows[0].total) };
@@ -129,12 +158,12 @@ export async function getFollowers(actorId, page = 0, limit = 50, countOnly = fa
        WHERE f.actor_id = $1
        ORDER BY f.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [actorId, limit, offset]
+      [dbActorId, limit, offset]
     );
     
     const countResult = await query(
       'SELECT COUNT(*) as total FROM ap_followers WHERE actor_id = $1',
-      [actorId]
+      [dbActorId]
     );
     
     const totalItems = parseInt(countResult.rows[0].total);

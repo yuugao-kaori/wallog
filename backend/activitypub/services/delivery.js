@@ -77,6 +77,7 @@ export async function deliverToFollowers(activity, actor) {
 export async function deliverToInbox(inboxUrl, activity, actor) {
   try {
     console.log(`[ActivityPub] インボックス ${inboxUrl} への配信を開始`);
+    console.log(`[ActivityPub] アクティビティタイプ: ${activity.type}`); // アクティビティタイプを表示（Create/Delete等）
     
     // 署名付きヘッダーを生成
     const headers = await createSignedHeaders(inboxUrl, 'POST', actor, activity);

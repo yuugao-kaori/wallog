@@ -277,5 +277,5 @@ CREATE TABLE IF NOT EXISTS  ap_outbox (
   published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   data JSONB NOT NULL,
   referenced_object_id VARCHAR(255),
-  local_post_id VARCHAR(255)
+  local_post_id NUMERIC REFERENCES post(post_id)
 );

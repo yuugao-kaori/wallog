@@ -126,9 +126,11 @@ function convertDbActorToActivityPubActor(dbActor) {
     // アイコン画像の設定
     icon: {
       type: 'Image',
-      mediaType: 'image/svg+xml',
-      url: 'https://wallog.seitendan.com/favicon.svg'
+      mediaType: 'image/png',
+      url: 'https://wallog.seitendan.com/api/drive/file/file-1743863049435-261408808.png.webp'
     },
+    // アイコン画像の互換性確保
+    avatarUrl: 'https://wallog.seitendan.com/api/drive/file/file-1743863049435-261408808.png.webp',
     // 署名検証用の公開鍵情報
     publicKey: {
       id: `${actorUrl}#main-key`,

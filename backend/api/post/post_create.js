@@ -15,6 +15,7 @@ import { Client as ESClient } from '@elastic/elasticsearch';
 import { findActorByUsername } from '../../activitypub/models/actor.js';
 import { createNoteActivity, saveOutboxActivity } from '../../activitypub/models/activity.js';
 import { announceNewPost, deliverToFollowers } from '../../activitypub/services/delivery.js';
+import { findActivityByLocalPostId } from '../../activitypub/models/outbox.js'; // 新しく追加
 // データベースクエリ関数をインポート
 import { query } from '../../db/db.js';
 
@@ -290,8 +291,33 @@ router.post('/post_create', async (req, res) => {
             const postData = {
               content: newPost.post_text,
               tags: newPost.post_hashtag || [],
-              url: `https://wallog.seitendan.com/posts/${newPost.post_id}`
+              url: `https://wallog.seitendan.com/diary/${newPost.post_id}`
             };
+
+            // もし引用（リポスト）IDがある場合、ActivityPubでの引用情報を追加
+            if (req.body.repost_id) {
+              // ap_outboxテーブルから引用元の投稿を検索
+              const quotedActivity = await findActivityByLocalPostId(req.body.repost_id);
+              
+              if (quotedActivity) {
+                console.log(`引用元の投稿が見つかりました: ${req.body.repost_id}`);
+                
+                // ActivityPubの引用元情報をセット
+                const parsedData = typeof quotedActivity.data === 'string' ? 
+                  JSON.parse(quotedActivity.data) : quotedActivity.data;
+                
+                // Note: quoteOf属性に引用元のオブジェクトIDを設定
+                postData.quoteOf = parsedData.object.id;
+                console.log(`ActivityPubの引用として設定: ${postData.quoteOf}`);
+              } else {
+                console.log(`引用元の投稿がActivityPubレコードに見つかりませんでした: ${req.body.repost_id}`);
+                
+                // 引用元が見つからない場合は、URLとして引用文字列を追加
+                const quoteUrl = `https://wallog.seitendan.com/diary/${req.body.repost_id}`;
+                postData.quoteUrl = quoteUrl;
+                console.log(`引用URLとして追加: ${quoteUrl}`);
+              }
+            }
             
             // ap_actorsテーブルからデータベースのactor IDを取得
             const actorResult = await query(

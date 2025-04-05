@@ -9,11 +9,13 @@ import webfingerRoutes from './routes/webfinger.js';
 import nodeinfoRoutes from './routes/nodeinfo.js';  // NodeInfoルートをインポート
 import usersRoutes from './routes/users.js';  // ユーザールートをインポート
 import inboxRoutes from './routes/inbox.js';  // インボックスルートをインポート
+import objectRoutes from './routes/object.js';  // オブジェクトルートをインポート
 // 他のルーティングもインポート
 
 const router = express.Router();
 const usersRouter = express.Router();  // ユーザー用の別ルーター
 const inboxRouter = express.Router();  // インボックス用の別ルーター
+const objectRouter = express.Router();  // オブジェクト用の別ルーター
 
 // ActivityPubリクエスト用に専用のJSONパーサーを設定
 // bodyParserの制限を増やし、大きなActivityPubペイロードも処理できるようにする
@@ -31,6 +33,8 @@ router.use('/', nodeinfoRoutes);
 usersRouter.use(jsonParser);
 // インボックスルーターにJSONパーサーを適用
 inboxRouter.use(jsonParser);
+// オブジェクトルーターにJSONパーサーを適用
+objectRouter.use(jsonParser);
 
 // ユーザールーティングを適用
 usersRouter.use('/', usersRoutes);
@@ -38,6 +42,8 @@ usersRouter.use('/', usersRoutes);
 usersRouter.use('/', inboxRoutes);
 // 共有インボックスルーティングを適用
 inboxRouter.use('/', inboxRoutes);
+// オブジェクトルーティングを適用
+objectRouter.use('/', objectRoutes);
 
 /**
  * Express アプリケーションにActivityPubルートを設定する
@@ -48,6 +54,7 @@ export function setup(app) {
   app.use('/.well-known', router);
   app.use('/users', usersRouter);  // /users パス用のルーターを追加
   app.use('/inbox', inboxRouter);  // 共有インボックス用のルーターを追加
+  app.use('/objects', objectRouter);  // オブジェクト用のルーターを追加
 }
 
 export default router;
