@@ -274,8 +274,24 @@ export function createNoteActivity(actorData, postData) {
   }
   
   // 添付メディアの処理
-  const attachment = [];
-  if (postData.media && Array.isArray(postData.media)) {
+  let attachment = [];
+  
+  // デバッグ: 受け取った投稿データを確認
+  console.log('createNoteActivity: 投稿データ内容確認:', {
+    hasAttachment: !!postData.attachment,
+    hasMedia: !!postData.media,
+    attachmentType: postData.attachment ? typeof postData.attachment : 'undefined',
+    attachmentIsArray: postData.attachment ? Array.isArray(postData.attachment) : false,
+    attachmentLength: postData.attachment && Array.isArray(postData.attachment) ? postData.attachment.length : 0
+  });
+  
+  // getFileAttachments関数からの添付ファイル情報を優先使用
+  if (postData.attachment && Array.isArray(postData.attachment) && postData.attachment.length > 0) {
+    attachment = [...postData.attachment];
+    console.log(`添付ファイル情報を追加: ${JSON.stringify(attachment)}`);
+  }
+  // 従来のmediaフォーマットも互換性のために保持
+  else if (postData.media && Array.isArray(postData.media) && postData.media.length > 0) {
     postData.media.forEach(media => {
       attachment.push({
         type: 'Document',
@@ -284,6 +300,9 @@ export function createNoteActivity(actorData, postData) {
         name: media.description || ''
       });
     });
+    console.log(`mediaフォーマットから添付ファイル情報を追加: ${attachment.length}件`);
+  } else {
+    console.log('添付ファイルはありません。attachment配列は空になります。');
   }
 
   // 引用情報の処理
@@ -310,9 +329,24 @@ export function createNoteActivity(actorData, postData) {
     tag: [...tags, ...mentions]
   };
   
-  // 引用元の情報があれば追加
+  // 最終的なNoteオブジェクトの添付ファイル情報をログ出力
+  console.log(`最終的なNoteオブジェクトの添付ファイル情報: ${JSON.stringify(noteObject.attachment)}`);
+  
+  // 引用元の情報があれば互換性のあるフォーマットですべて追加
   if (postData.quoteOf) {
+    // 標準的なActivityPubの引用フォーマット
     noteObject.quoteOf = postData.quoteOf;
+    
+    // 互換性のための追加フィールド
+    noteObject.quoteUri = postData.quoteOf;
+    noteObject.quoteUrl = postData.quoteOf;
+    noteObject._misskey_quote = postData.quoteOf;
+  }
+  
+  // 返信先の情報があれば追加
+  if (postData.inReplyTo) {
+    // inReplyToフィールドを設定
+    noteObject.inReplyTo = postData.inReplyTo;
   }
   
   // タイトルがある場合は追加（ブログ記事など）

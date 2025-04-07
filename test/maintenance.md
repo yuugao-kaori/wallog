@@ -1,7 +1,9 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.04.01.0003'
-- 投稿が行えるように" && git push -u origin nextjs_test
+'Dev 2025.04.01.0005'
+- Diaryにおいて、投稿本文中にハッシュタグが含まれていた場合、それを尊重するように
+  - ※投稿本文中と自動追加ハッシュタグが重複していてもAPIで省くためフロント側では検出しないように
+- ActivityPubへの配信において、引用・返信・ファイル添付に対応するように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

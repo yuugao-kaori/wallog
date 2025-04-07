@@ -207,30 +207,27 @@ export function processPostText(
 ): string {
   if (!text && !selectedTags.size && (!autoAppend || !fixedTags)) return '';
   
-  // 元のテキストからハッシュタグを抽出
+  // 元のテキストはそのまま保持する（削除せず）
+  const originalText = text.trim();
+  
+  // 元のテキストからハッシュタグを抽出（削除はしない）
   const existingTags = new Set<string>();
-  const textWithoutTags = text.replace(/#[^\s#]+/g, (match) => {
+  text.match(/#[^\s#]+/g)?.forEach(match => {
     // "#"を取り除いてタグを保存
     existingTags.add(match.substring(1).toLowerCase());
-    // 元のテキストからはタグを削除
-    return '';
-  }).trim();
+  });
   
-  // 選択されたタグは常に追加
+  // 選択されたタグは常に追加（既存タグと重複しない場合のみ）
   const tagsArray = Array.from(selectedTags)
     .filter(tag => tag.trim() !== '')
+    .filter(tag => !existingTags.has(tag.toLowerCase()))
     .map(tag => `#${tag.replace(/^#/, '')}`);
     
-  // 元のテキストのハッシュタグも追加
-  const existingTagsArray = Array.from(existingTags)
-    .map(tag => `#${tag}`);
-    
-  // 固定タグはautoAppendがtrueの場合のみ追加
+  // 固定タグはautoAppendがtrueの場合のみ追加（既存タグと重複しない場合のみ）
   const fixedTagsArray = autoAppend ? fixedTags
     .split(/[,\s]+/) // カンマまたは空白で分割
     .map(tag => tag.trim())
     .filter(tag => tag !== '')
-    // 既存のタグや選択済みタグと重複しないものだけ追加
     .filter(tag => {
       const cleanTag = tag.replace(/^#/, '').toLowerCase();
       return !existingTags.has(cleanTag) && 
@@ -241,18 +238,18 @@ export function processPostText(
     .map(tag => `#${tag.replace(/^#/, '')}`)
     : [];
   
-  // 全てのタグをまとめる（重複を排除）
-  const allTags = [...new Set([...existingTagsArray, ...tagsArray, ...fixedTagsArray])];
+  // 追加するタグ（重複を排除）
+  const additionalTags = [...new Set([...tagsArray, ...fixedTagsArray])];
   
-  // タグがあれば追加処理を行う
-  if (allTags.length > 0) {
-    return textWithoutTags 
-      ? `${textWithoutTags}\n${allTags.join(' ')}`
-      : allTags.join(' ');
+  // 追加するタグがある場合は元のテキストに追加
+  if (additionalTags.length > 0) {
+    return originalText 
+      ? `${originalText}\n${additionalTags.join(' ')}`
+      : additionalTags.join(' ');
   }
   
-  // タグがない場合はテキストのみを返す
-  return textWithoutTags || '';
+  // 追加するタグがない場合は元のテキストをそのまま返す
+  return originalText;
 }
 
 /**
