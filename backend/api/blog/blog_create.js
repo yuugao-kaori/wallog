@@ -9,6 +9,9 @@ const { Client } = pkg;
 import { Client as ESClient } from '@elastic/elasticsearch';
 import { markdownToHtml } from './blog_purse.js';
 import { extractDescriptionFromHtml } from './blog_helper.js';
+// ActivityPub連携のための配信サービスをインポート
+import { findActorByUsername } from '../../activitypub/models/actor.js';
+import { announceNewPost } from '../../activitypub/services/delivery.js';
 
 const router = express.Router();
 const app = express();
@@ -147,6 +150,18 @@ async function insertBlogAndTags(blogId, blogTitle, blogText, fileId, tags, pars
   }
 }
 
+// ActivityPubでブログ投稿を配信する関数
+async function distributePostViaActivityPub(post, username) {
+  try {
+    console.log(`ActivityPubで投稿を配信: ${post.blog_id}`);
+    await announceNewPost(post, username);
+    console.log(`ActivityPub配信完了: ${post.blog_id}`);
+  } catch (error) {
+    console.error('ActivityPub配信中にエラーが発生しました:', error);
+    // エラーがあっても処理は続行（ブログ作成自体は成功させる）
+  }
+}
+
 // ブログ作成APIエンドポイント
 router.post('/blog_create', async (req, res) => {
   if (!req.session) {
@@ -212,6 +227,13 @@ router.post('/blog_create', async (req, res) => {
 
     // ElasticSearchに登録
     await indexBlogToElasticsearch(newBlog);
+    
+    // ActivityPubでフォロワーに配信（非同期で実行）
+    if (process.env.ACTIVITYPUB_ENABLED === 'true') {
+      distributePostViaActivityPub(newBlog, parsedSession.username)
+        .catch(err => console.error('ActivityPub distribution failed:', err));
+    }
+    
     return res.status(200).json({ 
       message: 'ブログが正常に作成されました',
       blog_id: blog_id, 

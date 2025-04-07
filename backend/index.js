@@ -5,21 +5,71 @@ import http from 'http';
 import post_wsRoute from './api/post/post_ws.js';
 import fs from 'fs' ;
 import dotenv from 'dotenv';
+// ActivityPub機能をインポート
+import * as activityPub from './activitypub/index.js';
 
 const app = express();
 const port = 5000;
 const envFilePath = './.env';
 const REACT_APP_SITE_DOMAIN = 'https://wallog.seiteidan.com'
-// CORSの設定
-app.use(cors({
-    origin: [REACT_APP_SITE_DOMAIN, 'http://192.168.1.148:13001'],
-    credentials: true,
-    optionsSuccessStatus: 200
-}));
-app.options('*', cors());
+
+// ActivityPub用のCORS設定
+const corsOptions = {
+  origin: function (origin, callback) {
+    // フロントエンドのオリジンを許可
+    if ([REACT_APP_SITE_DOMAIN, 'http://192.168.1.148:13001'].includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      // ActivityPubリクエストの場合も許可
+      const isActivityPubRequest = 
+        origin && (
+          // Accept ヘッダーに application/activity+json が含まれる場合
+          // または、パスが ActivityPub 関連エンドポイントの場合
+          origin.includes('.well-known') || 
+          origin.includes('/users/') || 
+          origin.includes('/inbox') || 
+          origin.includes('/objects/')
+        );
+      
+      if (isActivityPubRequest) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'User-Agent']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // bodyParserが必要な場合
 app.use(express.json());
+
+// ActivityPub用のレスポンスヘッダーミドルウェア
+app.use((req, res, next) => {
+    // ActivityPub関連のパスへのリクエストの場合、追加のヘッダーを設定
+    if (req.path.includes('/objects/') || 
+        req.path.includes('/users/') || 
+        req.path.includes('/.well-known/') ||
+        req.path.includes('/inbox')) {
+        
+        // Access-Control-Allow-Origin を設定
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        // リクエストタイプがActivityPubの場合、適切なContent-Typeを設定
+        if (req.headers.accept && 
+            (req.headers.accept.includes('application/activity+json') || 
+             req.headers.accept.includes('application/ld+json'))) {
+            res.setHeader('Content-Type', 'application/activity+json; charset=utf-8');
+        }
+    }
+    
+    next();
+});
 
 // リクエストログミドルウェア
 app.use((req, res, next) => {
@@ -87,6 +137,14 @@ app.use('/api/logs', logs_readRoute, logs_createRoute);
 app.use('/api/search', all_search);
 app.use('/api/sitecard', sitecardGetRoute, sitecardUpdateRoute); // New: サイトカードAPIのルートを追加
 app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_listRoute); // TODOリスト取得ルートを追加
+
+// ActivityPub関連のエンドポイントを初期化
+if (process.env.ACTIVITYPUB_ENABLED === 'true') {
+  console.log('ActivityPub機能を有効化しています...');
+  activityPub.setup(app);
+} else {
+  console.log('ActivityPub機能は無効化されています');
+}
 
 // サイトマップへのアクセスを処理
 app.get('/sitemap.xml', (req, res) => {
@@ -175,7 +233,7 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 
-// WebSocket��ーバーを設定
+// WebSocketサーバーを設定
 post_wsRoute(server);
 
 server.listen(port, () => {

@@ -224,3 +224,58 @@ CREATE TABLE IF NOT EXISTS "tasks-task_categories" (
 -- file_exif_datetimeのインデックスを追加（日時でのソート高速化用）
 CREATE INDEX drive_file_exif_datetime_idx ON drive(file_exif_datetime);
 
+-- ActivityPub関連テーブル
+CREATE TABLE IF NOT EXISTS  ap_actors (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  domain VARCHAR(255) NOT NULL,
+  inbox_url TEXT NOT NULL,
+  outbox_url TEXT,
+  following_url TEXT,
+  followers_url TEXT,
+  public_key TEXT NOT NULL,
+  private_key TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ActivityPubの鍵管理テーブル
+CREATE TABLE IF NOT EXISTS ap_keys (
+  id SERIAL PRIMARY KEY,
+  actor_id INTEGER REFERENCES ap_actors(id) ON DELETE CASCADE,
+  key_id VARCHAR(255) NOT NULL,
+  public_key TEXT NOT NULL,
+  private_key TEXT NOT NULL,
+  key_format VARCHAR(50) NOT NULL DEFAULT 'pkcs8', -- 'pkcs8', 'pkcs1', etc.
+  algorithm VARCHAR(50) NOT NULL DEFAULT 'rsa-sha256',
+  bits INTEGER NOT NULL DEFAULT 2048,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP,
+  revoked BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  UNIQUE(actor_id, key_id)
+);
+
+CREATE INDEX ap_keys_actor_id_idx ON ap_keys(actor_id);
+CREATE INDEX ap_keys_is_active_idx ON ap_keys(is_active);
+
+CREATE TABLE IF NOT EXISTS  ap_followers (
+  id SERIAL PRIMARY KEY,
+  actor_id INTEGER REFERENCES ap_actors(id) ON DELETE CASCADE,
+  follower_actor_id INTEGER REFERENCES ap_actors(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(actor_id, follower_actor_id)
+);
+
+CREATE TABLE IF NOT EXISTS  ap_outbox (
+  id SERIAL PRIMARY KEY,
+  activity_id VARCHAR(255) NOT NULL UNIQUE,
+  actor_id INTEGER REFERENCES ap_actors(id) ON DELETE CASCADE,
+  object_id VARCHAR(255),
+  object_type VARCHAR(50) NOT NULL,
+  object_content TEXT,
+  published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  data JSONB NOT NULL,
+  referenced_object_id VARCHAR(255),
+  local_post_id NUMERIC REFERENCES post(post_id)
+);

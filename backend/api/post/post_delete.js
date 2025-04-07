@@ -9,6 +9,8 @@ import pkg from 'pg';
 import { Client as ESClient } from '@elastic/elasticsearch';
 const { Client } = pkg;
 import cors  from 'cors';
+// ActivityPubの機能をインポート
+import { createAndDistributeDeleteActivity } from '../../activitypub/models/activity.js';
 const router = express.Router();
 const app = express();
 
@@ -60,7 +62,9 @@ app.delete('/post_delete', async (req, res) => {
 
     // 削除クエリ
     const deletePostTagsQuery = 'DELETE FROM posts_post_tags WHERE post_id = $1;';
-    // 投稿の取得クエリ
+    // ap_outboxから関連レコードを削除するクエリを追加
+    const deleteApOutboxQuery = 'DELETE FROM ap_outbox WHERE local_post_id = $1;';
+    // 投稿の取得クエリ - local_post_idを正しいカラム名に修正または除外
     const getPostQuery = 'SELECT repost_grant_id, reply_grant_id FROM post WHERE post_id = $1;';
     // repost_receive_idの更新クエリ
     const updateRepostReceiveQuery = `
@@ -98,6 +102,21 @@ app.delete('/post_delete', async (req, res) => {
         if (postResult.rowCount > 0) {
             const { repost_grant_id, reply_grant_id } = postResult.rows[0];
 
+            // ActivityPubでの削除処理 - エラーを捕捉して処理を続行
+            try {
+                // ActivityPub削除アクティビティを作成・配信
+                // local_post_idが存在しない場合のエラーを避けるため、直接post_idを使用
+                const deleteResult = await createAndDistributeDeleteActivity(postId);
+                if (deleteResult) {
+                    console.log(`ActivityPub delete activity created for post ${postId}`);
+                } else {
+                    console.log(`No ActivityPub delete activity needed for post ${postId}`);
+                }
+            } catch (apError) {
+                console.error('ActivityPub delete error:', apError);
+                // ActivityPubの処理に失敗しても削除処理は続行
+            }
+
             // repost_receive_idの更新
             if (repost_grant_id) {
                 await client.query(updateRepostReceiveQuery, [postId, repost_grant_id]);
@@ -111,11 +130,15 @@ app.delete('/post_delete', async (req, res) => {
             }
         }
 
-        // まず posts_post_tags から関連レコードを削除
+        // まず ap_outbox から関連レコードを削除
+        await client.query(deleteApOutboxQuery, values);
+        console.log(`ap_outbox から post_id ${postId} の関連レコードを削除しました。`);
+
+        // 次に posts_post_tags から関連レコードを削除
         await client.query(deletePostTagsQuery, values);
         console.log(`posts_post_tags から post_id ${postId} の関連レコードを削除しました。`);
 
-        // 次に post テーブルからレコードを削除
+        // 最後に post テーブルからレコードを削除
         const result = await client.query(deletePostQuery, values);
         if (result.rowCount > 0) {
             console.log(`Post with post_id ${postId} deleted from PostgreSQL.`);

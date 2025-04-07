@@ -11,6 +11,13 @@ import cors from 'cors';
 const router = express.Router();
 const app = express();
 import { Client as ESClient } from '@elastic/elasticsearch';
+// ActivityPub関連のモジュールをインポート
+import { findActorByUsername } from '../../activitypub/models/actor.js';
+import { createNoteActivity, saveOutboxActivity } from '../../activitypub/models/activity.js';
+import { announceNewPost, deliverToFollowers } from '../../activitypub/services/delivery.js';
+import { findActivityByLocalPostId } from '../../activitypub/models/outbox.js'; // 新しく追加
+// データベースクエリ関数をインポート
+import { query } from '../../db/db.js';
 
 // bodyParserが必要な場合
 app.use(express.json());
@@ -66,8 +73,6 @@ function formattedDateTime(date) {
   return `${y}${m}${d}${h}${mi}${s}`;
 }
 
-
-
 // Elasticsearchクライアントの初期化
 const esClient = new ESClient({
   node: `http://${process.env.ELASTICSEARCH_HOST}:${process.env.ELASTICSEARCH_PORT}`,
@@ -103,6 +108,125 @@ async function indexPostToElasticsearch(post) {
   }
 }
 
+// ファイルIDから添付ファイル情報を取得する関数
+async function getFileAttachments(fileIds) {
+  if (!fileIds) return [];
+  
+  // 様々な形式のファイルID処理に対応
+  let fileIdArray = [];
+  
+  if (typeof fileIds === 'string') {
+    // JSON文字列の可能性をチェック
+    if (fileIds.startsWith('{') && fileIds.endsWith('}')) {
+      // カッコを削除して中身を取得
+      const content = fileIds.substring(1, fileIds.length - 1);
+      // 引用符があれば削除して配列に
+      fileIdArray = [content.replace(/^"|"$/g, '')];
+      console.log(`JSONライクな形式のファイルIDを処理: ${fileIdArray}`);
+    } else {
+      // カンマ区切りの文字列形式の場合、配列に分割
+      fileIdArray = fileIds.split(',').map(id => id.trim()).filter(Boolean);
+      console.log(`カンマ区切りのファイルIDを処理: ${fileIdArray}`);
+    }
+  } else if (Array.isArray(fileIds)) {
+    fileIdArray = fileIds;
+    console.log(`配列形式のファイルIDを処理: ${fileIdArray}`);
+  }
+  
+  if (fileIdArray.length === 0) return [];
+  
+  try {
+    // driveテーブルからファイル情報を取得
+    const fileQuery = `
+      SELECT 
+        file_id, 
+        file_originalname, 
+        file_format, 
+        file_exif_title, 
+        file_exif_description
+      FROM drive 
+      WHERE file_id = ANY($1)
+    `;
+    
+    console.log(`ファイル情報を取得: ${fileIdArray.join(', ')}`);
+    const result = await query(fileQuery, [fileIdArray]);
+    console.log(`ファイル情報取得結果: ${result.rows.length}件`);
+    
+    // ファイル情報をActivityPub attachment形式に変換
+    return result.rows.map(file => {
+      // MIMEタイプの判定（formatからの推測）
+      let mediaType = 'application/octet-stream'; // デフォルト
+      
+      // ファイルIDとoriginalname/formatが.webpで終わる場合の特別処理
+      const fileIdStr = file.file_id ? file.file_id.toString() : '';
+      const originalName = file.file_originalname ? file.file_originalname.toString() : '';
+      const formatStr = file.file_format ? file.file_format.toString() : '';
+      
+      // ファイル名やファイルIDに拡張子情報が含まれている場合の処理
+      if (fileIdStr.endsWith('.webp') || originalName.endsWith('.webp') || formatStr.toLowerCase() === 'webp') {
+        mediaType = 'image/webp';
+      } else if (fileIdStr.endsWith('.png.webp') || originalName.endsWith('.png.webp')) {
+        // オリジナルがPNGでWebPに変換された場合でも、WebPとして送信
+        mediaType = 'image/webp';
+      } else if (file.file_format) {
+        // 通常の拡張子からのMIMEタイプ判定
+        const format = file.file_format.toLowerCase();
+        if (['jpg', 'jpeg', 'jfif'].includes(format)) {
+          mediaType = 'image/jpeg';
+        } else if (format === 'png') {
+          mediaType = 'image/png';
+        } else if (format === 'gif') {
+          mediaType = 'image/gif';
+        } else if (format === 'webp') {
+          mediaType = 'image/webp';
+        } else if (format === 'mp4') {
+          mediaType = 'video/mp4';
+        } else if (format === 'mp3') {
+          mediaType = 'audio/mpeg';
+        } else if (format === 'svg') {
+          mediaType = 'image/svg+xml';
+        } else if (format === 'pdf') {
+          mediaType = 'application/pdf';
+        }
+      }
+      
+      // ファイルIDから拡張子を取得する追加チェック
+      if (mediaType === 'application/octet-stream' && fileIdStr) {
+        if (fileIdStr.endsWith('.jpg') || fileIdStr.endsWith('.jpeg')) {
+          mediaType = 'image/jpeg';
+        } else if (fileIdStr.endsWith('.png')) {
+          mediaType = 'image/png';
+        } else if (fileIdStr.endsWith('.gif')) {
+          mediaType = 'image/gif';
+        } else if (fileIdStr.endsWith('.webp')) {
+          mediaType = 'image/webp';
+        } else if (fileIdStr.endsWith('.mp4')) {
+          mediaType = 'video/mp4';
+        } else if (fileIdStr.endsWith('.mp3')) {
+          mediaType = 'audio/mpeg';
+        }
+      }
+      
+      console.log(`ファイル "${file.file_id}" のMIMEタイプを設定: ${mediaType}`);
+      
+      // 説明文の設定
+      const name = file.file_exif_title || file.file_exif_description || file.file_originalname || '';
+      
+      // ファイルのURLを構築
+      const url = `https://wallog.seitendan.com/api/drive/file/${file.file_id}`;
+      
+      return {
+        type: 'Document',
+        mediaType: mediaType,
+        url: url,
+        name: name
+      };
+    });
+  } catch (error) {
+    console.error('ファイル情報の取得中にエラーが発生しました:', error);
+    return [];
+  }
+}
 
 // 投稿とハッシュタグを挿入する関数
 async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, repostId, replyId) {
@@ -153,7 +277,7 @@ async function insertPostAndTags(postId, postText, fileId, tags, parsedSession, 
       tags.length > 0 ? tags : null,  // post_hashtagにタグ配列を設定
       fileId,
       repostId || null,  // repost_idが存在しない場合はnull
-      replyId || null    // reply_idが存在しない場��はnull
+      replyId || null    // reply_idが存在しない場合はnull
 
     ];
 
@@ -272,6 +396,106 @@ router.post('/post_create', async (req, res) => {
         console.log('New post:', newPost);
         // 新しい投稿をElasticsearchにインデックス登録
         await indexPostToElasticsearch(newPost);
+
+        // ActivityPub連携処理
+        try {
+          // 常にadminユーザーからの投稿として処理
+          const actor = await findActorByUsername('admin');
+          if (actor) {
+            console.log('アクター情報:', JSON.stringify(actor));
+            
+            // 投稿データをActivityPub形式に合わせる
+            const postData = {
+              content: newPost.post_text,
+              tags: newPost.post_hashtag || [],
+              url: `https://wallog.seitendan.com/diary/${newPost.post_id}`
+            };
+
+            // 添付ファイル情報を取得してActivityPubのattachmentに追加
+            const attachments = await getFileAttachments(newPost.post_file);
+            if (attachments.length > 0) {
+              postData.attachment = attachments;
+              console.log('添付ファイル情報がActivityPubに追加されました:', attachments);
+            }
+
+            // もし引用（リポスト）IDがある場合、ActivityPubでの引用情報を追加
+            if (req.body.repost_id) {
+              // ap_outboxテーブルから引用元の投稿を検索
+              const quotedActivity = await findActivityByLocalPostId(req.body.repost_id);
+              
+              if (quotedActivity) {
+                console.log(`引用元の投稿が見つかりました: ${req.body.repost_id}`);
+                
+                // ActivityPubの引用元情報をセット
+                const parsedData = typeof quotedActivity.data === 'string' ? 
+                  JSON.parse(quotedActivity.data) : quotedActivity.data;
+                
+                // Note: quoteOf属性に引用元のオブジェクトIDを設定
+                postData.quoteOf = parsedData.object.id;
+                console.log(`ActivityPubの引用として設定: ${postData.quoteOf}`);
+              } else {
+                console.log(`引用元の投稿がActivityPubレコードに見つかりませんでした: ${req.body.repost_id}`);
+                
+                // 引用元が見つからない場合は、URLとして引用文字列を追加
+                const quoteUrl = `https://wallog.seitendan.com/diary/${req.body.repost_id}`;
+                postData.quoteUrl = quoteUrl;
+                console.log(`引用URLとして追加: ${quoteUrl}`);
+              }
+            }
+            
+            // もし返信（リプライ）IDがある場合、ActivityPubでの返信情報を追加
+            if (req.body.reply_id) {
+              // ap_outboxテーブルから返信先の投稿を検索
+              const replyToActivity = await findActivityByLocalPostId(req.body.reply_id);
+              
+              if (replyToActivity) {
+                console.log(`返信先の投稿が見つかりました: ${req.body.reply_id}`);
+                
+                // ActivityPubの返信先情報をセット
+                const parsedData = typeof replyToActivity.data === 'string' ? 
+                  JSON.parse(replyToActivity.data) : replyToActivity.data;
+                
+                // inReplyTo属性に返信先のオブジェクトIDを設定
+                postData.inReplyTo = parsedData.object.id;
+                console.log(`返信先として設定: ${postData.inReplyTo}`);
+              } else {
+                console.log(`返信先の投稿がActivityPubレコードに見つかりませんでした: ${req.body.reply_id}`);
+                
+                // 返信先が見つからない場合は、返信テキストを内容に追加
+                const replyUrl = `https://wallog.seitendan.com/diary/${req.body.reply_id}`;
+                if (!postData.content.includes(replyUrl)) {
+                  postData.content = `返信: ${replyUrl}\n\n${postData.content}`;
+                }
+                console.log(`返信URLとして本文に追加: ${replyUrl}`);
+              }
+            }
+            
+            // ap_actorsテーブルからデータベースのactor IDを取得
+            const actorResult = await query(
+              'SELECT id FROM ap_actors WHERE username = $1 AND domain = $2',
+              ['admin', 'wallog.seitendan.com']
+            );
+            
+            if (actorResult.rows.length === 0) {
+              throw new Error('Actor ID not found in database');
+            }
+            
+            const actorId = actorResult.rows[0].id;
+            console.log('データベースのactor ID:', actorId);
+            
+            // ActivityPubアクティビティの作成と配信
+            const noteActivity = createNoteActivity(actor, postData);
+            await saveOutboxActivity(noteActivity, actorId, newPost.post_id);
+            await deliverToFollowers(noteActivity, actor);
+            console.log('ActivityPub連携が成功しました。');
+          } else {
+            console.warn('ActivityPub actorが見つかりませんでした。');
+          }
+        } catch (apError) {
+          // ActivityPub連携のエラーは記録するだけで、投稿自体は成功とする
+          console.error('ActivityPub連携中にエラーが発生しました:', apError);
+        }
+
         return res.status(200).json({ created_note: newPost });
       } catch (err) {
         console.error('Error:', err);

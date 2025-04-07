@@ -66,38 +66,52 @@ const s3Client = new S3Client({
  * クエリパラメータ:
  * - limit: 取得する行数（デフォルト: 10）
  * - offset: 開始行（デフォルト: 0）
- * - sort: ソート方法（オプション: 'exif_datetime'を指定するとEXIF日時でソート）
+ * - sort: ソート方法（オプション: 'exif_datetime'を指定するとEXIF日時でソート、また認証が不要になる）
  */
 router.get('/file_list', async (req, res) => {
-  if (!req.session) {
-    console.error('Session object is not found.');
-    return res.status(401).json({ error: 'Session object not found' });
+  // Parse query parameters for pagination
+  let { limit, offset, sort } = req.query;
+  
+  // sort=exif_datetimeが指定された場合は認証をスキップし、パブリックデータのみを返す
+  const isPublicAccess = sort === 'exif_datetime';
+  
+  if (!isPublicAccess) {
+    // 通常の認証チェック（sort=exif_datetimeが指定されていない場合）
+    if (!req.session) {
+      console.error('Session object is not found.');
+      return res.status(401).json({ error: 'Session object not found' });
+    }
+
+    const sessionId = req.sessionID;
+    console.log(`Session ID: ${sessionId}`);
+
+    try {
+      const sessionData = await redis.get(`sess:${sessionId}`);
+      console.log('sessionId:', sessionId);
+      console.log('sessionData:', sessionData);
+
+      if (!sessionData) {
+        console.warn('No session data found in Redis for this session ID.');
+        return res.status(401).json({ error: 'No session data found' });
+      }
+
+      const parsedSession = JSON.parse(sessionData);
+      console.log('parsedSession.username:', parsedSession.username);
+      if (!parsedSession.username) {
+        console.warn('Session exists, but username is not set.');
+        return res.status(401).json({ error: 'User not logged in' });
+      }
+
+      console.log(`Session check successful: username = ${parsedSession.username}`);
+    } catch (error) {
+      console.error('Error while retrieving session from Redis:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  } else {
+    console.log('Public access: sort=exif_datetime is specified, skipping auth check.');
   }
 
-  const sessionId = req.sessionID;
-  console.log(`Session ID: ${sessionId}`);
-
   try {
-    const sessionData = await redis.get(`sess:${sessionId}`);
-    console.log('sessionId:', sessionId);
-    console.log('sessionData:', sessionData);
-
-    if (!sessionData) {
-      console.warn('No session data found in Redis for this session ID.');
-      return res.status(401).json({ error: 'No session data found' });
-    }
-
-    const parsedSession = JSON.parse(sessionData);
-    console.log('parsedSession.username:', parsedSession.username);
-    if (!parsedSession.username) {
-      console.warn('Session exists, but username is not set.');
-      return res.status(401).json({ error: 'User not logged in' });
-    }
-
-    console.log(`Session check successful: username = ${parsedSession.username}`);
-
-    // Parse query parameters for pagination
-    let { limit, offset, sort } = req.query;
     limit = parseInt(limit, 10);
     offset = parseInt(offset, 10);
 
@@ -127,16 +141,21 @@ router.get('/file_list', async (req, res) => {
 
     // ORDER BY句の作成
     let orderByClause;
-    let additionalWhereClause = '';
+    let whereClause;
     
     if (sort === 'exif_datetime') {
       // Exif日時でソートする場合は、file_exif_public=trueのファイルのみをfile_exif_datetimeの降順でソート
       orderByClause = 'file_exif_datetime DESC NULLS LAST, file_createat DESC';
-      // file_exif_publicがtrueのデータのみを対象とする追加のWHERE条件
-      additionalWhereClause = 'AND file_exif_public = true AND file_exif_datetime IS NOT NULL';
+      // パブリックアクセスの場合はfile_exif_public=trueのデータのみを対象とする
+      whereClause = 'WHERE file_exif_public = true AND file_exif_datetime IS NOT NULL';
     } else {
       // デフォルトは従来通り作成日時の降順
       orderByClause = 'file_createat DESC';
+      // ユーザーIDによるフィルタリング
+      const sessionId = req.sessionID;
+      const sessionData = await redis.get(`sess:${sessionId}`);
+      const parsedSession = JSON.parse(sessionData);
+      whereClause = `WHERE user_id = '${parsedSession.username}'`;
     }
 
     // SQLクエリの準備
@@ -218,11 +237,13 @@ router.get('/file_list', async (req, res) => {
           ELSE NULL 
         END AS file_exif_image_direction
       FROM drive
-      WHERE user_id = $1 ${additionalWhereClause}
+      ${whereClause}
       ORDER BY ${orderByClause}
-      LIMIT $2 OFFSET $3;
+      LIMIT $1 OFFSET $2;
     `;
-    const values = [parsedSession.username, limit, offset];
+    
+    // パラメータの設定
+    const values = [limit, offset];
 
     try {
       const result = await client.query(query, values);
@@ -231,7 +252,7 @@ router.get('/file_list', async (req, res) => {
       const listObjectsResponse = await s3Client.send(new ListObjectsV2Command({
         Bucket: 'publicdata',
         MaxKeys: limit,
-        StartAfter: offset > 0 ? result.rows[0].file_id : undefined
+        StartAfter: offset > 0 && result.rows.length > 0 ? result.rows[0].file_id : undefined
       }));
 
       // PostgreSQLの結果にMinIOの情報を追加
@@ -260,7 +281,7 @@ router.get('/file_list', async (req, res) => {
       console.log('PostgreSQL connection closed');
     }
   } catch (error) {
-    console.error('Error while retrieving session from Redis:', error);
+    console.error('Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
