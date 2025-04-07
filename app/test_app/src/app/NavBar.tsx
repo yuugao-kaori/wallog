@@ -1,5 +1,5 @@
 'use client'
-const version = 'Dev 2025.04.01.0005'
+const version = 'Dev 2025.04.01.0006'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useState, useEffect, useMemo } from 'react'
