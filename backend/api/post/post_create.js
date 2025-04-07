@@ -156,21 +156,58 @@ async function getFileAttachments(fileIds) {
     return result.rows.map(file => {
       // MIMEタイプの判定（formatからの推測）
       let mediaType = 'application/octet-stream'; // デフォルト
-      if (file.file_format) {
-        if (['jpg', 'jpeg', 'jfif'].includes(file.file_format.toLowerCase())) {
+      
+      // ファイルIDとoriginalname/formatが.webpで終わる場合の特別処理
+      const fileIdStr = file.file_id ? file.file_id.toString() : '';
+      const originalName = file.file_originalname ? file.file_originalname.toString() : '';
+      const formatStr = file.file_format ? file.file_format.toString() : '';
+      
+      // ファイル名やファイルIDに拡張子情報が含まれている場合の処理
+      if (fileIdStr.endsWith('.webp') || originalName.endsWith('.webp') || formatStr.toLowerCase() === 'webp') {
+        mediaType = 'image/webp';
+      } else if (fileIdStr.endsWith('.png.webp') || originalName.endsWith('.png.webp')) {
+        // オリジナルがPNGでWebPに変換された場合でも、WebPとして送信
+        mediaType = 'image/webp';
+      } else if (file.file_format) {
+        // 通常の拡張子からのMIMEタイプ判定
+        const format = file.file_format.toLowerCase();
+        if (['jpg', 'jpeg', 'jfif'].includes(format)) {
           mediaType = 'image/jpeg';
-        } else if (['png'].includes(file.file_format.toLowerCase())) {
+        } else if (format === 'png') {
           mediaType = 'image/png';
-        } else if (['gif'].includes(file.file_format.toLowerCase())) {
+        } else if (format === 'gif') {
           mediaType = 'image/gif';
-        } else if (['webp'].includes(file.file_format.toLowerCase())) {
+        } else if (format === 'webp') {
           mediaType = 'image/webp';
-        } else if (['mp4'].includes(file.file_format.toLowerCase())) {
+        } else if (format === 'mp4') {
           mediaType = 'video/mp4';
-        } else if (['mp3'].includes(file.file_format.toLowerCase())) {
+        } else if (format === 'mp3') {
+          mediaType = 'audio/mpeg';
+        } else if (format === 'svg') {
+          mediaType = 'image/svg+xml';
+        } else if (format === 'pdf') {
+          mediaType = 'application/pdf';
+        }
+      }
+      
+      // ファイルIDから拡張子を取得する追加チェック
+      if (mediaType === 'application/octet-stream' && fileIdStr) {
+        if (fileIdStr.endsWith('.jpg') || fileIdStr.endsWith('.jpeg')) {
+          mediaType = 'image/jpeg';
+        } else if (fileIdStr.endsWith('.png')) {
+          mediaType = 'image/png';
+        } else if (fileIdStr.endsWith('.gif')) {
+          mediaType = 'image/gif';
+        } else if (fileIdStr.endsWith('.webp')) {
+          mediaType = 'image/webp';
+        } else if (fileIdStr.endsWith('.mp4')) {
+          mediaType = 'video/mp4';
+        } else if (fileIdStr.endsWith('.mp3')) {
           mediaType = 'audio/mpeg';
         }
       }
+      
+      console.log(`ファイル "${file.file_id}" のMIMEタイプを設定: ${mediaType}`);
       
       // 説明文の設定
       const name = file.file_exif_title || file.file_exif_description || file.file_originalname || '';
