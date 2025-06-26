@@ -472,9 +472,9 @@ export default function BlogDetail() {
 
   return (
     <CodeBlockProvider>
-      <div className="p-4 md:ml-48 lg:mr-48 relative min-h-screen flex">
+      <div className="md:ml-48 lg:mr-48 relative min-h-screen flex">
         {/* 記事本文のコンテナ */}
-        <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-8 shadow-lg">
+        <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-900 rounded-xl p-4 sm:p-6 md:p-8 shadow-lg w-full overflow-hidden">
           {blog?.blog_thumbnail && (
             <img
               src={blog.blog_thumbnail}
@@ -490,10 +490,10 @@ export default function BlogDetail() {
             </div>
           </div>
           <hr className="border-2 border-gray-200 dark:border-gray-700 mb-8" />
-          <div className="prose dark:prose-invert max-w-none mb-20">
+          <div className="prose dark:prose-invert max-w-none mb-20 w-full overflow-hidden">
             <div 
               dangerouslySetInnerHTML={{ __html: blog?.blog_pursed_text || '' }}
-              className="markdown-body 
+              className="markdown-body w-full overflow-hidden 
                 [&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mt-6 [&>h1]:mb-4 [&>h1]:pb-3 [&>h1]:border-b [&>h1]:border-gray-200 dark:[&>h1]:border-gray-700
                 [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-5 [&>h2]:mb-4 [&>h2]:pb-2 [&>h2]:border-b [&>h2]:border-gray-200 dark:[&>h2]:border-gray-700
                 [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-3
@@ -518,14 +518,24 @@ export default function BlogDetail() {
                 [&_.syntax-highlighter_code]:font-mono
                 [&_.syntax-highlighter_code]:text-base
                 [&_.code-block-wrapper]:my-4
+                [&_.code-block-wrapper]:max-w-full
+                [&_.code-block-wrapper]:overflow-x-auto
+                [&_.code-block-wrapper]:w-full
                 [&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
+                [&_.code-block-wrapper_pre]:max-w-full
+                [&_.code-block-wrapper_pre]:overflow-x-auto
                 [&_.code-block-wrapper_code]:!text-white
                 [&_.code-block-wrapper_code]:!text-base
+                [&_.code-block-wrapper_code]:break-words
+                [&_.code-block-wrapper_code]:whitespace-pre-wrap
+                [&_.code-block-wrapper_code]:word-break-keep-all
+                [&_.code-block-wrapper_code]:overflow-wrap-anywhere
                 dark:[&_.code-block-wrapper_pre]:!bg-[#1E1E1E]
                 [&_.code-block-wrapper]:rounded-lg
                 [&_.code-block-wrapper]:overflow-hidden
                 [&_.code-block-wrapper_div]:!bg-[#1E1E1E]
-                [&_.code-block-wrapper]:whitespace-pre-wrap"
+                [&_.code-block-wrapper_div]:max-w-full
+                [&_.code-block-wrapper_div]:overflow-x-auto"
               style={{ position: 'relative' }}
             />
           </div>

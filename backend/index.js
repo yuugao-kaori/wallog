@@ -118,6 +118,7 @@ import logs_createRoute from './api/logs/logs_create.js';
 import all_search from './api/search/all_search.js';
 import todo_createRoute from './api/todo/todo_create.js'; // New: TODO作成ルート追加
 import todo_updateRoute from './api/todo/todo_update.js'; // New: TODO更新ルート追加
+import todo_deleteRoute from './api/todo/todo_delete.js'; // New: TODO削除ルート追加
 import todo_listRoute from './api/todo/todo_list.js'; // New: TODOリスト取得ルート追加
 
 // blog2のtest
@@ -136,7 +137,7 @@ app.use('/api/hashtag', hashtagRankRoute);
 app.use('/api/logs', logs_readRoute, logs_createRoute);
 app.use('/api/search', all_search);
 app.use('/api/sitecard', sitecardGetRoute, sitecardUpdateRoute); // New: サイトカードAPIのルートを追加
-app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_listRoute); // TODOリスト取得ルートを追加
+app.use('/api/todo', todo_createRoute, todo_updateRoute, todo_deleteRoute, todo_listRoute); // TODOリスト取得ルートを追加
 
 // ActivityPub関連のエンドポイントを初期化
 if (process.env.ACTIVITYPUB_ENABLED === 'true') {

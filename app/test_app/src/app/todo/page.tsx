@@ -126,8 +126,9 @@ export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo')
   // カテゴリのプリセット選択肢を追加
   const categoryPresets = ['default', '買い物', '手続き', 'Wallog開発', '趣味（アニメ）', '趣味（ゲーム）']
-  // カテゴリ入力時の表示状態を管理
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
+  // カテゴリ入力時の表示状態を管理（新規作成用と編集用を分離）
+  const [showNewTodoCategoryDropdown, setShowNewTodoCategoryDropdown] = useState(false)
+  const [showEditCategoryDropdown, setShowEditCategoryDropdown] = useState(false)
 
   const api = axios.create({
     baseURL: 'https://wallog.seitendan.com',
@@ -214,6 +215,26 @@ export default function TodoPage() {
       fetchTodos()
     } catch (err) {
       setError('TODOの更新に失敗しました')
+    }
+  }
+
+  // TODOの削除
+  const deleteTodo = async (todoId: string) => {
+    if (!confirm('このTODOを削除しますか？')) {
+      return
+    }
+    
+    try {
+      await api.delete('/api/todo/', {
+        data: { todo_id: todoId }
+      })
+      // 編集中のTODOが削除されたらそのモードを終了
+      if (editingTodo?.todo_id === todoId) {
+        setEditingTodo(null)
+      }
+      fetchTodos()
+    } catch (err) {
+      setError('TODOの削除に失敗しました')
     }
   }
 
@@ -344,10 +365,11 @@ export default function TodoPage() {
                 placeholder="カテゴリ"
                 value={newTodo.todo_category}
                 onChange={(e) => setNewTodo({...newTodo, todo_category: e.target.value})}
-                onFocus={() => setShowCategoryDropdown(true)}
+                onFocus={() => setShowNewTodoCategoryDropdown(true)}
+                onBlur={() => setTimeout(() => setShowNewTodoCategoryDropdown(false), 150)}
                 className="p-2 border rounded dark:bg-gray-700 w-full"
               />
-              {showCategoryDropdown && (
+              {showNewTodoCategoryDropdown && (
                 <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border rounded shadow-lg">
                   {categoryPresets.map((category) => (
                     <div 
@@ -355,7 +377,7 @@ export default function TodoPage() {
                       className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
                       onClick={() => {
                         setNewTodo({...newTodo, todo_category: category});
-                        setShowCategoryDropdown(false);
+                        setShowNewTodoCategoryDropdown(false);
                       }}
                     >
                       {category}
@@ -546,16 +568,16 @@ export default function TodoPage() {
                 value={formatDateTimeForInput(editingTodo.todo_limitat)}
                 onChange={(e) => setEditingTodo({...editingTodo, todo_limitat: e.target.value})}
                 className="p-2 border rounded dark:bg-gray-700 w-full sm:w-auto"
-              />
-              <div className="relative w-full sm:w-auto">
+              />              <div className="relative w-full sm:w-auto">
                 <input
                   type="text"
                   value={editingTodo.todo_category}
                   onChange={(e) => setEditingTodo({...editingTodo, todo_category: e.target.value})}
-                  onFocus={() => setShowCategoryDropdown(true)}
+                  onFocus={() => setShowEditCategoryDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowEditCategoryDropdown(false), 150)}
                   className="p-2 border rounded dark:bg-gray-700 w-full"
                 />
-                {showCategoryDropdown && (
+                {showEditCategoryDropdown && (
                   <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border rounded shadow-lg">
                     {categoryPresets.map((category) => (
                       <div 
@@ -563,7 +585,7 @@ export default function TodoPage() {
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
                         onClick={() => {
                           setEditingTodo({...editingTodo, todo_category: category});
-                          setShowCategoryDropdown(false);
+                          setShowEditCategoryDropdown(false);
                         }}
                       >
                         {category}
@@ -606,6 +628,12 @@ export default function TodoPage() {
               >
                 キャンセル
               </button>
+              <button
+                onClick={() => deleteTodo(editingTodo.todo_id)}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+              >
+                削除
+              </button>
             </div>
           </div>
         ) : (
@@ -613,12 +641,15 @@ export default function TodoPage() {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold break-words">{todo.todo_text}</h3>
               {isLoggedIn && (
-                <button
-                  onClick={() => setEditingTodo(todo)}
-                  className="text-blue-500 hover:text-blue-600 ml-2 shrink-0"
-                >
-                  編集
-                </button>
+                <div className="flex gap-2 ml-2 shrink-0">
+                  <button
+                    onClick={() => setEditingTodo(todo)}
+                    className="text-blue-500 hover:text-blue-600"
+                  >
+                    編集
+                  </button>
+
+                </div>
               )}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">

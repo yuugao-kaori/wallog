@@ -151,13 +151,13 @@ const BlogPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:ml-48 dark:bg-gray-900">
+    <div className="md:ml-48 dark:bg-gray-900">
       {/* ブログカード一覧 */}
       {loading ? (
       <div className="dark:text-white">Loading...</div>
       ) : (
       <>
-        <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto"> {/* コンテナを中央寄せし、最大幅を設定 */}
+        <div className="p-4 grid grid-cols-1 gap-6 max-w-2xl mx-auto"> {/* コンテナを中央寄せし、最大幅を設定 */}
         {blogs.map((blog: any) => (
           <Link href={`/blog/${blog.blog_id}`} key={blog.blog_id}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full">
