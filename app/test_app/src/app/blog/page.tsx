@@ -3,11 +3,18 @@ import React, { useEffect, useMemo } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const BlogPage: React.FC = () => {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [blogs, setBlogs] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get('page');
+    const num = pageParam ? parseInt(pageParam, 10) : 1;
+    return !isNaN(num) && num >= 1 ? num : 1;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const ITEMS_PER_PAGE = 12;
@@ -124,20 +131,33 @@ const BlogPage: React.FC = () => {
     fetchBlogs(currentPage);
   }, [currentPage]);
 
+  // ブラウザの戻る/進むでURLクエリからページを再同期
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      const num = pageParam ? parseInt(pageParam, 10) : 1;
+      setCurrentPage(!isNaN(num) && num >= 1 ? num : 1);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   // ページ変更ハンドラー
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    window.history.pushState(null, '', `?page=${page}`);
     window.scrollTo(0, 0);
   };
 
   return (
-    <div className="p-4 md:ml-48 dark:bg-gray-900">
+    <div className="md:ml-48 dark:bg-gray-900">
       {/* ブログカード一覧 */}
       {loading ? (
       <div className="dark:text-white">Loading...</div>
       ) : (
       <>
-        <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto"> {/* コンテナを中央寄せし、最大幅を設定 */}
+        <div className="p-4 grid grid-cols-1 gap-6 max-w-2xl mx-auto"> {/* コンテナを中央寄せし、最大幅を設定 */}
         {blogs.map((blog: any) => (
           <Link href={`/blog/${blog.blog_id}`} key={blog.blog_id}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full">

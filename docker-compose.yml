@@ -10,8 +10,8 @@ services:
       - ./.env:/usr/src/app/.env
     ports:
       - "${APP_PORT}:3000"
-    # command: sh -c "npm install --force && npm run build && npm run start"
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install --force && npm run build && npm run start"
+    # command: sh -c "npm install && npm run dev"
     environment:
       - NODE_ENV=production
     restart: unless-stopped
@@ -56,7 +56,7 @@ services:
       POSTGRES_REPLICATION_PASSWORD: dbz
     volumes:
       - ./postgres/postgres-init/check-and-init.sh:/docker-entrypoint-initdb.d/check-and-init.sh
-      - db_data:/var/lib/postgresql/data
+      - ./db_data:/var/lib/postgresql/data
     restart: unless-stopped
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -106,7 +106,7 @@ services:
       - "${ELASTICSEARCH_PORT_FRONT}:9200"
       - "${ELASTICSEARCH_PORT_API}:9300"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - ./es_data:/usr/share/elasticsearch/data
     networks:
       wallog_default2:
         aliases:
@@ -132,7 +132,7 @@ services:
     networks:
       - wallog_default2
     volumes:
-      - kibana_data:/usr/share/kibana/data
+      - ./kibana_data:/usr/share/kibana/data
     ulimits:
       memlock:
         soft: -1
@@ -178,12 +178,6 @@ services:
     networks:
       - wallog_default2
 
-
-volumes:
-  db_data:
-  app_data:
-  es_data:
-  kibana_data:
 
 networks:
   wallog_default2:

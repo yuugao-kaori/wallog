@@ -1,7 +1,8 @@
 # Gitであれこれ
 git add . && git commit -m "
-'Dev 2025.04.01.0007'
-- ActivityPubに画像を送信できるように" && git push -u origin nextjs_test
+'Dev 2025.04.18.0001'
+- Blogの一覧ページにおいて、ページネーションをクエリパラメータに反映するように
+- ブラウザバックで元のページに復帰できるように" && git push -u origin nextjs_test
 # tar.gzの中身を見る
 tar ztf app.tar.gz
 

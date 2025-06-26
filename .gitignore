@@ -1,5 +1,6 @@
 */wallog_next/*
 **/db_data/**
+**/es_data/**
 **/minio/**
 sitemap.xml
 feed.xml
